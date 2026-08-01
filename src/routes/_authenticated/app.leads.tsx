@@ -26,8 +26,8 @@ export const Route = createFileRoute("/_authenticated/app/leads")({
 
 type Lead = {
   id: string;
-  first_name: string | null;
-  telegram_user_id: string;
+  name: string | null;
+  telegram_id: number | null;
   telegram_username: string | null;
   status: string;
   created_at: string;
@@ -52,7 +52,7 @@ function LeadsPage() {
     queryFn: async () => {
       let q = supabase
         .from("leads")
-        .select("id,first_name,telegram_user_id,telegram_username,status,created_at,bots(name)")
+        .select("id,name,telegram_id,telegram_username,status,created_at,bots(name)")
         .order("created_at", { ascending: false })
         .limit(200);
       if (botId !== "all") q = q.eq("bot_id", botId);
@@ -132,8 +132,8 @@ function LeadsPage() {
             <TableBody>
               {leads?.map((lead) => (
                 <TableRow key={lead.id}>
-                  <TableCell className="font-medium">{lead.first_name ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{lead.telegram_user_id}</TableCell>
+                  <TableCell className="font-medium">{lead.name ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{lead.telegram_id ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {lead.telegram_username ? `@${lead.telegram_username}` : "—"}
                   </TableCell>

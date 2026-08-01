@@ -32,7 +32,7 @@ type Payment = {
   description: string | null;
   created_at: string;
   paid_at: string | null;
-  leads: { first_name: string | null; telegram_username: string | null } | null;
+  leads: { name: string | null; telegram_username: string | null } | null;
 };
 
 const badgeVariant: Record<PaymentStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -50,7 +50,7 @@ function PaymentsPage() {
     queryFn: async () => {
       let q = supabase
         .from("payments")
-        .select("id,amount_cents,method,status,description,created_at,paid_at,leads(first_name,telegram_username)")
+        .select("id,amount_cents,method,status,description,created_at,paid_at,leads(name,telegram_username)")
         .order("created_at", { ascending: false })
         .limit(200);
       if (status !== "all") q = q.eq("status", status as PaymentStatus);
@@ -117,7 +117,7 @@ function PaymentsPage() {
               {payments?.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">
-                    {p.leads?.first_name ??
+                    {p.leads?.name ??
                       (p.leads?.telegram_username ? `@${p.leads.telegram_username}` : "—")}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.description ?? "—"}</TableCell>

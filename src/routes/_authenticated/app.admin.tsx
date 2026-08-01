@@ -25,7 +25,7 @@ function useAdminData() {
       const [profiles, bots, leads, payments, logs] = await Promise.all([
         supabase.from("profiles").select("id,full_name,email,created_at").order("created_at", { ascending: false }).limit(100),
         supabase.from("bots").select("id,name,status,created_at").order("created_at", { ascending: false }).limit(100),
-        supabase.from("leads").select("id,first_name,telegram_user_id,created_at").order("created_at", { ascending: false }).limit(100),
+        supabase.from("leads").select("id,name,telegram_id,created_at").order("created_at", { ascending: false }).limit(100),
         supabase.from("payments").select("id,amount_cents,status,created_at").order("created_at", { ascending: false }).limit(100),
         supabase.from("activity_logs").select("id,entity,action,created_at").order("created_at", { ascending: false }).limit(100),
       ]);
@@ -92,7 +92,7 @@ function AdminPage() {
           <List
             rows={(data?.leads ?? []).map((l) => ({
               id: l.id,
-              primary: l.first_name ?? l.telegram_user_id,
+              primary: l.name ?? String(l.telegram_id ?? "—"),
               secondary: formatDate(l.created_at),
             }))}
           />
