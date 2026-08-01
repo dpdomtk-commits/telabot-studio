@@ -79,14 +79,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AURUMBOT — Plataforma de bots do Telegram" },
+      { title: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
       {
         name: "description",
         content:
-          "Crie bots do Telegram, monte fluxos, capture leads e entregue produtos após o pagamento.",
+          "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:title", content: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { name: "twitter:title", content: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { property: "og:description", content: "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente." },
+      { name: "twitter:description", content: "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -96,7 +102,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,

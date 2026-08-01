@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Cadastre bots, monte fluxos por etapas, capture leads e entregue produtos após o pagamento.",
+          "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente.",
       },
     ],
   }),
