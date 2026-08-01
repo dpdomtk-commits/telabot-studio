@@ -10,33 +10,181 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
+import { Route as AuthenticatedAppBotsRouteImport } from './routes/_authenticated/app.bots'
+import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
+import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
+import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
+import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
+import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
+import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppAdminRoute = AuthenticatedAppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppBotsRoute = AuthenticatedAppBotsRouteImport.update({
+  id: '/bots',
+  path: '/bots',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppDashboardRoute =
+  AuthenticatedAppDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppPaymentsRoute =
+  AuthenticatedAppPaymentsRouteImport.update({
+    id: '/payments',
+    path: '/payments',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppSettingsRoute =
+  AuthenticatedAppSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppFlowsIndexRoute =
+  AuthenticatedAppFlowsIndexRouteImport.update({
+    id: '/flows/',
+    path: '/flows/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppFlowsFlowIdRoute =
+  AuthenticatedAppFlowsFlowIdRouteImport.update({
+    id: '/flows/$flowId',
+    path: '/flows/$flowId',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/bots': typeof AuthenticatedAppBotsRoute
+  '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/': typeof AuthenticatedAppIndexRoute
+  '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/bots': typeof AuthenticatedAppBotsRoute
+  '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app': typeof AuthenticatedAppIndexRoute
+  '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
+  '/_authenticated/app/bots': typeof AuthenticatedAppBotsRoute
+  '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/app'
+    | '/app/admin'
+    | '/app/bots'
+    | '/app/dashboard'
+    | '/app/leads'
+    | '/app/payments'
+    | '/app/settings'
+    | '/app/'
+    | '/app/flows/$flowId'
+    | '/app/flows/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/app/admin'
+    | '/app/bots'
+    | '/app/dashboard'
+    | '/app/leads'
+    | '/app/payments'
+    | '/app/settings'
+    | '/app'
+    | '/app/flows/$flowId'
+    | '/app/flows'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/app'
+    | '/_authenticated/app/admin'
+    | '/_authenticated/app/bots'
+    | '/_authenticated/app/dashboard'
+    | '/_authenticated/app/leads'
+    | '/_authenticated/app/payments'
+    | '/_authenticated/app/settings'
+    | '/_authenticated/app/'
+    | '/_authenticated/app/flows/$flowId'
+    | '/_authenticated/app/flows/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +196,136 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/admin': {
+      id: '/_authenticated/app/admin'
+      path: '/admin'
+      fullPath: '/app/admin'
+      preLoaderRoute: typeof AuthenticatedAppAdminRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/bots': {
+      id: '/_authenticated/app/bots'
+      path: '/bots'
+      fullPath: '/app/bots'
+      preLoaderRoute: typeof AuthenticatedAppBotsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/dashboard': {
+      id: '/_authenticated/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/app/dashboard'
+      preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/leads': {
+      id: '/_authenticated/app/leads'
+      path: '/leads'
+      fullPath: '/app/leads'
+      preLoaderRoute: typeof AuthenticatedAppLeadsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/payments': {
+      id: '/_authenticated/app/payments'
+      path: '/payments'
+      fullPath: '/app/payments'
+      preLoaderRoute: typeof AuthenticatedAppPaymentsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/settings': {
+      id: '/_authenticated/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/flows/': {
+      id: '/_authenticated/app/flows/'
+      path: '/flows'
+      fullPath: '/app/flows/'
+      preLoaderRoute: typeof AuthenticatedAppFlowsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/flows/$flowId': {
+      id: '/_authenticated/app/flows/$flowId'
+      path: '/flows/$flowId'
+      fullPath: '/app/flows/$flowId'
+      preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
+  AuthenticatedAppBotsRoute: typeof AuthenticatedAppBotsRoute
+  AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
+  AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
+  AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
+  AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppFlowsFlowIdRoute: typeof AuthenticatedAppFlowsFlowIdRoute
+  AuthenticatedAppFlowsIndexRoute: typeof AuthenticatedAppFlowsIndexRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
+  AuthenticatedAppBotsRoute: AuthenticatedAppBotsRoute,
+  AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
+  AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
+  AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
+  AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppFlowsFlowIdRoute: AuthenticatedAppFlowsFlowIdRoute,
+  AuthenticatedAppFlowsIndexRoute: AuthenticatedAppFlowsIndexRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
