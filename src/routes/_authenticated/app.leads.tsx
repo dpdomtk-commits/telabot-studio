@@ -37,8 +37,7 @@ type Lead = {
 const statusLabels: Record<string, string> = {
   new: "Novo",
   engaged: "Em conversa",
-  customer: "Cliente",
-  lost: "Perdido",
+  converted: "Convertido",
 };
 
 function LeadsPage() {
@@ -57,7 +56,7 @@ function LeadsPage() {
         .order("created_at", { ascending: false })
         .limit(200);
       if (botId !== "all") q = q.eq("bot_id", botId);
-      if (status !== "all") q = q.eq("status", status);
+      if (status !== "all") q = q.eq("status", status as "new" | "engaged" | "converted");
       if (from) q = q.gte("created_at", new Date(`${from}T00:00:00`).toISOString());
       if (to) q = q.lte("created_at", new Date(`${to}T23:59:59`).toISOString());
       const { data, error } = await q;
