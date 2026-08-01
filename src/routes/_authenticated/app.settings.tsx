@@ -56,7 +56,7 @@ function SettingsPage() {
     setEmail(profile.authEmail);
   }, [profile]);
 
-  async function saveProfile(e: React.FormEvent) {
+  async function saveProfile(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     const parsed = z
       .object({
@@ -64,7 +64,7 @@ function SettingsPage() {
         avatarUrl: z.string().trim().url("URL inválida").max(500).or(z.literal("")),
       })
       .safeParse({ fullName, avatarUrl });
-    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos"); return; }
 
     setSavingProfile(true);
     const { data: userData } = await supabase.auth.getUser();
@@ -73,30 +73,30 @@ function SettingsPage() {
       .update({ full_name: parsed.data.fullName, avatar_url: parsed.data.avatarUrl || null })
       .eq("id", userData.user!.id);
     setSavingProfile(false);
-    if (error) return toast.error("Não foi possível salvar o perfil");
+    if (error) { toast.error("Não foi possível salvar o perfil"); return; }
     toast.success("Perfil atualizado");
     qc.invalidateQueries({ queryKey: ["profile"] });
   }
 
-  async function saveEmail(e: React.FormEvent) {
+  async function saveEmail(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     const parsed = z.string().trim().email("E-mail inválido").safeParse(email);
-    if (!parsed.success) return toast.error("E-mail inválido");
+    if (!parsed.success) { toast.error("E-mail inválido"); return; }
     setSavingEmail(true);
     const { error } = await supabase.auth.updateUser({ email: parsed.data });
     setSavingEmail(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Confirme a alteração no link enviado para o novo e-mail");
   }
 
-  async function savePassword(e: React.FormEvent) {
+  async function savePassword(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (password.length < 8) return toast.error("A senha precisa ter ao menos 8 caracteres");
-    if (password !== confirm) return toast.error("As senhas não coincidem");
+    if (password.length < 8) { toast.error("A senha precisa ter ao menos 8 caracteres"); return; }
+    if (password !== confirm) { toast.error("As senhas não coincidem"); return; }
     setSavingPassword(true);
     const { error } = await supabase.auth.updateUser({ password });
     setSavingPassword(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setPassword("");
     setConfirm("");
     toast.success("Senha alterada");
