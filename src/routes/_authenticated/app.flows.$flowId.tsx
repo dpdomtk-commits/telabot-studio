@@ -105,7 +105,7 @@ function FlowEditor() {
 
   const saveConfig = useMutation({
     mutationFn: async ({ id, config }: { id: string; config: Record<string, unknown> }) => {
-      const { error } = await supabase.from("flow_steps").update({ config }).eq("id", id);
+      const { error } = await supabase.from("flow_steps").update({ config: config as never }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -156,7 +156,7 @@ function FlowEditor() {
 
       <PageHeader
         title={flow?.name ?? "Fluxo"}
-        description={flow?.bots?.name ? `Bot: ${flow.bots.name}` : undefined}
+        description={flow?.bots?.name ? `Bot: ${flow.bots.name}` : ""}
         action={
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Ativo</span>
