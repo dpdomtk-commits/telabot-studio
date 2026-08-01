@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppBotsRouteImport } from './routes/_authenticated/app.bots'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
+import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 
@@ -60,6 +61,12 @@ const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppPaymentsRoute =
+  AuthenticatedAppPaymentsRouteImport.update({
+    id: '/payments',
+    path: '/payments',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppFlowsIndexRoute =
   AuthenticatedAppFlowsIndexRouteImport.update({
     id: '/flows/',
@@ -80,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
@@ -103,6 +112,7 @@ export interface FileRoutesById {
   '/_authenticated/app/bots': typeof AuthenticatedAppBotsRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/app/bots'
     | '/app/dashboard'
     | '/app/leads'
+    | '/app/payments'
     | '/app/'
     | '/app/flows/$flowId'
     | '/app/flows/'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/app/bots'
     | '/app/dashboard'
     | '/app/leads'
+    | '/app/payments'
     | '/app'
     | '/app/flows/$flowId'
     | '/app/flows'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/bots'
     | '/_authenticated/app/dashboard'
     | '/_authenticated/app/leads'
+    | '/_authenticated/app/payments'
     | '/_authenticated/app/'
     | '/_authenticated/app/flows/$flowId'
     | '/_authenticated/app/flows/'
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLeadsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/payments': {
+      id: '/_authenticated/app/payments'
+      path: '/payments'
+      fullPath: '/app/payments'
+      preLoaderRoute: typeof AuthenticatedAppPaymentsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/flows/': {
       id: '/_authenticated/app/flows/'
       path: '/flows'
@@ -228,6 +248,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppBotsRoute: typeof AuthenticatedAppBotsRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
+  AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFlowsFlowIdRoute: typeof AuthenticatedAppFlowsFlowIdRoute
   AuthenticatedAppFlowsIndexRoute: typeof AuthenticatedAppFlowsIndexRoute
@@ -237,6 +258,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppBotsRoute: AuthenticatedAppBotsRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
+  AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFlowsFlowIdRoute: AuthenticatedAppFlowsFlowIdRoute,
   AuthenticatedAppFlowsIndexRoute: AuthenticatedAppFlowsIndexRoute,
