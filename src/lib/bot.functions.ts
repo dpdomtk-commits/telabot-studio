@@ -89,29 +89,32 @@ export const updatePaymentStatus = createServerFn({ method: "POST" })
       return { ok: false, message: "Sem permissão" };
     }
 
+    if (data.status === "approved") {
+      if (payment.status === "approved") return { ok: true, message: "Pagamento já aprovado" };
+      const { creditPayment } = await import("@/lib/finance.server");
+      const credited = await creditPayment(payment.id);
+      if (!credited.ok) return { ok: false, message: credited.message || "Falha ao creditar" };
+
+      await logActivity(payment.user_id, "pagamento", "situação alterada para approved", payment.id);
+      await notify(
+        payment.user_id,
+        "success",
+        "Pagamento recebido",
+        `${payment.description ?? "Cobrança"} · R$ ${(payment.amount_cents / 100).toFixed(2).replace(".", ",")} creditado na carteira`,
+        "payment",
+        payment.id,
+      );
+      if (!credited.duplicate) await deliverForPayment(payment.id);
+      return { ok: true, message: "Pagamento confirmado" };
+    }
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
       .from("payments")
-      .update({
-        status: data.status,
-        paid_at: data.status === "approved" ? new Date().toISOString() : null,
-      })
+      .update({ status: data.status, paid_at: null })
       .eq("id", payment.id);
     if (error) return { ok: false, message: error.message };
 
     await logActivity(payment.user_id, "pagamento", `situação alterada para ${data.status}`, payment.id);
-
-    if (data.status === "approved" && payment.status !== "approved") {
-      await notify(
-        payment.user_id,
-        "success",
-        "Pagamento aprovado",
-        `${payment.description ?? "Cobrança"} · R$ ${(payment.amount_cents / 100).toFixed(2).replace(".", ",")}`,
-        "payment",
-        payment.id,
-      );
-      await deliverForPayment(payment.id);
-    }
-
     return { ok: true, message: "Situação atualizada" };
   });
