@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { compileSimpleConfig, normalizeSimpleConfig } from "@/lib/flow-simple";
 
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 export type ShareResult = {
   ok: boolean;
   message: string;
@@ -14,12 +16,12 @@ export type ShareResult = {
 /** Chaves sensíveis que nunca são exportadas/importadas. */
 const BLOCKED_CONFIG_KEYS = /token|pix[_-]?key|chave[_-]?pix|api[_-]?key|secret|credential|access|webhook_secret|gateway/i;
 
-function sanitizeConfig(config: unknown): Record<string, unknown> {
+function sanitizeConfig(config: unknown): Record<string, JsonValue> {
   if (!config || typeof config !== "object") return {};
-  const out: Record<string, unknown> = {};
+  const out: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(config as Record<string, unknown>)) {
     if (BLOCKED_CONFIG_KEYS.test(key)) continue;
-    out[key] = value;
+    out[key] = value as JsonValue;
   }
   return out;
 }
@@ -29,12 +31,12 @@ export type FlowExportPayload = {
   name: string;
   description: string | null;
   mode: "simple" | "advanced";
-  simple_config: Record<string, unknown>;
+  simple_config: Record<string, JsonValue>;
   steps: Array<{
     key: string;
     type: string;
     title: string | null;
-    config: Record<string, unknown>;
+    config: Record<string, JsonValue>;
     position: number;
     position_x: number;
     position_y: number;

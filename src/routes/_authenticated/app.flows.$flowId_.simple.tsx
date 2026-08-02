@@ -131,7 +131,7 @@ function SimpleFlowPage() {
   async function save() {
     setSaving(true);
     try {
-      const result = await saveSimpleFlow({ data: { flowId, config: config as unknown as Record<string, unknown> } });
+      const result: { ok: boolean; message: string } = await saveSimpleFlow({ data: { flowId, config: config as unknown as Record<string, unknown> } });
       if (!result.ok) throw new Error(result.message);
       toast.success("Fluxo simples salvo e compilado");
     } catch (e) {

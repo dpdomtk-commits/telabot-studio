@@ -28,6 +28,7 @@ import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
+import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -130,6 +131,12 @@ const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   path: '/api/public/telegram/$botId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppFlowsFlowIdSimpleRoute =
+  AuthenticatedAppFlowsFlowIdSimpleRouteImport.update({
+    id: '/flows/$flowId_/simple',
+    path: '/flows/$flowId/simple',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -169,6 +177,7 @@ export interface FileRoutesByTo {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -191,6 +200,7 @@ export interface FileRoutesById {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows/'
+    | '/app/flows/$flowId/simple'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows'
+    | '/app/flows/$flowId/simple'
   id:
     | '__root__'
     | '/'
@@ -253,6 +265,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/_authenticated/app/flows/'
+    | '/_authenticated/app/flows/$flowId_/simple'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelegramBotIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app/flows/$flowId_/simple': {
+      id: '/_authenticated/app/flows/$flowId_/simple'
+      path: '/flows/$flowId/simple'
+      fullPath: '/app/flows/$flowId/simple'
+      preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdSimpleRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
@@ -415,6 +435,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFlowsFlowIdRoute: typeof AuthenticatedAppFlowsFlowIdRoute
   AuthenticatedAppFlowsIndexRoute: typeof AuthenticatedAppFlowsIndexRoute
+  AuthenticatedAppFlowsFlowIdSimpleRoute: typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
@@ -431,6 +452,8 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFlowsFlowIdRoute: AuthenticatedAppFlowsFlowIdRoute,
   AuthenticatedAppFlowsIndexRoute: AuthenticatedAppFlowsIndexRoute,
+  AuthenticatedAppFlowsFlowIdSimpleRoute:
+    AuthenticatedAppFlowsFlowIdSimpleRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =
