@@ -486,7 +486,15 @@ function GatewaysPage() {
                 onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
                 placeholder="email, CPF/CNPJ, telefone ou chave aleatória"
               />
+              {form.pix_key.trim() ? (
+                pixKeyCheck.valid ? (
+                  <p className="text-xs text-emerald-500">Chave válida ({pixKeyTypeLabel[pixKeyCheck.type]})</p>
+                ) : (
+                  <p className="text-xs text-destructive">{pixKeyCheck.error}</p>
+                )
+              ) : null}
             </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="gw-rname">Nome do recebedor</Label>
