@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
+import { Route as AuthenticatedAppAdminFinanceRouteImport } from './routes/_authenticated/app.admin-finance'
 import { Route as AuthenticatedAppBotsRouteImport } from './routes/_authenticated/app.bots'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
@@ -54,6 +55,12 @@ const AuthenticatedAppAdminRoute = AuthenticatedAppAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppAdminFinanceRoute =
+  AuthenticatedAppAdminFinanceRouteImport.update({
+    id: '/admin-finance',
+    path: '/admin-finance',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppBotsRoute = AuthenticatedAppBotsRouteImport.update({
   id: '/bots',
   path: '/bots',
@@ -110,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/admin-finance': typeof AuthenticatedAppAdminFinanceRoute
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -125,6 +133,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/admin-finance': typeof AuthenticatedAppAdminFinanceRoute
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -143,6 +152,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
+  '/_authenticated/app/admin-finance': typeof AuthenticatedAppAdminFinanceRoute
   '/_authenticated/app/bots': typeof AuthenticatedAppBotsRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app'
     | '/app/admin'
+    | '/app/admin-finance'
     | '/app/bots'
     | '/app/dashboard'
     | '/app/finance'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app/admin'
+    | '/app/admin-finance'
     | '/app/bots'
     | '/app/dashboard'
     | '/app/finance'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/app'
     | '/_authenticated/app/admin'
+    | '/_authenticated/app/admin-finance'
     | '/_authenticated/app/bots'
     | '/_authenticated/app/dashboard'
     | '/_authenticated/app/finance'
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/app/admin'
       preLoaderRoute: typeof AuthenticatedAppAdminRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/admin-finance': {
+      id: '/_authenticated/app/admin-finance'
+      path: '/admin-finance'
+      fullPath: '/app/admin-finance'
+      preLoaderRoute: typeof AuthenticatedAppAdminFinanceRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/bots': {
@@ -324,6 +344,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
+  AuthenticatedAppAdminFinanceRoute: typeof AuthenticatedAppAdminFinanceRoute
   AuthenticatedAppBotsRoute: typeof AuthenticatedAppBotsRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
@@ -337,6 +358,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
+  AuthenticatedAppAdminFinanceRoute: AuthenticatedAppAdminFinanceRoute,
   AuthenticatedAppBotsRoute: AuthenticatedAppBotsRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
