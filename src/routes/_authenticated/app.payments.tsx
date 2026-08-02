@@ -1,11 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { updatePaymentStatus } from "@/lib/bot.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { downloadCsv } from "@/lib/csv";
 import { formatBRL, formatDate, paymentStatusLabels } from "@/lib/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,6 +48,7 @@ const badgeVariant: Record<PaymentStatus, "default" | "secondary" | "destructive
 };
 
 function PaymentsPage() {
+  const qc = useQueryClient();
   const [status, setStatus] = useState("all");
 
   const { data: payments, isLoading } = useQuery({
@@ -60,13 +66,55 @@ function PaymentsPage() {
     },
   });
 
+  const changeStatus = useMutation({
+    mutationFn: async (vars: { paymentId: string; status: PaymentStatus }) => {
+      const result = await updatePaymentStatus({ data: vars });
+      if (!result.ok) throw new Error(result.message);
+      return vars.status;
+    },
+    onSuccess: (next) => {
+      toast.success(
+        next === "approved"
+          ? "Pagamento confirmado — entrega automática disparada"
+          : "Situação atualizada",
+      );
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível atualizar"),
+  });
+
   const total = (payments ?? []).filter((p) => p.status === "approved").reduce((s, p) => s + p.amount_cents, 0);
 
   return (
     <div>
       <PageHeader
         title="Pagamentos"
-        description="Estrutura pronta para PIX. A integração com gateway entra numa próxima etapa."
+        description="Confirme o PIX manualmente para liberar a entrega automática do produto."
+        action={
+          <Button
+            variant="secondary"
+            disabled={(payments?.length ?? 0) === 0}
+            onClick={() =>
+              downloadCsv(
+                `pagamentos-${new Date().toISOString().slice(0, 10)}.csv`,
+                ["Cliente", "Descrição", "Método", "Valor (R$)", "Situação", "Criado em", "Pago em"],
+                (payments ?? []).map((p) => [
+                  p.leads?.name ?? p.leads?.telegram_username ?? "",
+                  p.description ?? "",
+                  p.method,
+                  (p.amount_cents / 100).toFixed(2).replace(".", ","),
+                  paymentStatusLabels[p.status] ?? p.status,
+                  formatDate(p.created_at),
+                  p.paid_at ? formatDate(p.paid_at) : "",
+                ]),
+              )
+            }
+          >
+            <Download /> Exportar CSV
+          </Button>
+        }
       />
 
       <div className="panel mb-4 flex flex-wrap items-end justify-between gap-4 p-4">
@@ -111,6 +159,7 @@ function PaymentsPage() {
                 <TableHead>Situação</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead>Pago em</TableHead>
+                <TableHead className="text-right">Alterar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -128,6 +177,26 @@ function PaymentsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.created_at)}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.paid_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Select
+                      value={p.status}
+                      onValueChange={(v) =>
+                        changeStatus.mutate({ paymentId: p.id, status: v as PaymentStatus })
+                      }
+                      disabled={changeStatus.isPending}
+                    >
+                      <SelectTrigger className="ml-auto w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(paymentStatusLabels).map(([v, l]) => (
+                          <SelectItem key={v} value={v}>
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -55,6 +55,8 @@ export type Database = {
           token: string
           updated_at: string
           user_id: string
+          webhook_secret: string
+          webhook_set_at: string | null
         }
         Insert: {
           created_at?: string
@@ -66,6 +68,8 @@ export type Database = {
           token: string
           updated_at?: string
           user_id: string
+          webhook_secret?: string
+          webhook_set_at?: string | null
         }
         Update: {
           created_at?: string
@@ -77,6 +81,8 @@ export type Database = {
           token?: string
           updated_at?: string
           user_id?: string
+          webhook_secret?: string
+          webhook_set_at?: string | null
         }
         Relationships: []
       }
@@ -84,6 +90,7 @@ export type Database = {
         Row: {
           created_at: string
           delivered_at: string | null
+          error: string | null
           flow_step_id: string | null
           id: string
           payment_id: string | null
@@ -93,6 +100,7 @@ export type Database = {
         Insert: {
           created_at?: string
           delivered_at?: string | null
+          error?: string | null
           flow_step_id?: string | null
           id?: string
           payment_id?: string | null
@@ -102,6 +110,7 @@ export type Database = {
         Update: {
           created_at?: string
           delivered_at?: string | null
+          error?: string | null
           flow_step_id?: string | null
           id?: string
           payment_id?: string | null
@@ -244,6 +253,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          entity: string | null
+          entity_id: string | null
+          id: string
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          read_at?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       payments: {
         Row: {

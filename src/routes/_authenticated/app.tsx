@@ -2,6 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app/AppSidebar";
+import { NotificationBell } from "@/components/app/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -36,6 +37,9 @@ function AppLayout() {
           <header className="flex h-14 items-center gap-3 border-b border-border px-4">
             <SidebarTrigger />
             <span className="text-sm text-muted-foreground">Painel</span>
+            <div className="ml-auto">
+              <NotificationBell />
+            </div>
           </header>
           <main className="flex-1 p-6">
             <div className="mx-auto max-w-6xl">

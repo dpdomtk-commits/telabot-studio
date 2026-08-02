@@ -63,12 +63,27 @@ function Dashboard() {
         });
       }
 
+      const months: { key: string; label: string; total: number; count: number }[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const rows = approved.filter((p) => p.created_at.slice(0, 7) === key);
+        months.push({
+          key,
+          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+          total: rows.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
+          count: rows.length,
+        });
+      }
+
       return {
         bots: bots.count ?? 0,
         leadsToday: leadsToday.count ?? 0,
         approved: approved.length,
         revenue,
         days,
+        months,
         logs: logs.data ?? [],
       };
     },
@@ -131,6 +146,19 @@ function Dashboard() {
               <Area type="monotone" dataKey="vendas" stroke="var(--color-chart-2)" fill="url(#gVendas)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="panel mt-6 p-5">
+        <p className="text-sm font-medium">Resumo mensal da receita</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {(data?.months ?? []).map((m) => (
+            <div key={m.key} className="rounded-md border border-border p-3">
+              <p className="text-xs capitalize text-muted-foreground">{m.label}</p>
+              <p className="mt-1 font-display text-lg font-bold">{formatBRL(m.total)}</p>
+              <p className="text-xs text-muted-foreground">{m.count} venda(s)</p>
+            </div>
+          ))}
         </div>
       </div>
 

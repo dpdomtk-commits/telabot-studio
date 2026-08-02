@@ -22,6 +22,7 @@ import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
+import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -92,6 +93,11 @@ const AuthenticatedAppFlowsFlowIdRoute =
     path: '/flows/$flowId',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
+  id: '/api/public/telegram/$botId',
+  path: '/api/public/telegram/$botId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRoutesById {
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/'
     | '/app/flows/$flowId'
+    | '/api/public/telegram/$botId'
     | '/app/flows/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app'
     | '/app/flows/$flowId'
+    | '/api/public/telegram/$botId'
     | '/app/flows'
   id:
     | '__root__'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/settings'
     | '/_authenticated/app/'
     | '/_authenticated/app/flows/$flowId'
+    | '/api/public/telegram/$botId'
     | '/_authenticated/app/flows/'
   fileRoutesById: FileRoutesById
 }
@@ -185,6 +197,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicTelegramBotIdRoute: typeof ApiPublicTelegramBotIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/api/public/telegram/$botId': {
+      id: '/api/public/telegram/$botId'
+      path: '/api/public/telegram/$botId'
+      fullPath: '/api/public/telegram/$botId'
+      preLoaderRoute: typeof ApiPublicTelegramBotIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
