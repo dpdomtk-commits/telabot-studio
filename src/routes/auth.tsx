@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot } from "lucide-react";
+import markAsset from "@/assets/aurumbot-mark.png.asset.json";
 
 const particles = Array.from({ length: 26 }, (_, i) => ({
   x: (i * 37) % 100,

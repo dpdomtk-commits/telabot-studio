@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import markAsset from "@/assets/aurumbot-mark.png.asset.json";
 import { Bot, GitBranch, Users, CreditCard, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
