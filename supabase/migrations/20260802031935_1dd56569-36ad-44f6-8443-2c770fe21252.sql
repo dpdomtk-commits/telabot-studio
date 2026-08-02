@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS wallets_no_client_writes ON public.wallets;
