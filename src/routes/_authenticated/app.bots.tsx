@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { validateTelegramToken } from "@/lib/telegram.functions";
+import { enableBotWebhook, disableBotWebhook } from "@/lib/bot.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,16 +98,20 @@ function BotsPage() {
 
   const toggle = useMutation({
     mutationFn: async (bot: BotRow) => {
-      const next = bot.status === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("bots").update({ status: next }).eq("id", bot.id);
-      if (error) throw error;
-      await logActivity("bot", next === "active" ? "ativado" : "desativado", bot.id);
+      const activating = bot.status !== "active";
+      const result = activating
+        ? await enableBotWebhook({ data: { botId: bot.id } })
+        : await disableBotWebhook({ data: { botId: bot.id } });
+      if (!result.ok) throw new Error(result.message);
+      return { activating };
     },
-    onSuccess: () => {
+    onSuccess: ({ activating }) => {
+      toast.success(activating ? "Bot ativado e conectado ao Telegram" : "Bot desativado");
       qc.invalidateQueries({ queryKey: ["bots"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: () => toast.error("Não foi possível alterar a situação"),
+    onError: (e: Error) => toast.error(e.message || "Não foi possível alterar a situação"),
   });
 
   const remove = useMutation({
