@@ -93,7 +93,7 @@ function FinancePage() {
         ledger: ledger.data ?? [],
         charges: charges.data ?? [],
         withdrawals: withdrawals.data ?? [],
-        settings: settings.data,
+        settings,
         since: since.toISOString(),
       };
     },
