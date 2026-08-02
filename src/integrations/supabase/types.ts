@@ -295,6 +295,51 @@ export type Database = {
           },
         ]
       }
+      flow_imports: {
+        Row: {
+          created_at: string
+          created_flow_id: string | null
+          id: string
+          share_code: string | null
+          source: string
+          template_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_flow_id?: string | null
+          id?: string
+          share_code?: string | null
+          source?: string
+          template_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_flow_id?: string | null
+          id?: string
+          share_code?: string | null
+          source?: string
+          template_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_imports_created_flow_id_fkey"
+            columns: ["created_flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_imports_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "flow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flow_logs: {
         Row: {
           created_at: string
@@ -353,6 +398,113 @@ export type Database = {
           },
         ]
       }
+      flow_marketplace: {
+        Row: {
+          created_at: string
+          featured: boolean
+          id: string
+          installs: number
+          price_cents: number
+          rating: number
+          status: string
+          summary: string | null
+          template_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          featured?: boolean
+          id?: string
+          installs?: number
+          price_cents?: number
+          rating?: number
+          status?: string
+          summary?: string | null
+          template_id: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          featured?: boolean
+          id?: string
+          installs?: number
+          price_cents?: number
+          rating?: number
+          status?: string
+          summary?: string | null
+          template_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_marketplace_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "flow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_shares: {
+        Row: {
+          code: string
+          created_at: string
+          flow_id: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          template_id: string | null
+          updated_at: string
+          user_id: string
+          uses: number
+        }
+        Insert: {
+          code?: string
+          created_at?: string
+          flow_id?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          flow_id?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_shares_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_shares_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "flow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flow_steps: {
         Row: {
           config: Json
@@ -403,6 +555,62 @@ export type Database = {
           },
         ]
       }
+      flow_templates: {
+        Row: {
+          category: string
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          install_count: number
+          is_public: boolean
+          mode: Database["public"]["Enums"]["flow_mode"]
+          name: string
+          payload: Json
+          source_flow_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          install_count?: number
+          is_public?: boolean
+          mode?: Database["public"]["Enums"]["flow_mode"]
+          name: string
+          payload?: Json
+          source_flow_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          install_count?: number
+          is_public?: boolean
+          mode?: Database["public"]["Enums"]["flow_mode"]
+          name?: string
+          payload?: Json
+          source_flow_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_templates_source_flow_id_fkey"
+            columns: ["source_flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flows: {
         Row: {
           bot_id: string
@@ -411,7 +619,10 @@ export type Database = {
           gateway_id: string | null
           id: string
           is_active: boolean
+          mode: Database["public"]["Enums"]["flow_mode"]
           name: string
+          share_code: string | null
+          simple_config: Json
           status: Database["public"]["Enums"]["flow_status"]
           updated_at: string
           user_id: string
@@ -423,7 +634,10 @@ export type Database = {
           gateway_id?: string | null
           id?: string
           is_active?: boolean
+          mode?: Database["public"]["Enums"]["flow_mode"]
           name: string
+          share_code?: string | null
+          simple_config?: Json
           status?: Database["public"]["Enums"]["flow_status"]
           updated_at?: string
           user_id: string
@@ -435,7 +649,10 @@ export type Database = {
           gateway_id?: string | null
           id?: string
           is_active?: boolean
+          mode?: Database["public"]["Enums"]["flow_mode"]
           name?: string
+          share_code?: string | null
+          simple_config?: Json
           status?: Database["public"]["Enums"]["flow_status"]
           updated_at?: string
           user_id?: string
@@ -1193,6 +1410,7 @@ export type Database = {
         Args: { _ip?: string; _payment_id: string }
         Returns: Json
       }
+      generate_flow_code: { Args: never; Returns: string }
       generate_transaction_reference: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -1231,6 +1449,7 @@ export type Database = {
         | "completed"
         | "failed"
         | "cancelled"
+      flow_mode: "simple" | "advanced"
       flow_node_type:
         | "start"
         | "message"
@@ -1432,6 +1651,7 @@ export const Constants = {
         "failed",
         "cancelled",
       ],
+      flow_mode: ["simple", "advanced"],
       flow_node_type: [
         "start",
         "message",
