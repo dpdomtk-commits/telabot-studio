@@ -266,16 +266,18 @@ function GatewaysPage() {
       <PageHeader
         title="Gateways"
         description="Múltiplos provedores de pagamento com prioridade, fallback inteligente, split e roteamento por fluxo."
-      >
-        <Button
-          onClick={() => {
-            setForm(emptyForm);
-            setOpen(true);
-          }}
-        >
-          <Plus className="mr-2 size-4" /> Novo gateway
-        </Button>
-      </PageHeader>
+        action={
+          <Button
+            onClick={() => {
+              setForm(emptyForm);
+              setOpen(true);
+            }}
+          >
+            <Plus className="mr-2 size-4" /> Novo gateway
+          </Button>
+        }
+      />
+
 
       <Tabs defaultValue="list">
         <TabsList>
