@@ -3,7 +3,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { compileSimpleConfig, normalizeSimpleConfig } from "@/lib/flow-simple";
 
-export type ShareResult = { ok: boolean; message: string; code?: string; flowId?: string; payload?: unknown };
+export type ShareResult = {
+  ok: boolean;
+  message: string;
+  code?: string;
+  flowId?: string;
+  payload?: FlowExportPayload;
+};
 
 /** Chaves sensíveis que nunca são exportadas/importadas. */
 const BLOCKED_CONFIG_KEYS = /token|pix[_-]?key|chave[_-]?pix|api[_-]?key|secret|credential|access|webhook_secret|gateway/i;
