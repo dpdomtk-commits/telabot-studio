@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+import { validatePixCode } from "@/lib/payments/pix";
   formatBRL,
   formatDate,
   formatDay,
@@ -424,7 +425,7 @@ function PixCard({ charge }: { charge: Charge }) {
           gere a cobrança novamente.
         </p>
         <ul className="list-inside list-disc text-xs text-destructive">
-          {check.errors.map((e) => (
+          {check.errors.map((e: string) => (
             <li key={e}>{e}</li>
           ))}
         </ul>
