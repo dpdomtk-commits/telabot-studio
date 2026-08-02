@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import markAsset from "@/assets/aurumbot-mark.png.asset.json";
 import { Bot, GitBranch, Users, CreditCard, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -35,7 +36,12 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <span className="font-display text-lg font-bold tracking-tight">
+        <span className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight">
+          <img
+            src={markAsset.url}
+            alt="Logo AURUMBOT"
+            className="size-9 rounded-xl border border-border object-cover"
+          />
           AURUM<span className="text-primary">BOT</span>
         </span>
         <Button asChild size="sm">
