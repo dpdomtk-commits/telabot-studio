@@ -256,7 +256,10 @@ export function buildPixPayload(input: PixPayloadInput): string {
   const txid = sanitizeTxid(input.reference);
   const name = sanitizeText(input.merchantName, 25) || "RECEBEDOR";
   const city = sanitizeText(input.merchantCity, 15) || "SAO PAULO";
-  const description = input.description ? sanitizeText(input.description, 72 - keyCheck.key.length - 4) : "";
+  // O objeto 26 inteiro cabe em 99 bytes: GUI (18) + chave (4 + n) + descrição (4 + n).
+  const descriptionRoom = Math.min(72, 99 - 18 - (4 + keyCheck.key.length) - 4);
+  const description =
+    input.description && descriptionRoom > 0 ? sanitizeText(input.description, descriptionRoom) : "";
 
   const merchantAccount =
     tag("00", "br.gov.bcb.pix") + tag("01", keyCheck.key) + (description ? tag("02", description) : "");
