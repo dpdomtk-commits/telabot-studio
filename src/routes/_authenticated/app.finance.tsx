@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { Copy, Wallet, Clock, ArrowDownToLine, TrendingUp } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { requestWithdrawal } from "@/lib/finance.functions";
+import { getFinanceFees, requestWithdrawal } from "@/lib/finance.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
