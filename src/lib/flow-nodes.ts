@@ -26,11 +26,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export type MediaKind = "image" | "video" | "audio" | "document";
+
 export type NodeField = {
   key: string;
   label: string;
-  kind: "text" | "textarea" | "number";
+  kind: "text" | "textarea" | "number" | "media";
   placeholder?: string;
+  /** Tipo de mídia aceito quando kind === "media". */
+  mediaKind?: MediaKind;
 };
 
 export type NodeGroup = "início" | "conteúdo" | "interação" | "lógica" | "monetização" | "acesso";
@@ -58,16 +62,22 @@ const area = (key: string, label: string, placeholder?: string): NodeField => ({
   kind: "textarea",
   ...(placeholder ? { placeholder } : {}),
 });
+const media = (mediaKind: MediaKind): NodeField => ({
+  key: "file_id",
+  label: "Arquivo",
+  kind: "media",
+  mediaKind,
+});
 const num = (key: string, label: string): NodeField => ({ key, label, kind: "number" });
 
 export const nodeDefinitions: NodeDefinition[] = [
   { type: "start", label: "Início", group: "início", icon: Play, accent: "primary", fields: [text("trigger", "Comando de disparo", "/start")] },
 
   { type: "message", label: "Mensagem", group: "conteúdo", icon: MessageSquare, accent: "chart-2", fields: [area("text", "Texto da mensagem")] },
-  { type: "image", label: "Imagem", group: "conteúdo", icon: ImageIcon, accent: "chart-2", fields: [text("url", "URL da imagem"), text("caption", "Legenda")] },
-  { type: "video", label: "Vídeo", group: "conteúdo", icon: Video, accent: "chart-2", fields: [text("url", "URL do vídeo"), text("caption", "Legenda")] },
-  { type: "audio", label: "Áudio", group: "conteúdo", icon: Mic, accent: "chart-2", fields: [text("url", "URL do áudio"), text("caption", "Legenda")] },
-  { type: "document", label: "Documento", group: "conteúdo", icon: FileText, accent: "chart-2", fields: [text("url", "URL do arquivo"), text("caption", "Legenda")] },
+  { type: "image", label: "Imagem", group: "conteúdo", icon: ImageIcon, accent: "chart-2", fields: [media("image"), text("caption", "Legenda")] },
+  { type: "video", label: "Vídeo", group: "conteúdo", icon: Video, accent: "chart-2", fields: [media("video"), text("caption", "Legenda")] },
+  { type: "audio", label: "Áudio", group: "conteúdo", icon: Mic, accent: "chart-2", fields: [media("audio"), text("caption", "Legenda")] },
+  { type: "document", label: "Documento", group: "conteúdo", icon: FileText, accent: "chart-2", fields: [media("document"), text("caption", "Legenda")] },
 
   {
     type: "button",
