@@ -142,28 +142,38 @@ export async function runFlowForLead(params: {
       const seconds = Math.min(Number(config["seconds"]) || 0, 5);
       if (seconds > 0) await new Promise((r) => setTimeout(r, seconds * 1000));
     } else if (step.type === "payment") {
+      const { createPixCharge } = await import("@/lib/finance.server");
       const amount = Math.round((Number(config["amount"]) || 0) * 100);
       const description = str(config, "description") || "Pagamento";
-      const { data: payment } = await supabaseAdmin
-        .from("payments")
-        .insert({
-          user_id: params.userId,
-          bot_id: params.botId,
-          lead_id: params.leadId,
-          amount_cents: amount,
-          description,
-          method: "pix",
-          status: "pending",
-        })
-        .select("id")
-        .maybeSingle();
+      const productName = str(config, "product_name") || null;
+      const successMessage = str(config, "success_message") || null;
+      const expiresMinutes = Number(config["expires_minutes"]) || 0;
 
-      result = await sendMessage(
-        params.token,
-        params.chatId,
-        `<b>${description}</b>\nValor: R$ ${(amount / 100).toFixed(2).replace(".", ",")}\n\nAssim que o PIX for confirmado, o produto é entregue automaticamente aqui.`,
-      );
-      await logActivity(params.userId, "pagamento", "cobrança criada", payment?.id);
+      const charge = await createPixCharge({
+        userId: params.userId,
+        botId: params.botId,
+        leadId: params.leadId,
+        amountCents: amount,
+        description,
+        productName,
+        successMessage,
+        expiresAt:
+          expiresMinutes > 0 ? new Date(Date.now() + expiresMinutes * 60000).toISOString() : null,
+        idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
+      });
+
+      const lines = [
+        `<b>${productName ?? description}</b>`,
+        `Valor: R$ ${(amount / 100).toFixed(2).replace(".", ",")}`,
+      ];
+      if (charge.pix_code) {
+        lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
+      }
+      if (expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${expiresMinutes} minutos.`);
+      lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
+
+      result = await sendMessage(params.token, params.chatId, lines.join("\n"));
+      await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
       if (!result.ok) {
         await notify(
           params.userId,
@@ -198,7 +208,7 @@ export async function runFlowForLead(params: {
 export async function deliverForPayment(paymentId: string) {
   const { data: payment } = await supabaseAdmin
     .from("payments")
-    .select("id,user_id,bot_id,lead_id,amount_cents,description")
+    .select("id,user_id,bot_id,lead_id,amount_cents,description,success_message")
     .eq("id", paymentId)
     .maybeSingle();
   if (!payment || !payment.bot_id) return;
@@ -251,7 +261,7 @@ export async function deliverForPayment(paymentId: string) {
       result = await sendMessage(
         bot.token,
         Number(lead.telegram_id),
-        `✅ Pagamento confirmado!\n\n${content}`,
+        `✅ ${payment.success_message ?? "Pagamento confirmado!"}\n\n${content}`,
       );
     }
 

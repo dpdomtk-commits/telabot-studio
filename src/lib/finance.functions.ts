@@ -58,10 +58,6 @@ const resolveSchema = z.object({
   reason: z.string().trim().max(300).optional(),
 });
 
-async function assertAdmin(context: { supabase: ReturnType<typeof Object> } & { userId: string; supabase: never }) {
-  void context;
-}
-
 /** Aprova, paga ou recusa um saque (somente administradores). */
 export const resolveWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
