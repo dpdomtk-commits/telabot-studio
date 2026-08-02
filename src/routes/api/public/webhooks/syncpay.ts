@@ -57,7 +57,7 @@ export const Route = createFileRoute("/api/public/webhooks/syncpay")({
           provider: "syncpay",
           event_id: parsed.data.id,
           event_type: eventType,
-          payload: JSON.parse(raw) as Record<string, unknown>,
+          payload: JSON.parse(raw) as never,
         });
         if (dedupeError) {
           return Response.json({ ok: true, duplicate: true });
