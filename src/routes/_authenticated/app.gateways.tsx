@@ -146,6 +146,7 @@ function GatewaysPage() {
   });
 
   const gateways = data?.gateways ?? [];
+  const pixKeyCheck = validatePixKey(form.pix_key);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -153,6 +154,9 @@ function GatewaysPage() {
       const uid = userData.user?.id;
       if (!uid) throw new Error("Sessão expirada");
       if (form.name.trim().length < 2) throw new Error("Informe um nome para o gateway");
+      if (!pixKeyCheck.valid) throw new Error(pixKeyCheck.error);
+
+
 
       const payload = {
         user_id: uid,
