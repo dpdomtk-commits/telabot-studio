@@ -21,6 +21,7 @@ import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppGatewaysRouteImport } from './routes/_authenticated/app.gateways'
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
+import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/app.marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/app.media'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -92,6 +93,12 @@ const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppMarketplaceRoute =
+  AuthenticatedAppMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -149,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -169,6 +177,7 @@ export interface FileRoutesByTo {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -192,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/_authenticated/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
     | '/app/settings'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
     | '/app/settings'
@@ -257,6 +269,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/finance'
     | '/_authenticated/app/gateways'
     | '/_authenticated/app/leads'
+    | '/_authenticated/app/marketplace'
     | '/_authenticated/app/media'
     | '/_authenticated/app/payments'
     | '/_authenticated/app/settings'
@@ -362,6 +375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLeadsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/marketplace': {
+      id: '/_authenticated/app/marketplace'
+      path: '/marketplace'
+      fullPath: '/app/marketplace'
+      preLoaderRoute: typeof AuthenticatedAppMarketplaceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/media': {
       id: '/_authenticated/app/media'
       path: '/media'
@@ -429,6 +449,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppGatewaysRoute: typeof AuthenticatedAppGatewaysRoute
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
+  AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -446,6 +467,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppGatewaysRoute: AuthenticatedAppGatewaysRoute,
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
+  AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,

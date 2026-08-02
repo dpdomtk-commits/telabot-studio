@@ -16,10 +16,17 @@ import {
   Repeat,
   TrendingUp,
   PencilLine,
+  Download,
+  Upload,
+  Share2,
+  Store,
+  LayoutList,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBots } from "./app.bots";
 import { duplicateFlow } from "@/lib/flow.functions";
+import { exportFlow, importFlow, shareFlow, publishToMarketplace } from "@/lib/flow-share.functions";
+import { defaultSimpleConfig } from "@/lib/flow-simple";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,16 +51,18 @@ export const Route = createFileRoute("/_authenticated/app/flows/")({
       { title: "Fluxos | AURUMBOT" },
       {
         name: "description",
-        content: "Crie fluxos visuais de venda no Telegram com PIX, assinaturas, upsell e liberação de acesso VIP.",
+        content:
+          "Crie fluxos no modo simples por páginas ou no editor visual avançado, com exportação, importação e marketplace.",
       },
       { property: "og:title", content: "Fluxos | AURUMBOT" },
-      { property: "og:description", content: "Fluxos visuais de venda no Telegram com PIX e assinaturas." },
+      { property: "og:description", content: "Fluxos simples e avançados para vendas no Telegram com PIX." },
     ],
   }),
   component: FlowsPage,
 });
 
 type FlowStatus = "draft" | "active" | "archived";
+type FlowMode = "simple" | "advanced";
 
 export type FlowRow = {
   id: string;
@@ -61,6 +70,8 @@ export type FlowRow = {
   description: string | null;
   bot_id: string;
   status: FlowStatus;
+  mode: FlowMode;
+  share_code: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -87,7 +98,18 @@ function FlowsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [botId, setBotId] = useState("");
+  const [mode, setMode] = useState<FlowMode>("simple");
   const [filter, setFilter] = useState<"live" | "archived">("live");
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBotId, setImportBotId] = useState("");
+  const [importCode, setImportCode] = useState("");
+  const [importJson, setImportJson] = useState("");
+
+  const [shareFlowRow, setShareFlowRow] = useState<FlowRow | null>(null);
+  const [shareCode, setShareCode] = useState<string | null>(null);
+  const [publishTitle, setPublishTitle] = useState("");
+  const [publishSummary, setPublishSummary] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["flows-overview"],
@@ -95,7 +117,9 @@ function FlowsPage() {
       const [flows, leads, payments, subscriptions] = await Promise.all([
         supabase
           .from("flows")
-          .select("id,name,description,bot_id,status,is_active,created_at,updated_at,bots(name)")
+          .select(
+            "id,name,description,bot_id,status,mode,share_code,is_active,created_at,updated_at,bots(name)",
+          )
           .order("updated_at", { ascending: false }),
         supabase.from("leads").select("id,status"),
         supabase.from("payments").select("amount_cents,net_cents,status"),
@@ -136,6 +160,8 @@ function FlowsPage() {
           bot_id: parsed.botId,
           user_id: userData.user.id,
           status: "draft",
+          mode,
+          simple_config: mode === "simple" ? (defaultSimpleConfig() as never) : ({} as never),
         })
         .select("id")
         .maybeSingle();
@@ -161,7 +187,9 @@ function FlowsPage() {
       setName("");
       setDescription("");
       qc.invalidateQueries({ queryKey: ["flows-overview"] });
-      if (flowId) navigate({ to: "/app/flows/$flowId", params: { flowId } });
+      if (!flowId) return;
+      if (mode === "simple") navigate({ to: "/app/flows/$flowId/simple", params: { flowId } });
+      else navigate({ to: "/app/flows/$flowId", params: { flowId } });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -181,6 +209,19 @@ function FlowsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const switchMode = useMutation({
+    mutationFn: async (vars: { id: string; mode: FlowMode }) => {
+      const { error } = await supabase.from("flows").update({ mode: vars.mode }).eq("id", vars.id);
+      if (error) throw error;
+    },
+    onSuccess: (_r, vars) => {
+      qc.invalidateQueries({ queryKey: ["flows-overview"] });
+      if (vars.mode === "simple") navigate({ to: "/app/flows/$flowId/simple", params: { flowId: vars.id } });
+      else navigate({ to: "/app/flows/$flowId", params: { flowId: vars.id } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const duplicate = useMutation({
     mutationFn: async (flowId: string) => {
       const result = await duplicateFlow({ data: { flowId } });
@@ -191,6 +232,76 @@ function FlowsPage() {
       qc.invalidateQueries({ queryKey: ["flows-overview"] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const exportOne = useMutation({
+    mutationFn: async (flow: FlowRow) => {
+      const result = await exportFlow({ data: { flowId: flow.id } });
+      if (!result.ok || !result.payload) throw new Error(result.message);
+      const blob = new Blob([JSON.stringify(result.payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${flow.name.replace(/[^\w-]+/g, "-").toLowerCase()}.aurumflow.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    onSuccess: () => toast.success("Fluxo exportado"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const share = useMutation({
+    mutationFn: async (flowId: string) => {
+      const result = await shareFlow({ data: { flowId } });
+      if (!result.ok || !result.code) throw new Error(result.message);
+      return result.code;
+    },
+    onSuccess: (code) => {
+      setShareCode(code);
+      qc.invalidateQueries({ queryKey: ["flows-overview"] });
+      toast.success("Código de compartilhamento pronto");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const publish = useMutation({
+    mutationFn: async (flowId: string) => {
+      const result = await publishToMarketplace({
+        data: { flowId, title: publishTitle.trim(), summary: publishSummary.trim() || undefined, category: "geral" },
+      });
+      if (!result.ok) throw new Error(result.message);
+    },
+    onSuccess: () => {
+      toast.success("Enviado para o marketplace");
+      setPublishTitle("");
+      setPublishSummary("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const runImport = useMutation({
+    mutationFn: async () => {
+      if (!importBotId) throw new Error("Escolha o bot de destino");
+      const payload = importJson.trim() ? JSON.parse(importJson) : undefined;
+      const result: { ok: boolean; message: string; flowId?: string } = await importFlow({
+        data: {
+          botId: importBotId,
+          ...(importCode.trim() ? { code: importCode.trim().toUpperCase() } : {}),
+          ...(payload ? { payload } : {}),
+        },
+      });
+      if (!result.ok) throw new Error(result.message);
+      return result.flowId ?? null;
+    },
+    onSuccess: (flowId) => {
+      toast.success("Fluxo importado");
+      setImportOpen(false);
+      setImportCode("");
+      setImportJson("");
+      qc.invalidateQueries({ queryKey: ["flows-overview"] });
+      if (flowId) navigate({ to: "/app/flows/$flowId", params: { flowId } });
+    },
+    onError: (e: Error) => toast.error(e instanceof SyntaxError ? "JSON inválido" : e.message),
   });
 
   const remove = useMutation({
@@ -222,11 +333,21 @@ function FlowsPage() {
     <div>
       <PageHeader
         title="Fluxos"
-        description="Monte a jornada completa do lead: boas-vindas, planos, PIX, assinatura e liberação de acesso."
+        description="Modo simples para começar rápido ou modo avançado com editor visual. Exporte, importe e compartilhe."
         action={
-          <Button onClick={() => setOpen(true)} disabled={(bots?.length ?? 0) === 0}>
-            <Plus /> Criar fluxo
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" asChild>
+              <Link to="/app/marketplace">
+                <Store /> Marketplace
+              </Link>
+            </Button>
+            <Button variant="secondary" onClick={() => setImportOpen(true)} disabled={(bots?.length ?? 0) === 0}>
+              <Upload /> Importar
+            </Button>
+            <Button onClick={() => setOpen(true)} disabled={(bots?.length ?? 0) === 0}>
+              <Plus /> Criar fluxo
+            </Button>
+          </div>
         }
       />
 
@@ -270,7 +391,7 @@ function FlowsPage() {
         ) : flows.length === 0 ? (
           <EmptyState
             title={filter === "archived" ? "Nenhum fluxo arquivado" : "Nenhum fluxo ainda"}
-            description="Crie um fluxo e abra o editor visual para montar a jornada."
+            description="Crie um fluxo simples por páginas ou abra o editor visual avançado."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -282,22 +403,54 @@ function FlowsPage() {
                       <p className="truncate font-display text-lg font-bold">{flow.name}</p>
                       <p className="text-xs text-muted-foreground">{flow.bots?.name ?? "Bot removido"}</p>
                     </div>
-                    <Badge variant={statusVariant[flow.status]}>{statusLabels[flow.status]}</Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant={statusVariant[flow.status]}>{statusLabels[flow.status]}</Badge>
+                      <Badge variant={flow.mode === "simple" ? "secondary" : "outline"}>
+                        {flow.mode === "simple" ? "Simples" : "Avançado"}
+                      </Badge>
+                    </div>
                   </div>
                   <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
                     {flow.description ?? "Sem descrição."}
                   </p>
                   <p className="mt-3 text-xs text-muted-foreground">
                     Criado em {formatDate(flow.created_at)} · Editado em {formatDate(flow.updated_at)}
+                    {flow.share_code ? ` · ${flow.share_code}` : ""}
                   </p>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button asChild size="sm">
-                    <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
-                      <PencilLine /> Editor visual
-                    </Link>
-                  </Button>
+                  {flow.mode === "simple" ? (
+                    <>
+                      <Button asChild size="sm">
+                        <Link to="/app/flows/$flowId/simple" params={{ flowId: flow.id }}>
+                          <LayoutList /> Editar páginas
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => switchMode.mutate({ id: flow.id, mode: "advanced" })}
+                      >
+                        <Workflow /> Modo avançado
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button asChild size="sm">
+                        <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
+                          <PencilLine /> Editor visual
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => switchMode.mutate({ id: flow.id, mode: "simple" })}
+                      >
+                        <LayoutList /> Modo simples
+                      </Button>
+                    </>
+                  )}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -305,6 +458,25 @@ function FlowsPage() {
                     onClick={() => duplicate.mutate(flow.id)}
                   >
                     <Copy /> Duplicar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={exportOne.isPending}
+                    onClick={() => exportOne.mutate(flow)}
+                  >
+                    <Download /> Exportar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setShareFlowRow(flow);
+                      setShareCode(flow.share_code);
+                      setPublishTitle(flow.name);
+                    }}
+                  >
+                    <Share2 /> Compartilhar
                   </Button>
                   {flow.status === "archived" ? (
                     <Button
@@ -357,9 +529,31 @@ function FlowsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Novo fluxo</DialogTitle>
-            <DialogDescription>Escolha o bot que vai executar esta jornada.</DialogDescription>
+            <DialogDescription>Escolha o modo de edição e o bot que vai executar esta jornada.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {(
+                [
+                  { value: "simple", title: "Fluxo simples", hint: "Configuração por páginas, ideal para começar." },
+                  { value: "advanced", title: "Fluxo avançado", hint: "Editor visual com nós e conexões." },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMode(option.value)}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    mode === option.value
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-surface/60 hover:bg-surface-hover"
+                  }`}
+                >
+                  <p className="font-display text-sm font-bold">{option.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{option.hint}</p>
+                </button>
+              ))}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="flow-name">Nome</Label>
               <Input
@@ -402,6 +596,139 @@ function FlowsPage() {
             </Button>
             <Button disabled={create.isPending} onClick={() => create.mutate()}>
               Criar fluxo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar fluxo</DialogTitle>
+            <DialogDescription>
+              Use um código FLOW-XXXXXX ou cole o JSON exportado. Tokens, chaves PIX, dados financeiros e leads não
+              são importados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Bot de destino</Label>
+              <Select value={importBotId} onValueChange={setImportBotId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um bot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(bots ?? []).map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="flow-code">Código do fluxo</Label>
+              <Input
+                id="flow-code"
+                value={importCode}
+                maxLength={20}
+                onChange={(e) => setImportCode(e.target.value.toUpperCase())}
+                placeholder="FLOW-A1B2C3"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="flow-json">Ou arquivo JSON</Label>
+              <Input
+                id="flow-json"
+                type="file"
+                accept="application/json,.json"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setImportJson(await file.text());
+                }}
+              />
+              <Textarea
+                rows={4}
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                placeholder='{"version":1,...}'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setImportOpen(false)}>
+              Cancelar
+            </Button>
+            <Button disabled={runImport.isPending} onClick={() => runImport.mutate()}>
+              Importar fluxo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(shareFlowRow)} onOpenChange={(o) => !o && setShareFlowRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Compartilhar fluxo</DialogTitle>
+            <DialogDescription>
+              Gere um código único para que qualquer usuário importe este fluxo — sem seus dados sensíveis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border bg-surface/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Código de compartilhamento</p>
+              <p className="mt-2 font-display text-2xl font-bold text-gradient-neon">{shareCode ?? "—"}</p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={share.isPending || !shareFlowRow}
+                  onClick={() => shareFlowRow && share.mutate(shareFlowRow.id)}
+                >
+                  {shareCode ? "Atualizar código" : "Gerar código"}
+                </Button>
+                {shareCode ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareCode);
+                      toast.success("Código copiado");
+                    }}
+                  >
+                    <Copy /> Copiar
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-border bg-surface/60 p-4">
+              <p className="font-display text-sm font-bold">Publicar no marketplace</p>
+              <Input
+                value={publishTitle}
+                maxLength={80}
+                onChange={(e) => setPublishTitle(e.target.value)}
+                placeholder="Título do modelo"
+              />
+              <Textarea
+                rows={2}
+                maxLength={280}
+                value={publishSummary}
+                onChange={(e) => setPublishSummary(e.target.value)}
+                placeholder="Resumo do que este funil faz"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={publish.isPending || publishTitle.trim().length < 3 || !shareFlowRow}
+                onClick={() => shareFlowRow && publish.mutate(shareFlowRow.id)}
+              >
+                <Store /> Enviar para aprovação
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShareFlowRow(null)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
