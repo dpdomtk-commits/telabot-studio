@@ -70,7 +70,17 @@ export async function createPixCharge(input: CreateChargeInput) {
   }
 
   const settings = await getFinanceSettings();
-  const { feeCents, netCents } = estimateFee(input.amountCents, settings);
+  const percent =
+    typeof input.platformFeePercent === "number" && input.platformFeePercent >= 0
+      ? Math.min(input.platformFeePercent, 100)
+      : null;
+  const { feeCents, netCents } =
+    percent === null
+      ? estimateFee(input.amountCents, settings)
+      : (() => {
+          const fee = Math.min(Math.floor((input.amountCents * percent) / 100), input.amountCents);
+          return { feeCents: fee, netCents: input.amountCents - fee };
+        })();
 
   // Roteamento por fluxo: o fluxo pode fixar qual gateway deve ser usado.
   let preferredGatewayId = input.gatewayId ?? null;
@@ -100,6 +110,7 @@ export async function createPixCharge(input: CreateChargeInput) {
       provider: settings.provider,
       fee_cents: feeCents,
       net_cents: netCents,
+      platform_fee_percent: percent,
       idempotency_key: input.idempotencyKey ?? null,
     })
     .select("id,pix_code,amount_cents,description,product_name,success_message,status")
@@ -123,8 +134,13 @@ export async function createPixCharge(input: CreateChargeInput) {
       description: input.description,
       productName: input.productName ?? null,
       expiresAt: input.expiresAt ?? null,
+      payerName: input.payerName ?? null,
+      payerDocument: input.payerDocument ?? null,
+      payerEmail: input.payerEmail ?? null,
+      payerPhone: input.payerPhone ?? null,
     },
   });
+
 
   await supabaseAdmin
     .from("payments")
