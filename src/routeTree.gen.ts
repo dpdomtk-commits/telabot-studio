@@ -21,6 +21,7 @@ import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppGatewaysRouteImport } from './routes/_authenticated/app.gateways'
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
+import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/app.marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/app.media'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
+import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -91,6 +93,12 @@ const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppMarketplaceRoute =
+  AuthenticatedAppMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -130,6 +138,12 @@ const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   path: '/api/public/telegram/$botId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppFlowsFlowIdSimpleRoute =
+  AuthenticatedAppFlowsFlowIdSimpleRouteImport.update({
+    id: '/flows/$flowId_/simple',
+    path: '/flows/$flowId/simple',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -142,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -150,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -161,6 +177,7 @@ export interface FileRoutesByTo {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -169,6 +186,7 @@ export interface FileRoutesByTo {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -183,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/_authenticated/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -191,6 +210,7 @@ export interface FileRoutesById {
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -205,6 +225,7 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
     | '/app/settings'
@@ -213,6 +234,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows/'
+    | '/app/flows/$flowId/simple'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -224,6 +246,7 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
     | '/app/settings'
@@ -232,6 +255,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows'
+    | '/app/flows/$flowId/simple'
   id:
     | '__root__'
     | '/'
@@ -245,6 +269,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/finance'
     | '/_authenticated/app/gateways'
     | '/_authenticated/app/leads'
+    | '/_authenticated/app/marketplace'
     | '/_authenticated/app/media'
     | '/_authenticated/app/payments'
     | '/_authenticated/app/settings'
@@ -253,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/_authenticated/app/flows/'
+    | '/_authenticated/app/flows/$flowId_/simple'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -349,6 +375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLeadsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/marketplace': {
+      id: '/_authenticated/app/marketplace'
+      path: '/marketplace'
+      fullPath: '/app/marketplace'
+      preLoaderRoute: typeof AuthenticatedAppMarketplaceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/media': {
       id: '/_authenticated/app/media'
       path: '/media'
@@ -398,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelegramBotIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app/flows/$flowId_/simple': {
+      id: '/_authenticated/app/flows/$flowId_/simple'
+      path: '/flows/$flowId/simple'
+      fullPath: '/app/flows/$flowId/simple'
+      preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdSimpleRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
@@ -409,12 +449,14 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppGatewaysRoute: typeof AuthenticatedAppGatewaysRoute
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
+  AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFlowsFlowIdRoute: typeof AuthenticatedAppFlowsFlowIdRoute
   AuthenticatedAppFlowsIndexRoute: typeof AuthenticatedAppFlowsIndexRoute
+  AuthenticatedAppFlowsFlowIdSimpleRoute: typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
@@ -425,12 +467,15 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppGatewaysRoute: AuthenticatedAppGatewaysRoute,
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
+  AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFlowsFlowIdRoute: AuthenticatedAppFlowsFlowIdRoute,
   AuthenticatedAppFlowsIndexRoute: AuthenticatedAppFlowsIndexRoute,
+  AuthenticatedAppFlowsFlowIdSimpleRoute:
+    AuthenticatedAppFlowsFlowIdSimpleRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =

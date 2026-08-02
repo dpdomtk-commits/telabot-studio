@@ -10,6 +10,7 @@ import {
   Network,
   Settings,
   Images,
+  Store,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const items = [
   { title: "Dashboard", url: "/app/dashboard", icon: LayoutDashboard },
   { title: "Bots", url: "/app/bots", icon: Bot },
   { title: "Fluxos", url: "/app/flows", icon: GitBranch },
+  { title: "Marketplace", url: "/app/marketplace", icon: Store },
   { title: "Mídias", url: "/app/media", icon: Images },
   { title: "Leads", url: "/app/leads", icon: Users },
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
