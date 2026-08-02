@@ -55,8 +55,8 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
         <span className="flex items-center gap-2.5 truncate font-display text-base font-bold">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-neon shadow-[0_0_20px_-6px_var(--color-primary-glow)]">
-            <Bot className="size-4 text-primary-foreground" />
+          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface shadow-[0_0_20px_-6px_var(--color-primary-glow)]">
+            <img src={markAsset.url} alt="Logo AURUMBOT" className="size-full object-cover" />
           </span>
           <span className="truncate">
             AURUM<span className="text-gradient-neon">BOT</span>
