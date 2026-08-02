@@ -45,7 +45,14 @@ export type CreateChargeInput = {
   idempotencyKey?: string | null;
   flowId?: string | null;
   gatewayId?: string | null;
+  /** Comissão da plataforma em % definida no bloco PIX do fluxo (sobrepõe a taxa global). */
+  platformFeePercent?: number | null;
+  payerName?: string | null;
+  payerDocument?: string | null;
+  payerEmail?: string | null;
+  payerPhone?: string | null;
 };
+
 
 
 /**
