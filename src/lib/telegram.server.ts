@@ -319,6 +319,10 @@ export async function runFlowForLead(params: {
           description: str(config, "description") || str(config, "pitch") || "Pagamento",
           successMessage: str(config, "success_message"),
           expiresMinutes: Number(config["expires_minutes"]) || 0,
+          platformFeePercent:
+            config["platform_fee_percent"] === undefined || config["platform_fee_percent"] === ""
+              ? null
+              : Number(config["platform_fee_percent"]),
         });
         await finish("waiting_payment", step.id);
         return; // aguarda confirmação do pagamento
@@ -363,6 +367,8 @@ async function sendCharge(
     description: string;
     successMessage: string;
     expiresMinutes: number;
+    platformFeePercent?: number | null;
+    payerName?: string | null;
   },
 ): Promise<TelegramSendResult> {
   const { createPixCharge } = await import("@/lib/finance.server");
@@ -378,6 +384,8 @@ async function sendCharge(
       input.expiresMinutes > 0 ? new Date(Date.now() + input.expiresMinutes * 60000).toISOString() : null,
     idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
     flowId: params.flowId,
+    platformFeePercent: input.platformFeePercent ?? null,
+    payerName: input.payerName ?? null,
   });
 
   const lines = [
