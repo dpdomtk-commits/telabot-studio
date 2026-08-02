@@ -294,7 +294,7 @@ export async function runFlowForLead(params: {
           plan_name: planName,
           amount_cents: amount,
           interval_days: intervalDays,
-          status: "pending",
+          status: "past_due",
         });
         result = await sendCharge(params, step, {
           amount,
