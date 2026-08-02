@@ -12,7 +12,11 @@ export type ChargeInput = {
   productName?: string | null;
   expiresAt?: string | null;
   payerName?: string | null;
+  payerDocument?: string | null;
+  payerEmail?: string | null;
+  payerPhone?: string | null;
 };
+
 
 export type ChargeResult = {
   provider: string;
