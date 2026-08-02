@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { Copy, Wallet, Clock, ArrowDownToLine, TrendingUp } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { requestWithdrawal } from "@/lib/finance.functions";
+import { getFinanceFees, requestWithdrawal } from "@/lib/finance.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,10 +79,7 @@ function FinancePage() {
           .select("id,amount_cents,fee_cents,net_cents,status,pix_key,pix_key_type,rejection_reason,created_at")
           .order("created_at", { ascending: false })
           .limit(50),
-        supabase
-          .from("finance_settings")
-          .select("charge_fixed_fee_cents,charge_percent_fee,withdrawal_fee_cents,min_withdrawal_cents")
-          .maybeSingle(),
+        getFinanceFees(),
       ]);
       return {
         wallet: (wallet.data ?? {
@@ -96,7 +93,7 @@ function FinancePage() {
         ledger: ledger.data ?? [],
         charges: charges.data ?? [],
         withdrawals: withdrawals.data ?? [],
-        settings: settings.data,
+        settings,
         since: since.toISOString(),
       };
     },

@@ -230,3 +230,27 @@ export const cancelCharge = createServerFn({ method: "POST" })
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Cobrança cancelada" };
   });
+
+export type PublicFinanceFees = {
+  charge_fixed_fee_cents: number;
+  charge_percent_fee: number;
+  withdrawal_fee_cents: number;
+  min_withdrawal_cents: number;
+};
+
+/** Expõe apenas as taxas públicas da plataforma (sem chave PIX de recebimento). */
+export const getFinanceFees = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<PublicFinanceFees> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("finance_settings")
+      .select("charge_fixed_fee_cents,charge_percent_fee,withdrawal_fee_cents,min_withdrawal_cents")
+      .maybeSingle();
+    return {
+      charge_fixed_fee_cents: data?.charge_fixed_fee_cents ?? 50,
+      charge_percent_fee: Number(data?.charge_percent_fee ?? 0),
+      withdrawal_fee_cents: data?.withdrawal_fee_cents ?? 500,
+      min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
+    };
+  });
