@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { title: "AURUMBOT - Bots do Telegram que vendem sozinhos" },
       {
         name: "description",
         content:
@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
-      { name: "twitter:title", content: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { property: "og:title", content: "AURUMBOT - Bots do Telegram que vendem sozinhos" },
+      { name: "twitter:title", content: "AURUMBOT - Bots do Telegram que vendem sozinhos" },
       { property: "og:description", content: "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente." },
       { name: "twitter:description", content: "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente." },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },

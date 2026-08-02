@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { title: "AURUMBOT - Bots do Telegram que vendem sozinhos" },
       {
         name: "description",
         content:
           "Cadastre bots do Telegram, monte fluxos por etapas, capture leads, receba via PIX e entregue o produto automaticamente.",
       },
-      { property: "og:title", content: "AURUMBOT — Bots do Telegram que vendem sozinhos" },
+      { property: "og:title", content: "AURUMBOT - Bots do Telegram que vendem sozinhos" },
       {
         property: "og:description",
         content:
