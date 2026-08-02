@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { getProvider } from "@/lib/payments/provider";
 
 export type FinanceSettings = {
   charge_fixed_fee_cents: number;
