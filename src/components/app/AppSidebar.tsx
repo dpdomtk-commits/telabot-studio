@@ -6,6 +6,7 @@ import {
   GitBranch,
   Users,
   CreditCard,
+  Wallet,
   Settings,
   ShieldCheck,
   LogOut,
@@ -30,6 +31,7 @@ const items = [
   { title: "Fluxos", url: "/app/flows", icon: GitBranch },
   { title: "Leads", url: "/app/leads", icon: Users },
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
+  { title: "Financeiro", url: "/app/finance", icon: Wallet },
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ] as const;
 
@@ -81,6 +83,18 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
                     <Link to="/app/admin">
                       <ShieldCheck />
                       <span>Admin</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={path.startsWith("/app/admin-finance")}
+                    tooltip="Financeiro admin"
+                  >
+                    <Link to="/app/admin-finance">
+                      <Wallet />
+                      <span>Financeiro admin</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
