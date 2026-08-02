@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bot } from "lucide-react";
+
+const particles = Array.from({ length: 26 }, (_, i) => ({
+  x: (i * 37) % 100,
+  y: (i * 61) % 100,
+  s: 2 + ((i * 7) % 4),
+  d: (i % 9) * 0.7,
+  t: 11 + ((i * 3) % 9),
+}));
 
 const searchSchema = z.object({ redirect: z.string().optional() });
 
