@@ -1,297 +1,398 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowDown, ChevronUp, ChevronDown, Trash2, Plus } from "lucide-react";
+import {
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  addEdge,
+  useEdgesState,
+  useNodesState,
+  useReactFlow,
+  type Connection,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { ArrowLeft, Save, Trash2, Loader2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader, EmptyState } from "@/components/app/PageHeader";
+import { flowNodeTypes, type FlowNodeData } from "@/components/app/flow/FlowNodes";
+import { nodeDefinitions, nodeGroups, nodeByType } from "@/lib/flow-nodes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { stepLabels } from "@/lib/format";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId")({
   head: () => ({
     meta: [
       { title: "Editor de fluxo | AURUMBOT" },
-      { name: "description", content: "Adicione e ordene as etapas do fluxo do seu bot." },
+      {
+        name: "description",
+        content: "Editor visual de fluxos: arraste nós de mensagem, PIX, assinatura e acesso VIP e conecte a jornada.",
+      },
       { property: "og:title", content: "Editor de fluxo | AURUMBOT" },
-      { property: "og:description", content: "Adicione e ordene as etapas do fluxo do seu bot." },
+      { property: "og:description", content: "Editor visual de fluxos para bots do Telegram." },
     ],
   }),
-  component: FlowEditor,
+  component: () => (
+    <ReactFlowProvider>
+      <FlowEditorPage />
+    </ReactFlowProvider>
+  ),
 });
 
-type StepType = "message" | "image" | "button" | "delay" | "payment" | "delivery";
+type FlowNodeType = Node<FlowNodeData>;
 
-type Step = {
-  id: string;
-  position: number;
-  type: StepType;
-  config: Record<string, unknown>;
-};
+let tempCounter = 0;
+const tempId = () => `tmp-${Date.now()}-${tempCounter++}`;
 
-const fieldsByType: Record<StepType, { key: string; label: string; kind: "text" | "textarea" | "number" }[]> = {
-  message: [{ key: "text", label: "Texto da mensagem", kind: "textarea" }],
-  image: [
-    { key: "url", label: "URL da imagem", kind: "text" },
-    { key: "caption", label: "Legenda", kind: "text" },
-  ],
-  button: [
-    { key: "label", label: "Texto do botão", kind: "text" },
-    { key: "action", label: "Ação (ex.: comprar)", kind: "text" },
-  ],
-  delay: [{ key: "seconds", label: "Segundos de espera", kind: "number" }],
-  payment: [
-    { key: "amount", label: "Valor em reais", kind: "number" },
-    { key: "product_name", label: "Nome do produto", kind: "text" },
-    { key: "description", label: "Descrição da cobrança", kind: "text" },
-    { key: "expires_minutes", label: "Vencimento em minutos (opcional)", kind: "number" },
-    { key: "success_message", label: "Mensagem de sucesso", kind: "textarea" },
-  ],
-  delivery: [
-    { key: "content", label: "Conteúdo entregue (link ou texto)", kind: "textarea" },
-  ],
-};
-
-function FlowEditor() {
-  const { flowId } = Route.useParams();
+function FlowEditorPage() {
+  const { flowId } = useParams({ from: "/_authenticated/app/flows/$flowId" });
   const qc = useQueryClient();
-  const [newType, setNewType] = useState<StepType>("message");
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
 
-  const { data: flow } = useQuery({
-    queryKey: ["flow", flowId],
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNodeType>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [removedSteps, setRemovedSteps] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["flow-editor", flowId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("flows")
-        .select("id,name,is_active,bots(name)")
-        .eq("id", flowId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as unknown as { id: string; name: string; is_active: boolean; bots: { name: string } | null } | null;
+      const [flow, steps, connections] = await Promise.all([
+        supabase.from("flows").select("id,name,description,status,bots(name)").eq("id", flowId).maybeSingle(),
+        supabase.from("flow_steps").select("id,type,title,config,position,position_x,position_y").eq("flow_id", flowId),
+        supabase
+          .from("flow_connections")
+          .select("id,source_step_id,target_step_id,source_handle,label")
+          .eq("flow_id", flowId),
+      ]);
+      if (flow.error) throw flow.error;
+      return { flow: flow.data, steps: steps.data ?? [], connections: connections.data ?? [] };
     },
   });
 
-  const { data: steps, isLoading } = useQuery({
-    queryKey: ["flow-steps", flowId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("flow_steps")
-        .select("id,position,type,config")
-        .eq("flow_id", flowId)
-        .order("position");
-      if (error) throw error;
-      return (data ?? []) as unknown as Step[];
+  useEffect(() => {
+    if (!data) return;
+    setNodes(
+      data.steps.map((s, index) => ({
+        id: s.id,
+        type: "flowNode",
+        position: { x: s.position_x ?? 80 + index * 40, y: s.position_y ?? 80 + index * 140 },
+        data: {
+          type: s.type as string,
+          title: s.title ?? nodeByType[s.type as string]?.label ?? s.type,
+          config: (s.config ?? {}) as Record<string, unknown>,
+        },
+      })),
+    );
+    setEdges(
+      data.connections.map((c) => ({
+        id: c.id,
+        source: c.source_step_id,
+        target: c.target_step_id,
+        sourceHandle: c.source_handle,
+        label: c.label ?? undefined,
+        animated: true,
+      })),
+    );
+    setRemovedSteps([]);
+  }, [data, setNodes, setEdges]);
+
+  const selected = useMemo(() => nodes.find((n) => n.id === selectedId) ?? null, [nodes, selectedId]);
+  const selectedDef = selected ? nodeByType[selected.data.type] : undefined;
+
+  const onConnect = useCallback(
+    (connection: Connection) =>
+      setEdges((eds) => addEdge({ ...connection, id: tempId(), animated: true }, eds)),
+    [setEdges],
+  );
+
+  const addNode = useCallback(
+    (type: string, clientPosition?: { x: number; y: number }) => {
+      const def = nodeByType[type];
+      if (!def) return;
+      const position = clientPosition
+        ? screenToFlowPosition(clientPosition)
+        : { x: 200 + Math.random() * 200, y: 120 + Math.random() * 240 };
+      const id = tempId();
+      setNodes((prev) => [
+        ...prev,
+        { id, type: "flowNode", position, data: { type, title: def.label, config: {} } },
+      ]);
+      setSelectedId(id);
     },
-  });
+    [screenToFlowPosition, setNodes],
+  );
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["flow-steps", flowId] });
+  const updateSelected = useCallback(
+    (patch: Partial<FlowNodeData>) => {
+      if (!selectedId) return;
+      setNodes((prev) =>
+        prev.map((n) => (n.id === selectedId ? { ...n, data: { ...n.data, ...patch } } : n)),
+      );
+    },
+    [selectedId, setNodes],
+  );
 
-  const addStep = useMutation({
-    mutationFn: async () => {
+  const deleteSelected = useCallback(() => {
+    if (!selectedId) return;
+    if (!selectedId.startsWith("tmp-")) setRemovedSteps((prev) => [...prev, selectedId]);
+    setNodes((prev) => prev.filter((n) => n.id !== selectedId));
+    setEdges((prev) => prev.filter((e) => e.source !== selectedId && e.target !== selectedId));
+    setSelectedId(null);
+  }, [selectedId, setNodes, setEdges]);
+
+  async function save() {
+    setSaving(true);
+    try {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Sessão expirada");
-      const position = (steps?.length ?? 0) + 1;
-      const { error } = await supabase
-        .from("flow_steps")
-        .insert({ flow_id: flowId, user_id: userData.user.id, type: newType, position, config: {} });
-      if (error) throw error;
-    },
-    onSuccess: invalidate,
-    onError: () => toast.error("Não foi possível adicionar a etapa"),
-  });
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Sessão expirada");
 
-  const saveConfig = useMutation({
-    mutationFn: async ({ id, config }: { id: string; config: Record<string, unknown> }) => {
-      const { error } = await supabase.from("flow_steps").update({ config: config as never }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Etapa salva");
-      invalidate();
-    },
-    onError: () => toast.error("Não foi possível salvar"),
-  });
+      if (removedSteps.length > 0) {
+        const { error } = await supabase.from("flow_steps").delete().in("id", removedSteps);
+        if (error) throw error;
+      }
 
-  const removeStep = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("flow_steps").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: invalidate,
-  });
+      const idMap = new Map<string, string>();
+      let index = 0;
+      for (const node of nodes) {
+        const payload = {
+          flow_id: flowId,
+          user_id: userId,
+          type: node.data.type,
+          title: node.data.title,
+          config: node.data.config as never,
+          position: index++,
+          position_x: Math.round(node.position.x),
+          position_y: Math.round(node.position.y),
+        };
+        if (node.id.startsWith("tmp-")) {
+          const { data: created, error } = await supabase
+            .from("flow_steps")
+            .insert(payload)
+            .select("id")
+            .maybeSingle();
+          if (error) throw error;
+          if (created) idMap.set(node.id, created.id);
+        } else {
+          const { error } = await supabase.from("flow_steps").update(payload).eq("id", node.id);
+          if (error) throw error;
+          idMap.set(node.id, node.id);
+        }
+      }
 
-  const move = useMutation({
-    mutationFn: async ({ index, dir }: { index: number; dir: -1 | 1 }) => {
-      const list = steps ?? [];
-      const a = list[index];
-      const b = list[index + dir];
-      if (!a || !b) return;
-      await supabase.from("flow_steps").update({ position: b.position }).eq("id", a.id);
-      await supabase.from("flow_steps").update({ position: a.position }).eq("id", b.id);
-    },
-    onSuccess: invalidate,
-  });
+      const { error: delError } = await supabase.from("flow_connections").delete().eq("flow_id", flowId);
+      if (delError) throw delError;
 
-  const toggleActive = useMutation({
-    mutationFn: async (value: boolean) => {
-      const { error } = await supabase.from("flows").update({ is_active: value }).eq("id", flowId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["flow", flowId] });
-      qc.invalidateQueries({ queryKey: ["flows"] });
-    },
-  });
+      const rows = edges
+        .map((e) => ({
+          user_id: userId,
+          flow_id: flowId,
+          source_step_id: idMap.get(e.source),
+          target_step_id: idMap.get(e.target),
+          source_handle: e.sourceHandle ?? "saída",
+          label: typeof e.label === "string" ? e.label : null,
+        }))
+        .filter((r) => r.source_step_id && r.target_step_id);
+      if (rows.length > 0) {
+        const { error } = await supabase.from("flow_connections").insert(rows as never);
+        if (error) throw error;
+      }
+
+      toast.success("Fluxo salvo");
+      setRemovedSteps([]);
+      await qc.invalidateQueries({ queryKey: ["flow-editor", flowId] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const palette = nodeGroups.map((group) => ({
+    group,
+    items: nodeDefinitions.filter(
+      (d) =>
+        d.group === group &&
+        d.type !== "payment" &&
+        d.label.toLowerCase().includes(search.trim().toLowerCase()),
+    ),
+  }));
+
+  if (isLoading) return <Skeleton className="h-[70vh] w-full" />;
 
   return (
-    <div>
-      <Button asChild variant="ghost" size="sm" className="mb-4 -ml-2">
-        <Link to="/app/flows">
-          <ArrowLeft /> Fluxos
-        </Link>
-      </Button>
-
-      <PageHeader
-        title={flow?.name ?? "Fluxo"}
-        description={flow?.bots?.name ? `Bot: ${flow.bots.name}` : ""}
-        action={
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Ativo</span>
-            <Switch checked={!!flow?.is_active} onCheckedChange={(v) => toggleActive.mutate(v)} aria-label="Ativar fluxo" />
+    <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/app/flows">
+              <ArrowLeft /> Fluxos
+            </Link>
+          </Button>
+          <div>
+            <h1 className="font-display text-xl font-bold">{data?.flow?.name ?? "Fluxo"}</h1>
+            <p className="text-xs text-muted-foreground">
+              {data?.flow?.bots?.name ?? "Bot"} · {nodes.length} nós · {edges.length} conexões
+            </p>
           </div>
-        }
-      />
-
-      {isLoading ? (
-        <Skeleton className="h-40 w-full" />
-      ) : (steps?.length ?? 0) === 0 ? (
-        <EmptyState title="Fluxo vazio" description="Adicione a primeira etapa abaixo." />
-      ) : (
-        <div className="space-y-3">
-          {steps?.map((step, i) => (
-            <div key={step.id}>
-              <StepCard
-                step={step}
-                index={i}
-                total={steps.length}
-                onSave={(config) => saveConfig.mutate({ id: step.id, config })}
-                onRemove={() => removeStep.mutate(step.id)}
-                onMove={(dir) => move.mutate({ index: i, dir })}
-              />
-              {i < steps.length - 1 && (
-                <div className="flex justify-center py-1">
-                  <ArrowDown className="size-4 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          ))}
+          <Badge variant="secondary">{data?.flow?.status ?? "draft"}</Badge>
         </div>
-      )}
-
-      <div className="panel mt-6 flex flex-wrap items-end gap-3 p-5">
-        <div className="min-w-48 space-y-2">
-          <Label>Tipo da etapa</Label>
-          <Select value={newType} onValueChange={(v) => setNewType(v as StepType)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(stepLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={() => addStep.mutate()} disabled={addStep.isPending}>
-          <Plus /> Adicionar etapa
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="animate-spin" /> : <Save />} Salvar fluxo
         </Button>
       </div>
-    </div>
-  );
-}
 
-function StepCard({
-  step,
-  index,
-  total,
-  onSave,
-  onRemove,
-  onMove,
-}: {
-  step: Step;
-  index: number;
-  total: number;
-  onSave: (config: Record<string, unknown>) => void;
-  onRemove: () => void;
-  onMove: (dir: -1 | 1) => void;
-}) {
-  const [config, setConfig] = useState<Record<string, unknown>>(step.config ?? {});
-  const fields = fieldsByType[step.type];
-
-  return (
-    <div className="panel p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex size-7 items-center justify-center rounded-md bg-secondary text-xs font-medium">
-            {index + 1}
-          </span>
-          <Badge variant="secondary">{stepLabels[step.type]}</Badge>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => onMove(-1)} aria-label="Subir etapa">
-            <ChevronUp />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={index === total - 1}
-            onClick={() => onMove(1)}
-            aria-label="Descer etapa"
-          >
-            <ChevronDown />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onRemove} aria-label="Remover etapa">
-            <Trash2 />
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {fields.map((field) => (
-          <div key={field.key} className={field.kind === "textarea" ? "space-y-2 sm:col-span-2" : "space-y-2"}>
-            <Label htmlFor={`${step.id}-${field.key}`}>{field.label}</Label>
-            {field.kind === "textarea" ? (
-              <Textarea
-                id={`${step.id}-${field.key}`}
-                value={String(config[field.key] ?? "")}
-                maxLength={2000}
-                onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
-              />
-            ) : (
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[260px_1fr_300px]">
+        <aside className="panel hidden min-h-0 flex-col overflow-hidden p-0 lg:flex">
+          <div className="border-b border-border/60 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                id={`${step.id}-${field.key}`}
-                type={field.kind === "number" ? "number" : "text"}
-                value={String(config[field.key] ?? "")}
-                maxLength={500}
-                onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                className="pl-9"
+                placeholder="Buscar nó"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+            {palette.map(
+              (section) =>
+                section.items.length > 0 && (
+                  <div key={section.group}>
+                    <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">{section.group}</p>
+                    <div className="space-y-1.5">
+                      {section.items.map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          draggable
+                          onDragStart={(e) => e.dataTransfer.setData("application/aurumbot-node", item.type)}
+                          onClick={() => addNode(item.type)}
+                          className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2 text-left text-sm transition-colors hover:border-primary/60 hover:bg-secondary"
+                        >
+                          <item.icon className="size-4 text-primary" />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ),
             )}
           </div>
-        ))}
-      </div>
+        </aside>
 
-      <div className="mt-4">
-        <Button size="sm" variant="secondary" onClick={() => onSave(config)}>
-          Salvar etapa
-        </Button>
+        <div ref={wrapperRef} className="panel min-h-[420px] overflow-hidden p-0">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={flowNodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, node) => setSelectedId(node.id)}
+            onPaneClick={() => setSelectedId(null)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const type = e.dataTransfer.getData("application/aurumbot-node");
+              if (type) addNode(type, { x: e.clientX, y: e.clientY });
+            }}
+            fitView
+            minZoom={0.2}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+            className="bg-background"
+          >
+            <Background variant={BackgroundVariant.Dots} gap={22} size={1} className="opacity-40" />
+            <Controls className="!border-border !bg-card" />
+            <MiniMap pannable zoomable className="!border !border-border !bg-card" maskColor="rgba(0,0,0,.6)" />
+          </ReactFlow>
+        </div>
+
+        <aside className="panel min-h-0 overflow-y-auto p-4">
+          {!selected ? (
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Nenhum nó selecionado</p>
+              <p className="mt-2">
+                Arraste um nó da barra lateral para o canvas, conecte as saídas e clique em um nó para configurar.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{selectedDef?.label}</p>
+                <Button variant="destructive" size="sm" onClick={deleteSelected} aria-label="Excluir nó">
+                  <Trash2 />
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="node-title">Título</Label>
+                <Input
+                  id="node-title"
+                  maxLength={60}
+                  value={selected.data.title}
+                  onChange={(e) => updateSelected({ title: e.target.value })}
+                />
+              </div>
+
+              {(selectedDef?.fields ?? []).map((field) => {
+                const value = selected.data.config?.[field.key];
+                const stringValue = typeof value === "string" || typeof value === "number" ? String(value) : "";
+                const onChange = (v: string) =>
+                  updateSelected({
+                    config: { ...(selected.data.config ?? {}), [field.key]: field.kind === "number" ? Number(v) : v },
+                  });
+                return (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={`f-${field.key}`}>{field.label}</Label>
+                    {field.kind === "textarea" ? (
+                      <Textarea
+                        id={`f-${field.key}`}
+                        maxLength={2000}
+                        value={stringValue}
+                        placeholder={field.placeholder ?? ""}
+                        onChange={(e) => onChange(e.target.value)}
+                      />
+                    ) : (
+                      <Input
+                        id={`f-${field.key}`}
+                        type={field.kind === "number" ? "number" : "text"}
+                        maxLength={300}
+                        value={stringValue}
+                        placeholder={field.placeholder ?? ""}
+                        onChange={(e) => onChange(e.target.value)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+
+              {selectedDef?.outputs && selectedDef.outputs.length > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  Este nó possui as saídas: {selectedDef.outputs.join(", ")}. Conecte cada uma a um caminho diferente.
+                </p>
+              )}
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );
