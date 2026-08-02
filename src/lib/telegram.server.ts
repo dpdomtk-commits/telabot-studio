@@ -296,7 +296,7 @@ export async function runFlowForLead(params: {
           interval_days: intervalDays,
           status: "past_due",
         });
-        result = await sendCharge(params, step, {
+        result = await sendCharge({ ...params, flowId: flow.id }, step, {
           amount,
           productName: planName,
           description: `${planName} · a cada ${intervalDays} dias`,
@@ -313,7 +313,7 @@ export async function runFlowForLead(params: {
       case "order_bump":
       case "pack": {
         const amount = Math.round((Number(config["amount"]) || 0) * 100);
-        result = await sendCharge(params, step, {
+        result = await sendCharge({ ...params, flowId: flow.id }, step, {
           amount,
           productName: str(config, "product_name") || null,
           description: str(config, "description") || str(config, "pitch") || "Pagamento",
@@ -355,7 +355,7 @@ export async function runFlowForLead(params: {
 
 /** Cria a cobrança PIX de um nó de monetização e envia o copia e cola no Telegram. */
 async function sendCharge(
-  params: { userId: string; botId: string; token: string; leadId: string; chatId: number },
+  params: { userId: string; botId: string; token: string; leadId: string; chatId: number; flowId: string },
   step: StepRow,
   input: {
     amount: number;
@@ -377,6 +377,7 @@ async function sendCharge(
     expiresAt:
       input.expiresMinutes > 0 ? new Date(Date.now() + input.expiresMinutes * 60000).toISOString() : null,
     idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
+    flowId: params.flowId,
   });
 
   const lines = [
