@@ -6,7 +6,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const idSchema = z.object({ botId: z.string().uuid() });
 const paymentSchema = z.object({
   paymentId: z.string().uuid(),
-  status: z.enum(["pending", "approved", "failed", "refunded"]),
+  status: z.enum(["pending", "approved", "failed", "refunded", "expired", "cancelled"]),
 });
 
 export type ActionResult = { ok: boolean; message: string };
