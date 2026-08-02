@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { validatePixKey } from "@/lib/payments/pix";
 import {
   adjustWallet,
   resolveWithdrawal,
@@ -387,15 +388,18 @@ function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => 
     city: settings?.pix_receiver_city ?? "SAO PAULO",
   });
 
+  const pixKeyCheck = validatePixKey(form.key);
+
   const save = useMutation({
     mutationFn: async () => {
+      if (form.key.trim() && !pixKeyCheck.valid) throw new Error(`Chave PIX inválida: ${pixKeyCheck.error}`);
       const result = await saveFinanceSettings({
         data: {
           chargeFixedFeeCents: Math.round(Number(form.fixed.replace(",", ".")) * 100),
           chargePercentFee: Number(form.percent.replace(",", ".")),
           withdrawalFeeCents: Math.round(Number(form.withdrawal.replace(",", ".")) * 100),
           minWithdrawalCents: Math.round(Number(form.min.replace(",", ".")) * 100),
-          pixReceiverKey: form.key.trim() || null,
+          pixReceiverKey: pixKeyCheck.valid ? pixKeyCheck.key : null,
           pixReceiverName: form.name.trim(),
           pixReceiverCity: form.city.trim(),
         },
@@ -432,9 +436,17 @@ function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => 
               value={form[f.key]}
               onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
             />
+            {f.key === "key" && form.key.trim() ? (
+              pixKeyCheck.valid ? (
+                <p className="text-xs text-emerald-500">Chave válida — os BR Codes serão gerados normalmente.</p>
+              ) : (
+                <p className="text-xs text-destructive">{pixKeyCheck.error}</p>
+              )
+            ) : null}
           </div>
         ))}
       </div>
+
       <Button className="mt-4" disabled={save.isPending} onClick={() => save.mutate()}>
         Salvar configurações
       </Button>

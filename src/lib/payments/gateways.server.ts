@@ -110,18 +110,33 @@ export async function createChargeWithFallback(args: {
 
   // Última linha de defesa: gateway interna com a chave global da plataforma.
   const started = Date.now();
-  const result = await getProvider(args.fallbackProvider).createPixCharge(args.input, args.fallbackConfig);
-  await logAttempt({
-    userId: args.userId,
-    gatewayId: null,
-    paymentId: args.input.chargeId,
-    provider: "internal",
-    success: Boolean(result.pixCode),
-    amountCents: args.input.amountCents,
-    latencyMs: Date.now() - started,
-    ...(result.pixCode ? {} : { error: "Chave PIX da plataforma não configurada" }),
-  });
-  return { gatewayId: null, provider: result.provider, externalId: result.externalId, pixCode: result.pixCode };
+  try {
+    const result = await getProvider(args.fallbackProvider).createPixCharge(args.input, args.fallbackConfig);
+    await logAttempt({
+      userId: args.userId,
+      gatewayId: null,
+      paymentId: args.input.chargeId,
+      provider: "internal",
+      success: true,
+      amountCents: args.input.amountCents,
+      latencyMs: Date.now() - started,
+    });
+    return { gatewayId: null, provider: result.provider, externalId: result.externalId, pixCode: result.pixCode };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao gerar código PIX";
+    await logAttempt({
+      userId: args.userId,
+      gatewayId: null,
+      paymentId: args.input.chargeId,
+      provider: "internal",
+      success: false,
+      amountCents: args.input.amountCents,
+      latencyMs: Date.now() - started,
+      error: message,
+    });
+    throw new Error(message);
+  }
+
 }
 
 async function logAttempt(a: {

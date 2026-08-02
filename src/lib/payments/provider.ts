@@ -1,4 +1,4 @@
-import { buildPixPayload } from "./pix";
+import { buildPixPayload, validatePixKey } from "./pix";
 
 /**
  * Camada de abstração de gateway de pagamento.
@@ -37,20 +37,22 @@ export interface PaymentProvider {
 const internalProvider: PaymentProvider = {
   id: "internal",
   async createPixCharge(input, config) {
-    const key = config.pixReceiverKey;
-    const pixCode = key
-      ? buildPixPayload({
-          key,
-          amountCents: input.amountCents,
-          merchantName: config.pixReceiverName,
-          merchantCity: config.pixReceiverCity,
-          reference: input.chargeId.replace(/-/g, "").slice(0, 25),
-          description: input.productName ?? input.description,
-        })
-      : "";
+    const keyCheck = validatePixKey(config.pixReceiverKey);
+    if (!keyCheck.valid) {
+      throw new Error(`Chave PIX do recebedor inválida: ${keyCheck.error}`);
+    }
+    const pixCode = buildPixPayload({
+      key: keyCheck.key,
+      amountCents: input.amountCents,
+      merchantName: config.pixReceiverName,
+      merchantCity: config.pixReceiverCity,
+      reference: input.chargeId.replace(/-/g, "").slice(0, 25),
+      description: input.productName ?? input.description,
+    });
     return { provider: "internal", externalId: null, pixCode };
   },
 };
+
 
 const providers: Record<string, PaymentProvider> = {
   internal: internalProvider,

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, Split, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { validatePixKey, type PixKeyType } from "@/lib/payments/pix";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +93,14 @@ type PaymentRow = {
   amount_cents: number;
 };
 
+const pixKeyTypeLabel: Record<PixKeyType, string> = {
+  cpf: "CPF",
+  cnpj: "CNPJ",
+  phone: "telefone",
+  email: "e-mail",
+  evp: "chave aleatória",
+};
+
 const emptyForm = {
   id: "",
   name: "",
@@ -146,6 +155,7 @@ function GatewaysPage() {
   });
 
   const gateways = data?.gateways ?? [];
+  const pixKeyCheck = validatePixKey(form.pix_key);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -153,6 +163,9 @@ function GatewaysPage() {
       const uid = userData.user?.id;
       if (!uid) throw new Error("Sessão expirada");
       if (form.name.trim().length < 2) throw new Error("Informe um nome para o gateway");
+      if (!pixKeyCheck.valid) throw new Error(pixKeyCheck.error);
+
+
 
       const payload = {
         user_id: uid,
@@ -486,7 +499,15 @@ function GatewaysPage() {
                 onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
                 placeholder="email, CPF/CNPJ, telefone ou chave aleatória"
               />
+              {form.pix_key.trim() ? (
+                pixKeyCheck.valid ? (
+                  <p className="text-xs text-emerald-500">Chave válida ({pixKeyTypeLabel[pixKeyCheck.type]})</p>
+                ) : (
+                  <p className="text-xs text-destructive">{pixKeyCheck.error}</p>
+                )
+              ) : null}
             </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="gw-rname">Nome do recebedor</Label>
