@@ -408,6 +408,7 @@ export type Database = {
           bot_id: string
           created_at: string
           description: string | null
+          gateway_id: string | null
           id: string
           is_active: boolean
           name: string
@@ -419,6 +420,7 @@ export type Database = {
           bot_id: string
           created_at?: string
           description?: string | null
+          gateway_id?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -430,6 +432,7 @@ export type Database = {
           bot_id?: string
           created_at?: string
           description?: string | null
+          gateway_id?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -443,6 +446,105 @@ export type Database = {
             columns: ["bot_id"]
             isOneToOne: false
             referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flows_gateway_id_fkey"
+            columns: ["gateway_id"]
+            isOneToOne: false
+            referencedRelation: "payment_gateways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gateway_attempts: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          error: string | null
+          gateway_id: string | null
+          id: string
+          latency_ms: number | null
+          payment_id: string | null
+          provider: Database["public"]["Enums"]["gateway_provider"]
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          error?: string | null
+          gateway_id?: string | null
+          id?: string
+          latency_ms?: number | null
+          payment_id?: string | null
+          provider?: Database["public"]["Enums"]["gateway_provider"]
+          success?: boolean
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          error?: string | null
+          gateway_id?: string | null
+          id?: string
+          latency_ms?: number | null
+          payment_id?: string | null
+          provider?: Database["public"]["Enums"]["gateway_provider"]
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_attempts_gateway_id_fkey"
+            columns: ["gateway_id"]
+            isOneToOne: false
+            referencedRelation: "payment_gateways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gateway_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gateway_splits: {
+        Row: {
+          created_at: string
+          gateway_id: string
+          id: string
+          percent: number
+          recipient_label: string
+          recipient_user_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gateway_id: string
+          id?: string
+          percent?: number
+          recipient_label: string
+          recipient_user_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gateway_id?: string
+          id?: string
+          percent?: number
+          recipient_label?: string
+          recipient_user_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_splits_gateway_id_fkey"
+            columns: ["gateway_id"]
+            isOneToOne: false
+            referencedRelation: "payment_gateways"
             referencedColumns: ["id"]
           },
         ]
@@ -580,6 +682,60 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_gateways: {
+        Row: {
+          allow_fallback: boolean
+          created_at: string
+          credentials: Json
+          id: string
+          is_active: boolean
+          max_amount_cents: number | null
+          min_amount_cents: number
+          name: string
+          pix_key: string | null
+          priority: number
+          provider: Database["public"]["Enums"]["gateway_provider"]
+          receiver_city: string
+          receiver_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_fallback?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          max_amount_cents?: number | null
+          min_amount_cents?: number
+          name: string
+          pix_key?: string | null
+          priority?: number
+          provider?: Database["public"]["Enums"]["gateway_provider"]
+          receiver_city?: string
+          receiver_name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_fallback?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          max_amount_cents?: number | null
+          min_amount_cents?: number
+          name?: string
+          pix_key?: string | null
+          priority?: number
+          provider?: Database["public"]["Enums"]["gateway_provider"]
+          receiver_city?: string
+          receiver_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount_cents: number
@@ -593,6 +749,7 @@ export type Database = {
           fee_cents: number
           flow_id: string | null
           flow_step_id: string | null
+          gateway_id: string | null
           id: string
           idempotency_key: string | null
           lead_id: string | null
@@ -622,6 +779,7 @@ export type Database = {
           fee_cents?: number
           flow_id?: string | null
           flow_step_id?: string | null
+          gateway_id?: string | null
           id?: string
           idempotency_key?: string | null
           lead_id?: string | null
@@ -651,6 +809,7 @@ export type Database = {
           fee_cents?: number
           flow_id?: string | null
           flow_step_id?: string | null
+          gateway_id?: string | null
           id?: string
           idempotency_key?: string | null
           lead_id?: string | null
@@ -688,6 +847,13 @@ export type Database = {
             columns: ["flow_step_id"]
             isOneToOne: false
             referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_gateway_id_fkey"
+            columns: ["gateway_id"]
+            isOneToOne: false
+            referencedRelation: "payment_gateways"
             referencedColumns: ["id"]
           },
           {
@@ -1004,6 +1170,15 @@ export type Database = {
         | "delivery"
         | "end"
       flow_status: "draft" | "active" | "archived"
+      gateway_provider:
+        | "internal"
+        | "mercadopago"
+        | "asaas"
+        | "efi"
+        | "pushinpay"
+        | "openpix"
+        | "pagarme"
+        | "custom"
       lead_status: "new" | "engaged" | "converted"
       ledger_status: "pending" | "completed" | "reversed"
       ledger_type:
@@ -1195,6 +1370,16 @@ export const Constants = {
         "end",
       ],
       flow_status: ["draft", "active", "archived"],
+      gateway_provider: [
+        "internal",
+        "mercadopago",
+        "asaas",
+        "efi",
+        "pushinpay",
+        "openpix",
+        "pagarme",
+        "custom",
+      ],
       lead_status: ["new", "engaged", "converted"],
       ledger_status: ["pending", "completed", "reversed"],
       ledger_type: [
