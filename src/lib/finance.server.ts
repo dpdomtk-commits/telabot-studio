@@ -170,3 +170,39 @@ export async function creditPayment(paymentId: string, ip?: string | null) {
     duplicate: result.duplicate === true,
   } as const;
 }
+
+/**
+ * Aprovação completa de um pagamento: crédito na carteira (com comissão),
+ * split do gateway, notificação e entrega automática do produto no Telegram.
+ * É idempotente — chamar duas vezes não credita duas vezes.
+ */
+export async function approvePayment(paymentId: string, ip?: string | null) {
+  const { data: payment } = await supabaseAdmin
+    .from("payments")
+    .select("id,user_id,status,amount_cents,description,product_name")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (!payment) return { ok: false, message: "Pagamento não encontrado" } as const;
+
+  const credited = await creditPayment(payment.id, ip ?? null);
+  if (!credited.ok) return { ok: false, message: credited.message || "Falha ao creditar" } as const;
+  if (credited.duplicate) return { ok: true, message: "Pagamento já processado", duplicate: true } as const;
+
+  const { applyGatewaySplits } = await import("@/lib/payments/gateways.server");
+  await applyGatewaySplits(payment.id);
+
+  const { deliverForPayment, notify, logActivity } = await import("@/lib/telegram.server");
+  await logActivity(payment.user_id, "pagamento", "pagamento aprovado", payment.id, { ip: ip ?? null });
+  await notify(
+    payment.user_id,
+    "success",
+    "Pagamento recebido",
+    `${payment.product_name ?? payment.description ?? "Cobrança"} · R$ ${(payment.amount_cents / 100)
+      .toFixed(2)
+      .replace(".", ",")} creditado na carteira`,
+    "payment",
+    payment.id,
+  );
+  await deliverForPayment(payment.id);
+  return { ok: true, message: "Pagamento confirmado", duplicate: false } as const;
+}

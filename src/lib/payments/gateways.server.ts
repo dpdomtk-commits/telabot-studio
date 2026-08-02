@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import "@/lib/payments/syncpay.server";
 import { getProvider, type ChargeInput } from "./provider";
 
 export type GatewayRow = {
