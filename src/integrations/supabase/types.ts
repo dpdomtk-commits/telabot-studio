@@ -646,6 +646,95 @@ export type Database = {
           },
         ]
       }
+      media_assets: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_size: number
+          file_type: Database["public"]["Enums"]["media_kind"]
+          id: string
+          message_id: number | null
+          mime_type: string | null
+          telegram_file_id: string
+          telegram_file_unique_id: string | null
+          thumbnail: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_size?: number
+          file_type: Database["public"]["Enums"]["media_kind"]
+          id?: string
+          message_id?: number | null
+          mime_type?: string | null
+          telegram_file_id: string
+          telegram_file_unique_id?: string | null
+          thumbnail?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_size?: number
+          file_type?: Database["public"]["Enums"]["media_kind"]
+          id?: string
+          message_id?: number | null
+          mime_type?: string | null
+          telegram_file_id?: string
+          telegram_file_unique_id?: string | null
+          thumbnail?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      media_cache_settings: {
+        Row: {
+          bot_id: string | null
+          chat_id: string | null
+          chat_title: string | null
+          chat_type: Database["public"]["Enums"]["media_chat_type"]
+          created_at: string
+          last_checked_at: string | null
+          last_error: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bot_id?: string | null
+          chat_id?: string | null
+          chat_title?: string | null
+          chat_type?: Database["public"]["Enums"]["media_chat_type"]
+          created_at?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bot_id?: string | null
+          chat_id?: string | null
+          chat_title?: string | null
+          chat_type?: Database["public"]["Enums"]["media_chat_type"]
+          created_at?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_cache_settings_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1188,6 +1277,8 @@ export type Database = {
         | "withdrawal_fee"
         | "adjustment"
         | "refund"
+      media_chat_type: "channel" | "group"
+      media_kind: "image" | "video" | "audio" | "document"
       payment_status:
         | "pending"
         | "approved"
@@ -1390,6 +1481,8 @@ export const Constants = {
         "adjustment",
         "refund",
       ],
+      media_chat_type: ["channel", "group"],
+      media_kind: ["image", "video", "audio", "document"],
       payment_status: [
         "pending",
         "approved",
