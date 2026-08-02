@@ -63,12 +63,27 @@ function Dashboard() {
         });
       }
 
+      const months: { key: string; label: string; total: number; count: number }[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const rows = approved.filter((p) => p.created_at.slice(0, 7) === key);
+        months.push({
+          key,
+          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+          total: rows.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
+          count: rows.length,
+        });
+      }
+
       return {
         bots: bots.count ?? 0,
         leadsToday: leadsToday.count ?? 0,
         approved: approved.length,
         revenue,
         days,
+        months,
         logs: logs.data ?? [],
       };
     },
