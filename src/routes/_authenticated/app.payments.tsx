@@ -159,6 +159,7 @@ function PaymentsPage() {
                 <TableHead>Situação</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead>Pago em</TableHead>
+                <TableHead className="text-right">Alterar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,6 +177,26 @@ function PaymentsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.created_at)}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.paid_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Select
+                      value={p.status}
+                      onValueChange={(v) =>
+                        changeStatus.mutate({ paymentId: p.id, status: v as PaymentStatus })
+                      }
+                      disabled={changeStatus.isPending}
+                    >
+                      <SelectTrigger className="ml-auto w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(paymentStatusLabels).map(([v, l]) => (
+                          <SelectItem key={v} value={v}>
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
