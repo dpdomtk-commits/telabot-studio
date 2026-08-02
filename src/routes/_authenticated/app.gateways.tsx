@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, Split, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { validatePixKey, type PixKeyType } from "@/lib/payments/pix";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,14 @@ type PaymentRow = {
   gateway_id: string | null;
   status: string;
   amount_cents: number;
+};
+
+const pixKeyTypeLabel: Record<PixKeyType, string> = {
+  cpf: "CPF",
+  cnpj: "CNPJ",
+  phone: "telefone",
+  email: "e-mail",
+  evp: "chave aleatória",
 };
 
 const emptyForm = {
