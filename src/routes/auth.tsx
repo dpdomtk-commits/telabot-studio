@@ -39,12 +39,35 @@ function AuthPage() {
   }, [navigate, dest]);
 
   return (
-    <div className="grid-noise flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <Link to="/" className="mb-8 block text-center font-display text-xl font-bold">
-          AURUM<span className="text-primary">BOT</span>
+    <div className="aurora-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        {particles.map((p, i) => (
+          <span
+            key={i}
+            className="absolute rounded-full bg-primary-glow/60 blur-[1px] animate-float-slow"
+            style={{
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: p.s,
+              height: p.s,
+              animationDelay: `${p.d}s`,
+              animationDuration: `${p.t}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="w-full max-w-sm animate-rise">
+        <Link to="/" className="mb-8 flex flex-col items-center gap-3">
+          <span className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-neon glow-ring animate-pulse-glow">
+            <Bot className="size-7 text-primary-foreground" />
+          </span>
+          <span className="font-display text-xl font-bold tracking-tight">
+            AURUM<span className="text-gradient-neon">BOT</span>
+          </span>
         </Link>
         <div className="panel p-6">
+
           <Tabs defaultValue="signin">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Entrar</TabsTrigger>
