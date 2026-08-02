@@ -395,10 +395,17 @@ function ChargesTable({ charges }: { charges: Charge[] }) {
 
 function PixCard({ charge }: { charge: Charge }) {
   const [qr, setQr] = useState<string>("");
+  const code = charge.pix_code ?? "";
+  // QR Code e copia e cola saem exatamente do mesmo BR Code validado.
+  const check = validatePixCode(code);
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(charge.pix_code ?? "", { margin: 1, width: 220 })
+    if (!check.valid) {
+      setQr("");
+      return;
+    }
+    QRCode.toDataURL(code, { margin: 1, width: 220 })
       .then((url) => {
         if (active) setQr(url);
       })
@@ -406,7 +413,24 @@ function PixCard({ charge }: { charge: Charge }) {
     return () => {
       active = false;
     };
-  }, [charge.pix_code]);
+  }, [code, check.valid]);
+
+  if (!check.valid) {
+    return (
+      <div className="panel space-y-2 border-destructive/40 p-5">
+        <p className="font-display text-lg font-bold text-destructive">BR Code inválido</p>
+        <p className="text-sm text-muted-foreground">
+          Esta cobrança não gerou um código PIX válido e seria recusada pelo banco. Revise a chave PIX do gateway e
+          gere a cobrança novamente.
+        </p>
+        <ul className="list-inside list-disc text-xs text-destructive">
+          {check.errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="panel flex flex-col items-start gap-4 p-5 sm:flex-row">
@@ -421,12 +445,12 @@ function PixCard({ charge }: { charge: Charge }) {
         {charge.expires_at ? (
           <p className="mt-1 text-xs text-muted-foreground">Expira em {formatDate(charge.expires_at)}</p>
         ) : null}
-        <p className="mt-3 break-all rounded-md border border-border p-3 font-mono text-xs">{charge.pix_code}</p>
+        <p className="mt-3 break-all rounded-md border border-border p-3 font-mono text-xs">{code}</p>
         <Button
           size="sm"
           className="mt-3"
           onClick={() => {
-            void navigator.clipboard.writeText(charge.pix_code ?? "");
+            void navigator.clipboard.writeText(code);
             toast.success("Código PIX copiado");
           }}
         >
@@ -436,6 +460,7 @@ function PixCard({ charge }: { charge: Charge }) {
     </div>
   );
 }
+
 
 function WithdrawalForm({
   available,
