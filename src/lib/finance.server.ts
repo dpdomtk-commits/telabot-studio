@@ -44,7 +44,10 @@ export type CreateChargeInput = {
   successMessage?: string | null;
   expiresAt?: string | null;
   idempotencyKey?: string | null;
+  flowId?: string | null;
+  gatewayId?: string | null;
 };
+
 
 /**
  * Cria uma cobrança PIX através da camada PaymentProvider.
