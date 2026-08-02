@@ -310,3 +310,36 @@
     animation: var(--animate-aurora);
   }
 }
+
+/* React Flow — conexões luminosas */
+.react-flow__edge-path {
+  stroke: color-mix(in oklab, var(--color-primary-glow) 75%, transparent);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--color-primary-glow) 55%, transparent));
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-accent-pink);
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--color-accent-pink) 70%, transparent));
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 6 6;
+  animation: var(--animate-dash);
+}
+
+.react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--color-accent-pink);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--color-accent-pink) 70%, transparent));
+}
+
+.react-flow__controls-button {
+  background: transparent;
+  border-color: color-mix(in oklab, var(--color-border) 90%, transparent);
+  color: var(--color-foreground);
+}
+.react-flow__controls-button:hover {
+  background: color-mix(in oklab, var(--color-primary) 18%, transparent);
+}
