@@ -21,10 +21,12 @@ import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppGatewaysRouteImport } from './routes/_authenticated/app.gateways'
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
+import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/app.media'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
+import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +91,11 @@ const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppPaymentsRoute =
   AuthenticatedAppPaymentsRouteImport.update({
     id: '/payments',
@@ -113,6 +120,11 @@ const AuthenticatedAppFlowsFlowIdRoute =
     path: '/flows/$flowId',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const ApiPublicMediaUploadRoute = ApiPublicMediaUploadRouteImport.update({
+  id: '/api/public/media/upload',
+  path: '/api/public/media/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   id: '/api/public/telegram/$botId',
   path: '/api/public/telegram/$botId',
@@ -130,10 +142,12 @@ export interface FileRoutesByFullPath {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
@@ -147,10 +161,12 @@ export interface FileRoutesByTo {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
 }
@@ -167,10 +183,12 @@ export interface FileRoutesById {
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/gateways': typeof AuthenticatedAppGatewaysRoute
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
+  '/_authenticated/app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
 }
@@ -187,10 +205,12 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/media'
     | '/app/payments'
     | '/app/settings'
     | '/app/'
     | '/app/flows/$flowId'
+    | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows/'
   fileRoutesByTo: FileRoutesByTo
@@ -204,10 +224,12 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/gateways'
     | '/app/leads'
+    | '/app/media'
     | '/app/payments'
     | '/app/settings'
     | '/app'
     | '/app/flows/$flowId'
+    | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/app/flows'
   id:
@@ -223,10 +245,12 @@ export interface FileRouteTypes {
     | '/_authenticated/app/finance'
     | '/_authenticated/app/gateways'
     | '/_authenticated/app/leads'
+    | '/_authenticated/app/media'
     | '/_authenticated/app/payments'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/'
     | '/_authenticated/app/flows/$flowId'
+    | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
     | '/_authenticated/app/flows/'
   fileRoutesById: FileRoutesById
@@ -235,6 +259,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicMediaUploadRoute: typeof ApiPublicMediaUploadRoute
   ApiPublicTelegramBotIdRoute: typeof ApiPublicTelegramBotIdRoute
 }
 
@@ -324,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLeadsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/media': {
+      id: '/_authenticated/app/media'
+      path: '/media'
+      fullPath: '/app/media'
+      preLoaderRoute: typeof AuthenticatedAppMediaRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/payments': {
       id: '/_authenticated/app/payments'
       path: '/payments'
@@ -352,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/api/public/media/upload': {
+      id: '/api/public/media/upload'
+      path: '/api/public/media/upload'
+      fullPath: '/api/public/media/upload'
+      preLoaderRoute: typeof ApiPublicMediaUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/$botId': {
       id: '/api/public/telegram/$botId'
       path: '/api/public/telegram/$botId'
@@ -370,6 +409,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppGatewaysRoute: typeof AuthenticatedAppGatewaysRoute
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
+  AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -385,6 +425,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppGatewaysRoute: AuthenticatedAppGatewaysRoute,
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
+  AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
@@ -410,6 +451,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicMediaUploadRoute: ApiPublicMediaUploadRoute,
   ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
 }
 export const routeTree = rootRouteImport

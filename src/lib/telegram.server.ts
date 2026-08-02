@@ -199,26 +199,26 @@ export async function runFlowForLead(params: {
         result = await sendMessage(params.token, params.chatId, str(config, "text") || str(config, "message") || "…");
         break;
       case "image":
-        result = await sendPhoto(params.token, params.chatId, str(config, "url"), str(config, "caption"));
+        result = await sendPhoto(params.token, params.chatId, str(config, "file_id") || str(config, "url"), str(config, "caption"));
         break;
       case "video":
         result = await callTelegram(params.token, "sendVideo", {
           chat_id: params.chatId,
-          video: str(config, "url"),
+          video: str(config, "file_id") || str(config, "url"),
           caption: str(config, "caption") || undefined,
         });
         break;
       case "audio":
         result = await callTelegram(params.token, "sendAudio", {
           chat_id: params.chatId,
-          audio: str(config, "url"),
+          audio: str(config, "file_id") || str(config, "url"),
           caption: str(config, "caption") || undefined,
         });
         break;
       case "document":
         result = await callTelegram(params.token, "sendDocument", {
           chat_id: params.chatId,
-          document: str(config, "url"),
+          document: str(config, "file_id") || str(config, "url"),
           caption: str(config, "caption") || undefined,
         });
         break;

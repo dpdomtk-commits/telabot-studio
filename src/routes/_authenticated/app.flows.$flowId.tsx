@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Database } from "@/integrations/supabase/types";
 
 type StepType = Database["public"]["Enums"]["flow_node_type"];
+import { MediaPicker } from "@/components/app/MediaPicker";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId")({
   head: () => ({
@@ -366,7 +367,21 @@ function FlowEditorPage() {
                 return (
                   <div key={field.key} className="space-y-2">
                     <Label htmlFor={`f-${field.key}`}>{field.label}</Label>
-                    {field.kind === "textarea" ? (
+                    {field.kind === "media" ? (
+                      <MediaPicker
+                        kind={field.mediaKind ?? "document"}
+                        value={stringValue}
+                        onSelect={(asset) =>
+                          updateSelected({
+                            config: {
+                              ...(selected.data.config ?? {}),
+                              [field.key]: asset.telegram_file_id,
+                              file_name: asset.file_name,
+                            },
+                          })
+                        }
+                      />
+                    ) : field.kind === "textarea" ? (
                       <Textarea
                         id={`f-${field.key}`}
                         maxLength={2000}
