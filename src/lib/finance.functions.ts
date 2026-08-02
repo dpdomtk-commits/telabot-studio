@@ -193,6 +193,14 @@ export const saveFinanceSettings = createServerFn({ method: "POST" })
     });
     if (!isAdmin) return { ok: false, message: "Sem permissão" };
 
+    // A chave é normalizada e validada no servidor: BR Code inválido = "PIX inválido" no banco do cliente.
+    let receiverKey: string | null = null;
+    if (data.pixReceiverKey) {
+      const check = validatePixKey(data.pixReceiverKey);
+      if (!check.valid) return { ok: false, message: `Chave PIX inválida: ${check.error}` };
+      receiverKey = check.key;
+    }
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { logActivity } = await import("@/lib/telegram.server");
 
@@ -203,7 +211,8 @@ export const saveFinanceSettings = createServerFn({ method: "POST" })
         charge_percent_fee: data.chargePercentFee,
         withdrawal_fee_cents: data.withdrawalFeeCents,
         min_withdrawal_cents: data.minWithdrawalCents,
-        pix_receiver_key: data.pixReceiverKey,
+        pix_receiver_key: receiverKey,
+
         pix_receiver_name: data.pixReceiverName,
         pix_receiver_city: data.pixReceiverCity,
       })
