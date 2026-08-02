@@ -57,31 +57,45 @@ export function validatePixKey(rawKey: string | null | undefined): PixKeyValidat
       : { valid: false, type: null, key, error: "E-mail inválido para chave PIX" };
   }
 
-  if (key.startsWith("+") || /^\+?\d[\d\s()-]+$/.test(key)) {
-    let d = digitsOnly(key);
-    if (d.length === 10 || d.length === 11) d = `55${d}`;
-    if (d.startsWith("55") && (d.length === 12 || d.length === 13)) {
-      return { valid: true, type: "phone", key: `+${d}` };
+  if (/^[+\d][\d\s().-]*$/.test(key)) {
+    const d = digitsOnly(key);
+    const explicitPhone = key.trim().startsWith("+");
+
+    // Telefone: +55 + DDD válido (11-99) + 8 ou 9 dígitos (móvel inicia com 9).
+    const asPhone = (digits: string) => {
+      const local = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
+      if (local.length !== 10 && local.length !== 11) return null;
+      const ddd = Number(local.slice(0, 2));
+      if (ddd < 11 || ddd > 99) return null;
+      if (local.length === 11 && local[2] !== "9") return null;
+      if (local.length === 10 && !/[2-5]/.test(local[2] as string)) return null;
+      return `+55${local}`;
+    };
+
+    if (explicitPhone) {
+      const phone = asPhone(d);
+      return phone
+        ? { valid: true, type: "phone", key: phone }
+        : { valid: false, type: null, key, error: "Telefone inválido: use o formato +5511999999999" };
     }
-    if (validCpf(d)) return { valid: true, type: "cpf", key: d };
-    if (validCnpj(d)) return { valid: true, type: "cnpj", key: d };
+
+    if (d.length === 11 && validCpf(d)) return { valid: true, type: "cpf", key: d };
+    if (d.length === 14 && validCnpj(d)) return { valid: true, type: "cnpj", key: d };
+
+    const phone = asPhone(d);
+    if (phone) return { valid: true, type: "phone", key: phone };
+
     return {
       valid: false,
       type: null,
       key,
-      error: "Chave numérica inválida: use CPF, CNPJ ou telefone no formato +5511999999999",
+      error: "Chave numérica inválida: use CPF, CNPJ válidos ou telefone no formato +5511999999999",
     };
-  }
-
-  const d = digitsOnly(key);
-  if (d === key.replace(/[.\-/]/g, "")) {
-    if (validCpf(d)) return { valid: true, type: "cpf", key: d };
-    if (validCnpj(d)) return { valid: true, type: "cnpj", key: d };
-    return { valid: false, type: null, key, error: "CPF/CNPJ inválido (dígito verificador incorreto)" };
   }
 
   return { valid: false, type: null, key, error: "Formato de chave PIX não reconhecido" };
 }
+
 
 /** Comprimento em bytes (EMV mede bytes, não code points). */
 function byteLength(value: string) {
