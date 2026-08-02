@@ -101,16 +101,22 @@ function Dashboard() {
       <PageHeader title="Dashboard" description="Visão geral da sua operação." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => (
-          <div key={c.label} className="panel p-5">
-            <div className="flex items-center justify-between">
+        {cards.map((c, i) => (
+          <div
+            key={c.label}
+            className="panel card-glow group animate-rise p-6"
+            style={{ animationDelay: `${i * 70}ms` }}
+          >
+            <div className="flex items-center justify-between gap-3">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">{c.label}</span>
-              <c.icon className="size-4 text-primary" />
+              <span className="flex size-9 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-glow transition-shadow duration-300 group-hover:shadow-[0_0_20px_-4px_var(--color-primary)]">
+                <c.icon className="size-4" />
+              </span>
             </div>
             {isLoading ? (
-              <Skeleton className="mt-3 h-8 w-24" />
+              <Skeleton className="mt-3 h-9 w-28" />
             ) : (
-              <p className="mt-2 font-display text-2xl font-bold">{c.value}</p>
+              <p className="mt-3 font-display text-3xl font-bold tracking-tight">{c.value}</p>
             )}
           </div>
         ))}
@@ -153,7 +159,7 @@ function Dashboard() {
         <p className="text-sm font-medium">Resumo mensal da receita</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {(data?.months ?? []).map((m) => (
-            <div key={m.key} className="rounded-md border border-border p-3">
+            <div key={m.key} className="card-glow rounded-xl border border-border bg-secondary/40 p-3">
               <p className="text-xs capitalize text-muted-foreground">{m.label}</p>
               <p className="mt-1 font-display text-lg font-bold">{formatBRL(m.total)}</p>
               <p className="text-xs text-muted-foreground">{m.count} venda(s)</p>
@@ -169,7 +175,7 @@ function Dashboard() {
         ) : (
           <div className="panel divide-y divide-border">
             {data?.logs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
+              <div key={log.id} className="flex items-center justify-between gap-4 px-5 py-3 text-sm transition-colors hover:bg-secondary/50">
                 <span>
                   <span className="text-muted-foreground">{log.entity}</span> · {log.action}
                 </span>

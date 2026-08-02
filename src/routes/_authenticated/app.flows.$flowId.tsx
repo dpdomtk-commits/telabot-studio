@@ -299,7 +299,7 @@ function FlowEditorPage() {
           </div>
         </aside>
 
-        <div ref={wrapperRef} className="panel min-h-[420px] overflow-hidden p-0">
+        <div ref={wrapperRef} className="panel aurora-bg min-h-[420px] overflow-hidden p-0">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -322,10 +322,11 @@ function FlowEditorPage() {
             minZoom={0.2}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
-            className="bg-background"
+            className="bg-transparent"
+            defaultEdgeOptions={{ animated: true }}
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1} className="opacity-40" />
-            <Controls className="!border-border !bg-card" />
+            <Controls className="!overflow-hidden !rounded-lg !border !border-border !bg-card/80 !backdrop-blur" />
             <MiniMap pannable zoomable className="!border !border-border !bg-card" maskColor="rgba(0,0,0,.6)" />
           </ReactFlow>
         </div>

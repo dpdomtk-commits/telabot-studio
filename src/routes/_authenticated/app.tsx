@@ -34,14 +34,14 @@ function AppLayout() {
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar isAdmin={!!isAdmin} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 items-center gap-3 border-b border-border px-4">
+          <header className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border px-4">
             <SidebarTrigger />
             <span className="text-sm text-muted-foreground">Painel</span>
             <div className="ml-auto">
               <NotificationBell />
             </div>
           </header>
-          <main className="flex-1 p-6">
+          <main className="aurora-bg flex-1 p-6">
             <div className="mx-auto max-w-6xl">
               <Outlet />
             </div>

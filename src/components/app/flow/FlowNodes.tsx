@@ -44,13 +44,13 @@ export const FlowNode = memo(({ data, selected }: NodeProps) => {
   return (
     <div
       className={cn(
-        "w-60 rounded-xl border bg-card/95 shadow-lg backdrop-blur transition-colors",
+        "x",
         def ? accentClasses[def.accent] : "border-border",
-        selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        selected && "border-primary/60 shadow-[var(--glow-violet-strong)] scale-[1.02]",
       )}
     >
       {nodeData.type !== "start" && (
-        <Handle type="target" position={Position.Left} className="!size-2.5 !border-none !bg-primary" />
+        <Handle type="target" position={Position.Left} className="!size-2.5 !border-none !bg-primary !shadow-[0_0_10px_2px_color-mix(in_oklab,var(--color-primary-glow)_70%,transparent)]" />
       )}
 
       <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
@@ -72,7 +72,9 @@ export const FlowNode = memo(({ data, selected }: NodeProps) => {
               type="source"
               position={Position.Right}
               style={{ top: "50%", right: -6 }}
-              className={cn("!size-2.5 !border-none", index === 0 ? "!bg-primary" : "!bg-muted-foreground")}
+              className={cn("!size-2.5 !border-none", index === 0
+                ? "!bg-primary !shadow-[0_0_10px_2px_color-mix(in_oklab,var(--color-primary-glow)_70%,transparent)]"
+                : "!bg-muted-foreground")}
             />
           </div>
         ))}
