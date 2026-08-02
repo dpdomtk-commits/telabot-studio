@@ -12,10 +12,13 @@ export type SyncpayStatus = {
   message: string;
 };
 
-async function assertAdmin(supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown }> }, userId: string) {
+type AuthedSupabase = Parameters<Parameters<typeof requireSupabaseAuth.server>[0] extends never ? never : never>[0];
+
+async function assertAdmin(supabase: { rpc: typeof import("@/integrations/supabase/client").supabase.rpc }, userId: string) {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   return data === true;
 }
+
 
 /** Estado da integração SyncPay (somente administradores). */
 export const getSyncpayStatus = createServerFn({ method: "GET" })
