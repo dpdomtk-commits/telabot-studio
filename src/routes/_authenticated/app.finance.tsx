@@ -76,7 +76,7 @@ function FinancePage() {
           .limit(100),
         supabase
           .from("withdrawals")
-          .select("id,amount_cents,fee_cents,net_cents,status,pix_key,pix_key_type,reason,created_at")
+          .select("id,amount_cents,fee_cents,net_cents,status,pix_key,pix_key_type,rejection_reason,created_at")
           .order("created_at", { ascending: false })
           .limit(50),
         supabase
@@ -311,7 +311,7 @@ function FinancePage() {
                           variant={
                             w.status === "paid" ? "default" : w.status === "rejected" ? "destructive" : "secondary"
                           }
-                          title={w.reason ?? undefined}
+                          title={w.rejection_reason ?? undefined}
                         >
                           {withdrawalStatusLabels[w.status] ?? w.status}
                         </Badge>
