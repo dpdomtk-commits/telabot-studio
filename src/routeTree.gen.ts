@@ -29,6 +29,7 @@ import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
+import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/public/webhooks/syncpay'
 import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
 const IndexRoute = IndexRouteImport.update({
@@ -138,6 +139,12 @@ const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   path: '/api/public/telegram/$botId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebhooksSyncpayRoute =
+  ApiPublicWebhooksSyncpayRouteImport.update({
+    id: '/api/public/webhooks/syncpay',
+    path: '/api/public/webhooks/syncpay',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAppFlowsFlowIdSimpleRoute =
   AuthenticatedAppFlowsFlowIdSimpleRouteImport.update({
     id: '/flows/$flowId_/simple',
@@ -164,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
+  '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
@@ -185,6 +193,7 @@ export interface FileRoutesByTo {
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
+  '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
@@ -209,6 +218,7 @@ export interface FileRoutesById {
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
+  '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
+    | '/api/public/webhooks/syncpay'
     | '/app/flows/'
     | '/app/flows/$flowId/simple'
   fileRoutesByTo: FileRoutesByTo
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
+    | '/api/public/webhooks/syncpay'
     | '/app/flows'
     | '/app/flows/$flowId/simple'
   id:
@@ -277,6 +289,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/flows/$flowId'
     | '/api/public/media/upload'
     | '/api/public/telegram/$botId'
+    | '/api/public/webhooks/syncpay'
     | '/_authenticated/app/flows/'
     | '/_authenticated/app/flows/$flowId_/simple'
   fileRoutesById: FileRoutesById
@@ -287,6 +300,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiPublicMediaUploadRoute: typeof ApiPublicMediaUploadRoute
   ApiPublicTelegramBotIdRoute: typeof ApiPublicTelegramBotIdRoute
+  ApiPublicWebhooksSyncpayRoute: typeof ApiPublicWebhooksSyncpayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -431,6 +445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelegramBotIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/syncpay': {
+      id: '/api/public/webhooks/syncpay'
+      path: '/api/public/webhooks/syncpay'
+      fullPath: '/api/public/webhooks/syncpay'
+      preLoaderRoute: typeof ApiPublicWebhooksSyncpayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/flows/$flowId_/simple': {
       id: '/_authenticated/app/flows/$flowId_/simple'
       path: '/flows/$flowId/simple'
@@ -498,6 +519,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiPublicMediaUploadRoute: ApiPublicMediaUploadRoute,
   ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
+  ApiPublicWebhooksSyncpayRoute: ApiPublicWebhooksSyncpayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

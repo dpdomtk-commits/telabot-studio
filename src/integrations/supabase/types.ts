@@ -86,6 +86,47 @@ export type Database = {
         }
         Relationships: []
       }
+      commissions: {
+        Row: {
+          created_at: string
+          gross_amount_cents: number
+          id: string
+          payment_id: string
+          percent: number
+          platform_fee_cents: number
+          seller_amount_cents: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gross_amount_cents: number
+          id?: string
+          payment_id: string
+          percent?: number
+          platform_fee_cents: number
+          seller_amount_cents: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gross_amount_cents?: number
+          id?: string
+          payment_id?: string
+          percent?: number
+          platform_fee_cents?: number
+          seller_amount_cents?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commissions_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deliveries: {
         Row: {
           created_at: string
@@ -991,10 +1032,13 @@ export type Database = {
       payment_gateways: {
         Row: {
           allow_fallback: boolean
+          connection_status: string
           created_at: string
           credentials: Json
           id: string
           is_active: boolean
+          last_error: string | null
+          last_sync_at: string | null
           max_amount_cents: number | null
           min_amount_cents: number
           name: string
@@ -1008,10 +1052,13 @@ export type Database = {
         }
         Insert: {
           allow_fallback?: boolean
+          connection_status?: string
           created_at?: string
           credentials?: Json
           id?: string
           is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
           max_amount_cents?: number | null
           min_amount_cents?: number
           name: string
@@ -1025,10 +1072,13 @@ export type Database = {
         }
         Update: {
           allow_fallback?: boolean
+          connection_status?: string
           created_at?: string
           credentials?: Json
           id?: string
           is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
           max_amount_cents?: number | null
           min_amount_cents?: number
           name?: string
@@ -1063,6 +1113,7 @@ export type Database = {
           net_cents: number
           paid_at: string | null
           pix_code: string | null
+          platform_fee_percent: number | null
           product_name: string | null
           provider: string
           qr_code: string | null
@@ -1093,6 +1144,7 @@ export type Database = {
           net_cents?: number
           paid_at?: string | null
           pix_code?: string | null
+          platform_fee_percent?: number | null
           product_name?: string | null
           provider?: string
           qr_code?: string | null
@@ -1123,6 +1175,7 @@ export type Database = {
           net_cents?: number
           paid_at?: string | null
           pix_code?: string | null
+          platform_fee_percent?: number | null
           product_name?: string | null
           provider?: string
           qr_code?: string | null
@@ -1341,6 +1394,36 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+        }
+        Relationships: []
+      }
       withdrawals: {
         Row: {
           amount_cents: number
@@ -1487,6 +1570,7 @@ export type Database = {
         | "openpix"
         | "pagarme"
         | "custom"
+        | "syncpay"
       lead_status: "new" | "engaged" | "converted"
       ledger_status: "pending" | "completed" | "reversed"
       ledger_type:
@@ -1690,6 +1774,7 @@ export const Constants = {
         "openpix",
         "pagarme",
         "custom",
+        "syncpay",
       ],
       lead_status: ["new", "engaged", "converted"],
       ledger_status: ["pending", "completed", "reversed"],

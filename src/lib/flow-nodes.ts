@@ -123,6 +123,7 @@ export const nodeDefinitions: NodeDefinition[] = [
       area("description", "Descrição"),
       num("amount", "Valor em reais"),
       num("expires_minutes", "Validade em minutos"),
+      num("platform_fee_percent", "Comissão da plataforma (%)"),
       area("success_message", "Mensagem após pagamento"),
     ],
     outputs: ["pago", "expirado"],
