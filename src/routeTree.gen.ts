@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
 import { Route as AuthenticatedAppBotsRouteImport } from './routes/_authenticated/app.bots'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
+import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -64,6 +65,11 @@ const AuthenticatedAppDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppFinanceRoute = AuthenticatedAppFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppLeadsRoute = AuthenticatedAppLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByTo {
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/bots': typeof AuthenticatedAppBotsRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/leads': typeof AuthenticatedAppLeadsRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
   '/_authenticated/app/bots': typeof AuthenticatedAppBotsRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/app/admin'
     | '/app/bots'
     | '/app/dashboard'
+    | '/app/finance'
     | '/app/leads'
     | '/app/payments'
     | '/app/settings'
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/app/admin'
     | '/app/bots'
     | '/app/dashboard'
+    | '/app/finance'
     | '/app/leads'
     | '/app/payments'
     | '/app/settings'
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/admin'
     | '/_authenticated/app/bots'
     | '/_authenticated/app/dashboard'
+    | '/_authenticated/app/finance'
     | '/_authenticated/app/leads'
     | '/_authenticated/app/payments'
     | '/_authenticated/app/settings'
@@ -258,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/finance': {
+      id: '/_authenticated/app/finance'
+      path: '/finance'
+      fullPath: '/app/finance'
+      preLoaderRoute: typeof AuthenticatedAppFinanceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/leads': {
       id: '/_authenticated/app/leads'
       path: '/leads'
@@ -307,6 +326,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
   AuthenticatedAppBotsRoute: typeof AuthenticatedAppBotsRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
+  AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -319,6 +339,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
   AuthenticatedAppBotsRoute: AuthenticatedAppBotsRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
+  AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
