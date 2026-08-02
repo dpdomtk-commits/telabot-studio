@@ -113,7 +113,7 @@ export async function createPixCharge(input: CreateChargeInput) {
 export async function creditPayment(paymentId: string, ip?: string | null) {
   const { data, error } = await supabaseAdmin.rpc("credit_payment", {
     _payment_id: paymentId,
-    _ip: ip ?? undefined,
+    ...(ip ? { _ip: ip } : {}),
   });
   if (error) return { ok: false, message: error.message } as const;
   const result = (data ?? {}) as { ok?: boolean; message?: string; duplicate?: boolean };
