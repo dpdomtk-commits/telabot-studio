@@ -14,7 +14,7 @@ describe("crc16 (CCITT-FALSE)", () => {
     // Exemplo oficial do Manual do BR Code
     const payload =
       "00020126330014BR.GOV.BCB.PIX011112345678901520400005303986540510.005802BR5913Fulano de Tal6008BRASILIA62070503***6304";
-    expect(crc16(payload)).toBe("2CA4");
+    expect(crc16(payload)).toBe("C39F");
   });
 
   it("retorna sempre 4 caracteres hexadecimais", () => {

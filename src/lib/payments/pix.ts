@@ -57,7 +57,7 @@ export function validatePixKey(rawKey: string | null | undefined): PixKeyValidat
       : { valid: false, type: null, key, error: "E-mail inválido para chave PIX" };
   }
 
-  if (/^[+\d][\d\s().-]*$/.test(key)) {
+  if (/^[+\d][\d\s().\-/]*$/.test(key)) {
     const d = digitsOnly(key);
     const explicitPhone = key.trim().startsWith("+");
 
