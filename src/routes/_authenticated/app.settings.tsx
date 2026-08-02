@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useServerFn } from "@tanstack/react-start";
+import { testMediaCache } from "@/lib/media.functions";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
@@ -102,6 +106,8 @@ function SettingsPage() {
     toast.success("Senha alterada");
   }
 
+  const mediaCache = <MediaCacheCard />;
+
   const initials = (fullName || email || "A").slice(0, 2).toUpperCase();
 
   return (
@@ -127,6 +133,10 @@ function SettingsPage() {
           Salvar perfil
         </Button>
       </form>
+
+      <Separator className="my-6" />
+
+      {mediaCache}
 
       <Separator className="my-6" />
 
@@ -156,5 +166,126 @@ function SettingsPage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+type CacheSettings = {
+  chat_type: "channel" | "group";
+  chat_id: string | null;
+  chat_title: string | null;
+  bot_id: string | null;
+  status: string;
+  last_error: string | null;
+};
+
+function MediaCacheCard() {
+  const qc = useQueryClient();
+  const runTest = useServerFn(testMediaCache);
+  const [chatType, setChatType] = useState<"channel" | "group">("channel");
+  const [chatId, setChatId] = useState("");
+  const [botId, setBotId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { data: bots = [] } = useQuery({
+    queryKey: ["bots-min"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bots").select("id,name").order("created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ["media-cache-settings"],
+    queryFn: async (): Promise<CacheSettings | null> => {
+      const { data, error } = await supabase
+        .from("media_cache_settings")
+        .select("chat_type,chat_id,chat_title,bot_id,status,last_error")
+        .maybeSingle();
+      if (error) throw error;
+      return (data as CacheSettings | null) ?? null;
+    },
+  });
+
+  useEffect(() => {
+    if (!settings) return;
+    setChatType(settings.chat_type);
+    setChatId(settings.chat_id ?? "");
+    setBotId(settings.bot_id ?? "");
+  }, [settings]);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!chatId.trim()) { toast.error("Informe o ID do canal ou grupo"); return; }
+    if (!botId) { toast.error("Escolha o bot responsável pelo cache"); return; }
+    setSaving(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const { error } = await supabase.from("media_cache_settings").upsert({
+      user_id: userData.user!.id,
+      chat_type: chatType,
+      chat_id: chatId.trim(),
+      bot_id: botId,
+    });
+    if (error) { setSaving(false); toast.error("Não foi possível salvar"); return; }
+    const result = await runTest({ data: { chatId: chatId.trim(), botId } });
+    setSaving(false);
+    qc.invalidateQueries({ queryKey: ["media-cache-settings"] });
+    if (result.ok) toast.success(`Cache conectado${result.title ? `: ${result.title}` : ""}`);
+    else toast.error(result.message);
+  }
+
+  const status = settings?.status ?? "disconnected";
+
+  return (
+    <form onSubmit={save} className="panel space-y-4 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-base font-semibold">Cache de Mídia</h2>
+          <p className="text-sm text-muted-foreground">
+            Canal ou grupo privado do Telegram usado para armazenar os arquivos dos fluxos.
+          </p>
+        </div>
+        <Badge variant={status === "connected" ? "default" : status === "error" ? "destructive" : "secondary"}>
+          {status === "connected" ? "Conectado" : status === "error" ? "Erro" : "Desconectado"}
+        </Badge>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Tipo</Label>
+          <Select value={chatType} onValueChange={(v) => setChatType(v as "channel" | "group")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="channel">Canal Telegram</SelectItem>
+              <SelectItem value="group">Grupo Telegram</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="chat-id">ID do Canal / Grupo</Label>
+          <Input id="chat-id" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="-1001234567890" maxLength={64} />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Bot responsável</Label>
+          <Select value={botId} onValueChange={setBotId}>
+            <SelectTrigger><SelectValue placeholder="Selecione um bot" /></SelectTrigger>
+            <SelectContent>
+              {bots.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            O bot precisa ser administrador do canal/grupo para publicar e reutilizar os arquivos.
+          </p>
+        </div>
+      </div>
+
+      {settings?.last_error && status === "error" ? (
+        <p className="text-xs text-destructive">{settings.last_error}</p>
+      ) : null}
+
+      <Button type="submit" disabled={saving}>{saving ? "Verificando…" : "Salvar e testar conexão"}</Button>
+    </form>
   );
 }
