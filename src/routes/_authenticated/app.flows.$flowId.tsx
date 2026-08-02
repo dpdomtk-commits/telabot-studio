@@ -28,6 +28,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Database } from "@/integrations/supabase/types";
+
+type StepType = Database["public"]["Enums"]["flow_node_type"];
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId")({
   head: () => ({
@@ -171,7 +174,7 @@ function FlowEditorPage() {
         const payload = {
           flow_id: flowId,
           user_id: userId,
-          type: node.data.type,
+          type: node.data.type as StepType,
           title: node.data.title,
           config: node.data.config as never,
           position: index++,
