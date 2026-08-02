@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   LogOut,
 } from "lucide-react";
+import markAsset from "@/assets/aurumbot-mark.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
