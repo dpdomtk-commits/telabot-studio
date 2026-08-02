@@ -1,11 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { updatePaymentStatus } from "@/lib/bot.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { downloadCsv } from "@/lib/csv";
 import { formatBRL, formatDate, paymentStatusLabels } from "@/lib/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
