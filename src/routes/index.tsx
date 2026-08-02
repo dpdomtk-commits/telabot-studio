@@ -43,14 +43,14 @@ function Landing() {
         </Button>
       </header>
 
-      <section className="grid-noise border-y border-border">
+      <section className="aurora-bg border-y border-border">
         <div className="mx-auto max-w-3xl px-6 py-28 text-center">
           <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted-foreground">
             <span className="size-1.5 rounded-full bg-primary" />
             Plataforma de automação para Telegram
           </p>
           <h1 className="text-balance text-5xl font-bold leading-[1.05] md:text-6xl">
-            Bots do Telegram que <span className="text-gradient-gold">vendem sozinhos</span>
+            Bots do Telegram que <span className="text-gradient-neon">vendem sozinhos</span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-pretty text-base text-muted-foreground">
             Cadastre seu bot, monte o fluxo por etapas, capture leads, receba via PIX e entregue o
