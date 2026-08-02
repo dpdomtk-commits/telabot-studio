@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBots } from "./app.bots";
+import { Download } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/csv";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +70,32 @@ function LeadsPage() {
 
   return (
     <div>
-      <PageHeader title="Leads" description="Contatos que interagiram com seus bots." />
+      <PageHeader
+        title="Leads"
+        description="Contatos que interagiram com seus bots."
+        action={
+          <Button
+            variant="secondary"
+            disabled={(leads?.length ?? 0) === 0}
+            onClick={() =>
+              downloadCsv(
+                `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+                ["Nome", "Telegram ID", "Usuário", "Bot", "Situação", "Entrada"],
+                (leads ?? []).map((l) => [
+                  l.name ?? "",
+                  l.telegram_id ?? "",
+                  l.telegram_username ?? "",
+                  l.bots?.name ?? "",
+                  statusLabels[l.status] ?? l.status,
+                  formatDate(l.created_at),
+                ]),
+              )
+            }
+          >
+            <Download /> Exportar CSV
+          </Button>
+        }
+      />
 
       <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2">

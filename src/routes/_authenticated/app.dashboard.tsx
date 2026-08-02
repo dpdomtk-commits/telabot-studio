@@ -149,6 +149,19 @@ function Dashboard() {
         </div>
       </div>
 
+      <div className="panel mt-6 p-5">
+        <p className="text-sm font-medium">Resumo mensal da receita</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {(data?.months ?? []).map((m) => (
+            <div key={m.key} className="rounded-md border border-border p-3">
+              <p className="text-xs capitalize text-muted-foreground">{m.label}</p>
+              <p className="mt-1 font-display text-lg font-bold">{formatBRL(m.total)}</p>
+              <p className="text-xs text-muted-foreground">{m.count} venda(s)</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-6">
         <p className="mb-3 text-sm font-medium">Últimos eventos</p>
         {(data?.logs.length ?? 0) === 0 ? (
