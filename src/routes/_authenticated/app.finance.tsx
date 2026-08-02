@@ -79,10 +79,7 @@ function FinancePage() {
           .select("id,amount_cents,fee_cents,net_cents,status,pix_key,pix_key_type,rejection_reason,created_at")
           .order("created_at", { ascending: false })
           .limit(50),
-        supabase
-          .from("finance_settings")
-          .select("charge_fixed_fee_cents,charge_percent_fee,withdrawal_fee_cents,min_withdrawal_cents")
-          .maybeSingle(),
+        getFinanceFees(),
       ]);
       return {
         wallet: (wallet.data ?? {
