@@ -1,4 +1,4 @@
-import { buildPixPayload } from "./pix";
+import { buildPixPayload, validatePixKey } from "./pix";
 
 /**
  * Camada de abstração de gateway de pagamento.
