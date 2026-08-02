@@ -95,10 +95,17 @@ function str(config: Record<string, unknown>, key: string): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
+type ConnectionRow = {
+  source_step_id: string;
+  target_step_id: string;
+  source_handle: string | null;
+};
+
 /**
- * Executa as etapas do fluxo ativo de um bot para um lead.
- * Para na etapa de pagamento (aguarda confirmação) e ignora as de entrega,
- * que só rodam depois do pagamento aprovado.
+ * Executa o fluxo ativo de um bot para um lead percorrendo o grafo visual
+ * (nós + conexões). Para nos nós de cobrança (aguardando pagamento),
+ * nas perguntas/menus (aguardando resposta) e nos nós de entrega,
+ * que só rodam após o pagamento aprovado.
  */
 export async function runFlowForLead(params: {
   userId: string;
@@ -118,75 +125,209 @@ export async function runFlowForLead(params: {
 
   if (!flow) return;
 
-  const { data: steps } = await supabaseAdmin
-    .from("flow_steps")
-    .select("id,type,position,config")
-    .eq("flow_id", flow.id)
-    .order("position", { ascending: true });
+  const [{ data: stepsData }, { data: connectionsData }] = await Promise.all([
+    supabaseAdmin
+      .from("flow_steps")
+      .select("id,type,position,config")
+      .eq("flow_id", flow.id)
+      .order("position", { ascending: true }),
+    supabaseAdmin
+      .from("flow_connections")
+      .select("source_step_id,target_step_id,source_handle")
+      .eq("flow_id", flow.id),
+  ]);
 
-  for (const step of (steps ?? []) as unknown as StepRow[]) {
+  const steps = (stepsData ?? []) as unknown as StepRow[];
+  if (steps.length === 0) return;
+  const connections = (connectionsData ?? []) as unknown as ConnectionRow[];
+  const byId = new Map(steps.map((s) => [s.id, s]));
+
+  const { data: execution } = await supabaseAdmin
+    .from("flow_executions")
+    .insert({ user_id: params.userId, flow_id: flow.id, lead_id: params.leadId, status: "running" })
+    .select("id")
+    .maybeSingle();
+
+  const log = async (level: string, message: string, stepId?: string) => {
+    await supabaseAdmin.from("flow_logs").insert({
+      user_id: params.userId,
+      flow_id: flow.id,
+      execution_id: execution?.id ?? null,
+      step_id: stepId ?? null,
+      level,
+      message,
+    });
+  };
+
+  const finish = async (status: "completed" | "failed" | "waiting_payment", currentStepId?: string) => {
+    if (!execution) return;
+    await supabaseAdmin
+      .from("flow_executions")
+      .update({
+        status,
+        current_step_id: currentStepId ?? null,
+        finished_at: status === "waiting_payment" ? null : new Date().toISOString(),
+      })
+      .eq("id", execution.id);
+  };
+
+  const nextStep = (stepId: string, handle = "saída"): StepRow | undefined => {
+    const outgoing = connections.filter((c) => c.source_step_id === stepId);
+    const match =
+      outgoing.find((c) => (c.source_handle ?? "saída") === handle) ?? (outgoing.length === 1 ? outgoing[0] : undefined);
+    return match ? byId.get(match.target_step_id) : undefined;
+  };
+
+  // Nó inicial: o "start" do canvas ou, sem ele, a primeira etapa.
+  let current: StepRow | undefined = steps.find((s) => s.type === "start") ?? steps[0];
+  if (current?.type === "start") current = nextStep(current.id);
+
+  const visited = new Set<string>();
+
+  while (current) {
+    if (visited.has(current.id)) break; // proteção contra laços infinitos
+    visited.add(current.id);
+
+    const step: StepRow = current;
     const config = (step.config ?? {}) as Record<string, unknown>;
     let result: TelegramSendResult = { ok: true };
+    let handle = "saída";
 
-    if (step.type === "message") {
-      result = await sendMessage(params.token, params.chatId, str(config, "text") || "…");
-    } else if (step.type === "image") {
-      result = await sendPhoto(params.token, params.chatId, str(config, "url"), str(config, "caption"));
-    } else if (step.type === "button") {
-      result = await sendMessage(params.token, params.chatId, str(config, "label") || "Continuar", {
-        inline_keyboard: [
-          [{ text: str(config, "label") || "Continuar", callback_data: `step:${step.id}` }],
-        ],
-      });
-    } else if (step.type === "delay") {
-      const seconds = Math.min(Number(config["seconds"]) || 0, 5);
-      if (seconds > 0) await new Promise((r) => setTimeout(r, seconds * 1000));
-    } else if (step.type === "payment") {
-      const { createPixCharge } = await import("@/lib/finance.server");
-      const amount = Math.round((Number(config["amount"]) || 0) * 100);
-      const description = str(config, "description") || "Pagamento";
-      const productName = str(config, "product_name") || null;
-      const successMessage = str(config, "success_message") || null;
-      const expiresMinutes = Number(config["expires_minutes"]) || 0;
-
-      const charge = await createPixCharge({
-        userId: params.userId,
-        botId: params.botId,
-        leadId: params.leadId,
-        amountCents: amount,
-        description,
-        productName,
-        successMessage,
-        expiresAt:
-          expiresMinutes > 0 ? new Date(Date.now() + expiresMinutes * 60000).toISOString() : null,
-        idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
-      });
-
-      const lines = [
-        `<b>${productName ?? description}</b>`,
-        `Valor: R$ ${(amount / 100).toFixed(2).replace(".", ",")}`,
-      ];
-      if (charge.pix_code) {
-        lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
+    switch (step.type) {
+      case "message":
+      case "end":
+        result = await sendMessage(params.token, params.chatId, str(config, "text") || str(config, "message") || "…");
+        break;
+      case "image":
+        result = await sendPhoto(params.token, params.chatId, str(config, "url"), str(config, "caption"));
+        break;
+      case "video":
+        result = await callTelegram(params.token, "sendVideo", {
+          chat_id: params.chatId,
+          video: str(config, "url"),
+          caption: str(config, "caption") || undefined,
+        });
+        break;
+      case "audio":
+        result = await callTelegram(params.token, "sendAudio", {
+          chat_id: params.chatId,
+          audio: str(config, "url"),
+          caption: str(config, "caption") || undefined,
+        });
+        break;
+      case "document":
+        result = await callTelegram(params.token, "sendDocument", {
+          chat_id: params.chatId,
+          document: str(config, "url"),
+          caption: str(config, "caption") || undefined,
+        });
+        break;
+      case "button": {
+        const label = str(config, "label") || "Continuar";
+        result = await sendMessage(params.token, params.chatId, str(config, "text") || label, {
+          inline_keyboard: [[{ text: label, callback_data: `step:${step.id}` }]],
+        });
+        break;
       }
-      if (expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${expiresMinutes} minutos.`);
-      lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
-
-      result = await sendMessage(params.token, params.chatId, lines.join("\n"));
-      await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
-      if (!result.ok) {
-        await notify(
-          params.userId,
-          "error",
-          "Falha ao enviar etapa do fluxo",
-          `Etapa "${step.type}": ${result.error}`,
-          "flow_step",
-          step.id,
-        );
+      case "menu": {
+        const options = str(config, "options")
+          .split("\n")
+          .map((o) => o.trim())
+          .filter(Boolean);
+        result = await sendMessage(params.token, params.chatId, str(config, "text") || "Escolha uma opção", {
+          inline_keyboard: options.map((o) => [{ text: o, callback_data: `menu:${step.id}:${o.slice(0, 24)}` }]),
+        });
+        break;
       }
-      return; // aguarda confirmação do pagamento
-    } else if (step.type === "delivery") {
-      continue;
+      case "question":
+        result = await sendMessage(params.token, params.chatId, str(config, "text") || "…");
+        await finish("waiting_payment", step.id);
+        return; // aguarda a resposta do lead
+      case "delay": {
+        const seconds = Math.min(Number(config["seconds"]) || 0, 5);
+        if (seconds > 0) await new Promise((r) => setTimeout(r, seconds * 1000));
+        break;
+      }
+      case "tag":
+      case "untag":
+        await logActivity(params.userId, "fluxo", `etiqueta ${str(config, "tag")}`, step.id);
+        break;
+      case "condition":
+        handle = "sim";
+        break;
+      case "webhook":
+      case "api": {
+        const url = str(config, "url");
+        if (url) {
+          try {
+            await fetch(url, {
+              method: str(config, "method") || "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                event: str(config, "event") || "flow_step",
+                lead_id: params.leadId,
+                flow_id: flow.id,
+                step_id: step.id,
+              }),
+            });
+          } catch {
+            result = { ok: false, error: "Falha ao chamar o endpoint externo" };
+          }
+        }
+        break;
+      }
+      case "release_channel":
+      case "release_group": {
+        const message = str(config, "message") || "Seu acesso VIP foi liberado.";
+        result = await sendMessage(params.token, params.chatId, message);
+        break;
+      }
+      case "subscription": {
+        const amount = Math.round((Number(config["amount"]) || 0) * 100);
+        const intervalDays = Math.max(Number(config["interval_days"]) || 30, 1);
+        const planName = str(config, "plan_name") || "Assinatura";
+        await supabaseAdmin.from("subscriptions").insert({
+          user_id: params.userId,
+          bot_id: params.botId,
+          lead_id: params.leadId,
+          flow_id: flow.id,
+          plan_name: planName,
+          amount_cents: amount,
+          interval_days: intervalDays,
+          status: "past_due",
+        });
+        result = await sendCharge(params, step, {
+          amount,
+          productName: planName,
+          description: `${planName} · a cada ${intervalDays} dias`,
+          successMessage: str(config, "success_message"),
+          expiresMinutes: 0,
+        });
+        await finish("waiting_payment", step.id);
+        return;
+      }
+      case "pix":
+      case "payment":
+      case "upsell":
+      case "downsell":
+      case "order_bump":
+      case "pack": {
+        const amount = Math.round((Number(config["amount"]) || 0) * 100);
+        result = await sendCharge(params, step, {
+          amount,
+          productName: str(config, "product_name") || null,
+          description: str(config, "description") || str(config, "pitch") || "Pagamento",
+          successMessage: str(config, "success_message"),
+          expiresMinutes: Number(config["expires_minutes"]) || 0,
+        });
+        await finish("waiting_payment", step.id);
+        return; // aguarda confirmação do pagamento
+      }
+      case "delivery":
+        current = nextStep(step.id, handle);
+        continue; // só roda após o pagamento aprovado
+      default:
+        break;
     }
 
     if (!result.ok) {
@@ -198,11 +339,59 @@ export async function runFlowForLead(params: {
         "flow_step",
         step.id,
       );
+      await log("error", `Falha na etapa ${step.type}: ${result.error}`, step.id);
       await logActivity(params.userId, "fluxo", "falha no envio da etapa", step.id, { error: result.error });
+      await finish("failed", step.id);
       return;
     }
+
+    await log("info", `Etapa ${step.type} executada`, step.id);
+    if (step.type === "end") break;
+    current = nextStep(step.id, handle);
   }
+
+  await finish("completed");
 }
+
+/** Cria a cobrança PIX de um nó de monetização e envia o copia e cola no Telegram. */
+async function sendCharge(
+  params: { userId: string; botId: string; token: string; leadId: string; chatId: number },
+  step: StepRow,
+  input: {
+    amount: number;
+    productName: string | null;
+    description: string;
+    successMessage: string;
+    expiresMinutes: number;
+  },
+): Promise<TelegramSendResult> {
+  const { createPixCharge } = await import("@/lib/finance.server");
+  const charge = await createPixCharge({
+    userId: params.userId,
+    botId: params.botId,
+    leadId: params.leadId,
+    amountCents: input.amount,
+    description: input.description,
+    productName: input.productName,
+    successMessage: input.successMessage || null,
+    expiresAt:
+      input.expiresMinutes > 0 ? new Date(Date.now() + input.expiresMinutes * 60000).toISOString() : null,
+    idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
+  });
+
+  const lines = [
+    `<b>${input.productName ?? input.description}</b>`,
+    `Valor: R$ ${(input.amount / 100).toFixed(2).replace(".", ",")}`,
+  ];
+  if (charge.pix_code) lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
+  if (input.expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${input.expiresMinutes} minutos.`);
+  lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
+
+  const result = await sendMessage(params.token, params.chatId, lines.join("\n"));
+  await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
+  return result;
+}
+
 
 /** Entrega automática do produto após pagamento aprovado. */
 export async function deliverForPayment(paymentId: string) {

@@ -176,6 +176,183 @@ export type Database = {
         }
         Relationships: []
       }
+      flow_connections: {
+        Row: {
+          created_at: string
+          flow_id: string
+          id: string
+          label: string | null
+          source_handle: string | null
+          source_step_id: string
+          target_step_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          flow_id: string
+          id?: string
+          label?: string | null
+          source_handle?: string | null
+          source_step_id: string
+          target_step_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          flow_id?: string
+          id?: string
+          label?: string | null
+          source_handle?: string | null
+          source_step_id?: string
+          target_step_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_connections_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_connections_source_step_id_fkey"
+            columns: ["source_step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_connections_target_step_id_fkey"
+            columns: ["target_step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_executions: {
+        Row: {
+          context: Json
+          created_at: string
+          current_step_id: string | null
+          finished_at: string | null
+          flow_id: string
+          id: string
+          lead_id: string | null
+          started_at: string
+          status: Database["public"]["Enums"]["execution_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          context?: Json
+          created_at?: string
+          current_step_id?: string | null
+          finished_at?: string | null
+          flow_id: string
+          id?: string
+          lead_id?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["execution_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          context?: Json
+          created_at?: string
+          current_step_id?: string | null
+          finished_at?: string | null
+          flow_id?: string
+          id?: string
+          lead_id?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["execution_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_executions_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_executions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_logs: {
+        Row: {
+          created_at: string
+          execution_id: string | null
+          flow_id: string | null
+          id: string
+          level: string
+          message: string
+          metadata: Json
+          step_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          execution_id?: string | null
+          flow_id?: string | null
+          id?: string
+          level?: string
+          message: string
+          metadata?: Json
+          step_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          execution_id?: string | null
+          flow_id?: string | null
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json
+          step_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_logs_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "flow_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_logs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_logs_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flow_steps: {
         Row: {
           config: Json
@@ -183,7 +360,10 @@ export type Database = {
           flow_id: string
           id: string
           position: number
-          type: Database["public"]["Enums"]["step_type"]
+          position_x: number
+          position_y: number
+          title: string | null
+          type: Database["public"]["Enums"]["flow_node_type"]
           updated_at: string
           user_id: string
         }
@@ -193,7 +373,10 @@ export type Database = {
           flow_id: string
           id?: string
           position?: number
-          type: Database["public"]["Enums"]["step_type"]
+          position_x?: number
+          position_y?: number
+          title?: string | null
+          type: Database["public"]["Enums"]["flow_node_type"]
           updated_at?: string
           user_id: string
         }
@@ -203,7 +386,10 @@ export type Database = {
           flow_id?: string
           id?: string
           position?: number
-          type?: Database["public"]["Enums"]["step_type"]
+          position_x?: number
+          position_y?: number
+          title?: string | null
+          type?: Database["public"]["Enums"]["flow_node_type"]
           updated_at?: string
           user_id?: string
         }
@@ -221,27 +407,33 @@ export type Database = {
         Row: {
           bot_id: string
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
           name: string
+          status: Database["public"]["Enums"]["flow_status"]
           updated_at: string
           user_id: string
         }
         Insert: {
           bot_id: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          status?: Database["public"]["Enums"]["flow_status"]
           updated_at?: string
           user_id: string
         }
         Update: {
           bot_id?: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          status?: Database["public"]["Enums"]["flow_status"]
           updated_at?: string
           user_id?: string
         }
@@ -399,6 +591,8 @@ export type Database = {
           expires_at: string | null
           external_id: string | null
           fee_cents: number
+          flow_id: string | null
+          flow_step_id: string | null
           id: string
           idempotency_key: string | null
           lead_id: string | null
@@ -408,8 +602,11 @@ export type Database = {
           pix_code: string | null
           product_name: string | null
           provider: string
+          qr_code: string | null
           status: Database["public"]["Enums"]["payment_status"]
+          subscription_id: string | null
           success_message: string | null
+          transaction_reference: string
           updated_at: string
           user_id: string
         }
@@ -423,6 +620,8 @@ export type Database = {
           expires_at?: string | null
           external_id?: string | null
           fee_cents?: number
+          flow_id?: string | null
+          flow_step_id?: string | null
           id?: string
           idempotency_key?: string | null
           lead_id?: string | null
@@ -432,8 +631,11 @@ export type Database = {
           pix_code?: string | null
           product_name?: string | null
           provider?: string
+          qr_code?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          subscription_id?: string | null
           success_message?: string | null
+          transaction_reference?: string
           updated_at?: string
           user_id: string
         }
@@ -447,6 +649,8 @@ export type Database = {
           expires_at?: string | null
           external_id?: string | null
           fee_cents?: number
+          flow_id?: string | null
+          flow_step_id?: string | null
           id?: string
           idempotency_key?: string | null
           lead_id?: string | null
@@ -456,8 +660,11 @@ export type Database = {
           pix_code?: string | null
           product_name?: string | null
           provider?: string
+          qr_code?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          subscription_id?: string | null
           success_message?: string | null
+          transaction_reference?: string
           updated_at?: string
           user_id?: string
         }
@@ -470,10 +677,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payments_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_flow_step_id_fkey"
+            columns: ["flow_step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payments_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
         ]
@@ -507,6 +735,79 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount_cents: number
+          bot_id: string | null
+          cancelled_at: string | null
+          created_at: string
+          flow_id: string | null
+          id: string
+          interval_days: number
+          lead_id: string | null
+          next_charge_at: string | null
+          plan_name: string
+          started_at: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          bot_id?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          flow_id?: string | null
+          id?: string
+          interval_days?: number
+          lead_id?: string | null
+          next_charge_at?: string | null
+          plan_name: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          bot_id?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          flow_id?: string | null
+          id?: string
+          interval_days?: number
+          lead_id?: string | null
+          next_charge_at?: string | null
+          plan_name?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -637,6 +938,7 @@ export type Database = {
         Args: { _ip?: string; _payment_id: string }
         Returns: Json
       }
+      generate_transaction_reference: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -668,6 +970,40 @@ export type Database = {
       app_role: "admin" | "user"
       bot_status: "active" | "inactive"
       delivery_status: "pending" | "delivered" | "failed"
+      execution_status:
+        | "running"
+        | "waiting_payment"
+        | "completed"
+        | "failed"
+        | "cancelled"
+      flow_node_type:
+        | "start"
+        | "message"
+        | "image"
+        | "video"
+        | "audio"
+        | "document"
+        | "button"
+        | "menu"
+        | "question"
+        | "condition"
+        | "delay"
+        | "tag"
+        | "untag"
+        | "webhook"
+        | "api"
+        | "pix"
+        | "payment"
+        | "subscription"
+        | "upsell"
+        | "downsell"
+        | "order_bump"
+        | "pack"
+        | "release_channel"
+        | "release_group"
+        | "delivery"
+        | "end"
+      flow_status: "draft" | "active" | "archived"
       lead_status: "new" | "engaged" | "converted"
       ledger_status: "pending" | "completed" | "reversed"
       ledger_type:
@@ -691,6 +1027,7 @@ export type Database = {
         | "delay"
         | "payment"
         | "delivery"
+      subscription_status: "active" | "past_due" | "cancelled" | "expired"
       withdrawal_status: "review" | "approved" | "paid" | "rejected"
     }
     CompositeTypes: {
@@ -822,6 +1159,42 @@ export const Constants = {
       app_role: ["admin", "user"],
       bot_status: ["active", "inactive"],
       delivery_status: ["pending", "delivered", "failed"],
+      execution_status: [
+        "running",
+        "waiting_payment",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      flow_node_type: [
+        "start",
+        "message",
+        "image",
+        "video",
+        "audio",
+        "document",
+        "button",
+        "menu",
+        "question",
+        "condition",
+        "delay",
+        "tag",
+        "untag",
+        "webhook",
+        "api",
+        "pix",
+        "payment",
+        "subscription",
+        "upsell",
+        "downsell",
+        "order_bump",
+        "pack",
+        "release_channel",
+        "release_group",
+        "delivery",
+        "end",
+      ],
+      flow_status: ["draft", "active", "archived"],
       lead_status: ["new", "engaged", "converted"],
       ledger_status: ["pending", "completed", "reversed"],
       ledger_type: [
@@ -841,6 +1214,7 @@ export const Constants = {
         "cancelled",
       ],
       step_type: ["message", "image", "button", "delay", "payment", "delivery"],
+      subscription_status: ["active", "past_due", "cancelled", "expired"],
       withdrawal_status: ["review", "approved", "paid", "rejected"],
     },
   },
