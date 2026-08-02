@@ -68,8 +68,8 @@ function AuthPage() {
 
       <div className="w-full max-w-sm animate-rise">
         <Link to="/" className="mb-8 flex flex-col items-center gap-3">
-          <span className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-neon glow-ring animate-pulse-glow">
-            <Bot className="size-7 text-primary-foreground" />
+          <span className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface glow-ring animate-pulse-glow">
+            <img src={markAsset.url} alt="Logo AURUMBOT" className="size-full object-cover" />
           </span>
           <span className="font-display text-xl font-bold tracking-tight">
             AURUM<span className="text-gradient-neon">BOT</span>
