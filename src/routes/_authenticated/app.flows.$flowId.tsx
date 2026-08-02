@@ -49,7 +49,10 @@ const fieldsByType: Record<StepType, { key: string; label: string; kind: "text" 
   delay: [{ key: "seconds", label: "Segundos de espera", kind: "number" }],
   payment: [
     { key: "amount", label: "Valor em reais", kind: "number" },
+    { key: "product_name", label: "Nome do produto", kind: "text" },
     { key: "description", label: "Descrição da cobrança", kind: "text" },
+    { key: "expires_minutes", label: "Vencimento em minutos (opcional)", kind: "number" },
+    { key: "success_message", label: "Mensagem de sucesso", kind: "textarea" },
   ],
   delivery: [
     { key: "content", label: "Conteúdo entregue (link ou texto)", kind: "textarea" },

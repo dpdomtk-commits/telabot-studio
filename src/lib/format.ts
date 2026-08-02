@@ -36,6 +36,32 @@ export const paymentStatusLabels: Record<string, string> = {
   approved: "Aprovado",
   failed: "Falhou",
   refunded: "Estornado",
+  expired: "Expirado",
+  cancelled: "Cancelado",
+};
+
+export const withdrawalStatusLabels: Record<string, string> = {
+  review: "Em análise",
+  approved: "Aprovado",
+  paid: "Pago",
+  rejected: "Recusado",
+};
+
+export const ledgerTypeLabels: Record<string, string> = {
+  payment_in: "Recebimento",
+  fee: "Taxa",
+  withdrawal: "Saque",
+  withdrawal_fee: "Taxa de saque",
+  adjustment: "Ajuste",
+  refund: "Estorno",
+};
+
+export const pixKeyTypeLabels: Record<string, string> = {
+  cpf: "CPF",
+  cnpj: "CNPJ",
+  email: "E-mail",
+  phone: "Telefone",
+  random: "Chave aleatória",
 };
 
 export const leadStatusLabels: Record<string, string> = {

@@ -134,6 +134,48 @@ export type Database = {
           },
         ]
       }
+      finance_settings: {
+        Row: {
+          charge_fixed_fee_cents: number
+          charge_percent_fee: number
+          created_at: string
+          id: boolean
+          min_withdrawal_cents: number
+          pix_receiver_city: string
+          pix_receiver_key: string | null
+          pix_receiver_name: string
+          provider: string
+          updated_at: string
+          withdrawal_fee_cents: number
+        }
+        Insert: {
+          charge_fixed_fee_cents?: number
+          charge_percent_fee?: number
+          created_at?: string
+          id?: boolean
+          min_withdrawal_cents?: number
+          pix_receiver_city?: string
+          pix_receiver_key?: string | null
+          pix_receiver_name?: string
+          provider?: string
+          updated_at?: string
+          withdrawal_fee_cents?: number
+        }
+        Update: {
+          charge_fixed_fee_cents?: number
+          charge_percent_fee?: number
+          created_at?: string
+          id?: boolean
+          min_withdrawal_cents?: number
+          pix_receiver_city?: string
+          pix_receiver_key?: string | null
+          pix_receiver_name?: string
+          provider?: string
+          updated_at?: string
+          withdrawal_fee_cents?: number
+        }
+        Relationships: []
+      }
       flow_steps: {
         Row: {
           config: Json
@@ -254,6 +296,62 @@ export type Database = {
           },
         ]
       }
+      ledger_entries: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          description: string | null
+          fee_cents: number
+          id: string
+          ip_address: string | null
+          metadata: Json
+          net_cents: number
+          payment_id: string | null
+          status: Database["public"]["Enums"]["ledger_status"]
+          type: Database["public"]["Enums"]["ledger_type"]
+          user_id: string
+          withdrawal_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          description?: string | null
+          fee_cents?: number
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          net_cents: number
+          payment_id?: string | null
+          status?: Database["public"]["Enums"]["ledger_status"]
+          type: Database["public"]["Enums"]["ledger_type"]
+          user_id: string
+          withdrawal_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          description?: string | null
+          fee_cents?: number
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          net_cents?: number
+          payment_id?: string | null
+          status?: Database["public"]["Enums"]["ledger_status"]
+          type?: Database["public"]["Enums"]["ledger_type"]
+          user_id?: string
+          withdrawal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -295,14 +393,23 @@ export type Database = {
           amount_cents: number
           bot_id: string | null
           created_at: string
+          credited_at: string | null
           currency: string
           description: string | null
+          expires_at: string | null
           external_id: string | null
+          fee_cents: number
           id: string
+          idempotency_key: string | null
           lead_id: string | null
           method: string
+          net_cents: number
           paid_at: string | null
+          pix_code: string | null
+          product_name: string | null
+          provider: string
           status: Database["public"]["Enums"]["payment_status"]
+          success_message: string | null
           updated_at: string
           user_id: string
         }
@@ -310,14 +417,23 @@ export type Database = {
           amount_cents?: number
           bot_id?: string | null
           created_at?: string
+          credited_at?: string | null
           currency?: string
           description?: string | null
+          expires_at?: string | null
           external_id?: string | null
+          fee_cents?: number
           id?: string
+          idempotency_key?: string | null
           lead_id?: string | null
           method?: string
+          net_cents?: number
           paid_at?: string | null
+          pix_code?: string | null
+          product_name?: string | null
+          provider?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          success_message?: string | null
           updated_at?: string
           user_id: string
         }
@@ -325,14 +441,23 @@ export type Database = {
           amount_cents?: number
           bot_id?: string | null
           created_at?: string
+          credited_at?: string | null
           currency?: string
           description?: string | null
+          expires_at?: string | null
           external_id?: string | null
+          fee_cents?: number
           id?: string
+          idempotency_key?: string | null
           lead_id?: string | null
           method?: string
+          net_cents?: number
           paid_at?: string | null
+          pix_code?: string | null
+          product_name?: string | null
+          provider?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          success_message?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -360,6 +485,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_blocked: boolean
           updated_at: string
         }
         Insert: {
@@ -368,6 +494,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_blocked?: boolean
           updated_at?: string
         }
         Update: {
@@ -376,6 +503,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_blocked?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -401,11 +529,114 @@ export type Database = {
         }
         Relationships: []
       }
+      wallets: {
+        Row: {
+          available_cents: number
+          blocked_cents: number
+          created_at: string
+          id: string
+          pending_cents: number
+          total_fees_cents: number
+          total_received_cents: number
+          total_withdrawn_cents: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          available_cents?: number
+          blocked_cents?: number
+          created_at?: string
+          id?: string
+          pending_cents?: number
+          total_fees_cents?: number
+          total_received_cents?: number
+          total_withdrawn_cents?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          available_cents?: number
+          blocked_cents?: number
+          created_at?: string
+          id?: string
+          pending_cents?: number
+          total_fees_cents?: number
+          total_received_cents?: number
+          total_withdrawn_cents?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawals: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          fee_cents: number
+          id: string
+          ip_address: string | null
+          net_cents: number
+          pix_key: string
+          pix_key_type: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewer_id: string | null
+          status: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          fee_cents?: number
+          id?: string
+          ip_address?: string | null
+          net_cents: number
+          pix_key: string
+          pix_key_type?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          fee_cents?: number
+          id?: string
+          ip_address?: string | null
+          net_cents?: number
+          pix_key?: string
+          pix_key_type?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      adjust_wallet: {
+        Args: {
+          _amount_cents: number
+          _description: string
+          _reviewer: string
+          _user_id: string
+        }
+        Returns: Json
+      }
+      credit_payment: {
+        Args: { _ip?: string; _payment_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -413,13 +644,46 @@ export type Database = {
         }
         Returns: boolean
       }
+      request_withdrawal: {
+        Args: {
+          _amount_cents: number
+          _ip?: string
+          _pix_key: string
+          _pix_key_type: string
+          _user_id: string
+        }
+        Returns: Json
+      }
+      resolve_withdrawal: {
+        Args: {
+          _reason?: string
+          _reviewer: string
+          _status: Database["public"]["Enums"]["withdrawal_status"]
+          _withdrawal_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
       bot_status: "active" | "inactive"
       delivery_status: "pending" | "delivered" | "failed"
       lead_status: "new" | "engaged" | "converted"
-      payment_status: "pending" | "approved" | "failed" | "refunded"
+      ledger_status: "pending" | "completed" | "reversed"
+      ledger_type:
+        | "payment_in"
+        | "fee"
+        | "withdrawal"
+        | "withdrawal_fee"
+        | "adjustment"
+        | "refund"
+      payment_status:
+        | "pending"
+        | "approved"
+        | "failed"
+        | "refunded"
+        | "expired"
+        | "cancelled"
       step_type:
         | "message"
         | "image"
@@ -427,6 +691,7 @@ export type Database = {
         | "delay"
         | "payment"
         | "delivery"
+      withdrawal_status: "review" | "approved" | "paid" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -558,8 +823,25 @@ export const Constants = {
       bot_status: ["active", "inactive"],
       delivery_status: ["pending", "delivered", "failed"],
       lead_status: ["new", "engaged", "converted"],
-      payment_status: ["pending", "approved", "failed", "refunded"],
+      ledger_status: ["pending", "completed", "reversed"],
+      ledger_type: [
+        "payment_in",
+        "fee",
+        "withdrawal",
+        "withdrawal_fee",
+        "adjustment",
+        "refund",
+      ],
+      payment_status: [
+        "pending",
+        "approved",
+        "failed",
+        "refunded",
+        "expired",
+        "cancelled",
+      ],
       step_type: ["message", "image", "button", "delay", "payment", "delivery"],
+      withdrawal_status: ["review", "approved", "paid", "rejected"],
     },
   },
 } as const
