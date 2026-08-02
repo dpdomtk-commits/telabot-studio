@@ -2,11 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function isAdmin(context: { supabase: { rpc: (fn: "has_role", args: { _user_id: string; _role: "admin" }) => PromiseLike<{ data: unknown }> }; userId: string }) {
-  const { data } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-  return data === true;
-}
-
 export type SyncpayStatus = {
   configured: boolean;
   clientIdMasked: string;
@@ -33,7 +28,9 @@ export const getSyncpayStatus = createServerFn({ method: "GET" })
       lastSyncAt: null,
       message: "Sem permissão",
     };
-    if (!(await isAdmin(context))) return empty;
+    if (!(
+      await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" })
+    ).data) return empty;
 
     const { syncpayWebhookUrl } = await import("@/lib/payments/syncpay.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -68,7 +65,9 @@ export const getSyncpayStatus = createServerFn({ method: "GET" })
 export const testSyncpay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ ok: boolean; message: string }> => {
-    if (!(await isAdmin(context))) return { ok: false, message: "Sem permissão" };
+    if (!(
+      await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" })
+    ).data) return { ok: false, message: "Sem permissão" };
 
     const { testSyncpayConnection } = await import("@/lib/payments/syncpay.server");
     const { logActivity } = await import("@/lib/telegram.server");
@@ -85,7 +84,9 @@ export const setPlatformProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ provider: z.enum(["internal", "syncpay"]) }).parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
-    if (!(await isAdmin(context))) return { ok: false, message: "Sem permissão" };
+    if (!(
+      await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" })
+    ).data) return { ok: false, message: "Sem permissão" };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { logActivity } = await import("@/lib/telegram.server");
