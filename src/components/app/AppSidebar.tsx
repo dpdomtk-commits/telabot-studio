@@ -7,6 +7,7 @@ import {
   Users,
   CreditCard,
   Wallet,
+  Network,
   Settings,
   ShieldCheck,
   LogOut,
@@ -32,6 +33,7 @@ const items = [
   { title: "Leads", url: "/app/leads", icon: Users },
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
   { title: "Financeiro", url: "/app/finance", icon: Wallet },
+  { title: "Gateways", url: "/app/gateways", icon: Network },
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ] as const;
 

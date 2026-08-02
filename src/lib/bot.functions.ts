@@ -94,6 +94,11 @@ export const updatePaymentStatus = createServerFn({ method: "POST" })
       const { creditPayment } = await import("@/lib/finance.server");
       const credited = await creditPayment(payment.id);
       if (!credited.ok) return { ok: false, message: credited.message || "Falha ao creditar" };
+      if (!credited.duplicate) {
+        const { applyGatewaySplits } = await import("@/lib/payments/gateways.server");
+        await applyGatewaySplits(payment.id);
+      }
+
 
       await logActivity(payment.user_id, "pagamento", "situação alterada para approved", payment.id);
       await notify(

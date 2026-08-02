@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { getProvider } from "@/lib/payments/provider";
 
 export type FinanceSettings = {
   charge_fixed_fee_cents: number;
@@ -44,7 +43,10 @@ export type CreateChargeInput = {
   successMessage?: string | null;
   expiresAt?: string | null;
   idempotencyKey?: string | null;
+  flowId?: string | null;
+  gatewayId?: string | null;
 };
+
 
 /**
  * Cria uma cobrança PIX através da camada PaymentProvider.
@@ -63,12 +65,24 @@ export async function createPixCharge(input: CreateChargeInput) {
   const settings = await getFinanceSettings();
   const { feeCents, netCents } = estimateFee(input.amountCents, settings);
 
+  // Roteamento por fluxo: o fluxo pode fixar qual gateway deve ser usado.
+  let preferredGatewayId = input.gatewayId ?? null;
+  if (!preferredGatewayId && input.flowId) {
+    const { data: flow } = await supabaseAdmin
+      .from("flows")
+      .select("gateway_id")
+      .eq("id", input.flowId)
+      .maybeSingle();
+    preferredGatewayId = flow?.gateway_id ?? null;
+  }
+
   const { data: charge, error } = await supabaseAdmin
     .from("payments")
     .insert({
       user_id: input.userId,
       bot_id: input.botId ?? null,
       lead_id: input.leadId ?? null,
+      flow_id: input.flowId ?? null,
       amount_cents: input.amountCents,
       description: input.description,
       product_name: input.productName ?? null,
@@ -86,28 +100,38 @@ export async function createPixCharge(input: CreateChargeInput) {
 
   if (error || !charge) throw new Error(error?.message ?? "Falha ao criar cobrança");
 
-  const result = await getProvider(settings.provider).createPixCharge(
-    {
+  const { createChargeWithFallback } = await import("@/lib/payments/gateways.server");
+  const result = await createChargeWithFallback({
+    userId: input.userId,
+    preferredGatewayId,
+    fallbackProvider: settings.provider,
+    fallbackConfig: {
+      pixReceiverKey: settings.pix_receiver_key,
+      pixReceiverName: settings.pix_receiver_name,
+      pixReceiverCity: settings.pix_receiver_city,
+    },
+    input: {
       chargeId: charge.id,
       amountCents: input.amountCents,
       description: input.description,
       productName: input.productName ?? null,
       expiresAt: input.expiresAt ?? null,
     },
-    {
-      pixReceiverKey: settings.pix_receiver_key,
-      pixReceiverName: settings.pix_receiver_name,
-      pixReceiverCity: settings.pix_receiver_city,
-    },
-  );
+  });
 
   await supabaseAdmin
     .from("payments")
-    .update({ pix_code: result.pixCode || null, external_id: result.externalId })
+    .update({
+      pix_code: result.pixCode || null,
+      external_id: result.externalId,
+      gateway_id: result.gatewayId,
+      provider: result.provider,
+    })
     .eq("id", charge.id);
 
   return { ...charge, pix_code: result.pixCode || null };
 }
+
 
 /** Crédito idempotente na carteira interna (transação atômica no banco). */
 export async function creditPayment(paymentId: string, ip?: string | null) {
