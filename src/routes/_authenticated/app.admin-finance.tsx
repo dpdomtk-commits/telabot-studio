@@ -11,6 +11,7 @@ import {
   setUserBlocked,
 } from "@/lib/finance.functions";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
+import { SyncpayGatewayCard } from "@/components/app/SyncpayGatewayCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -142,7 +143,12 @@ function AdminFinancePage() {
           <TabsTrigger value="wallets">Carteiras</TabsTrigger>
           <TabsTrigger value="charges">Cobranças</TabsTrigger>
           <TabsTrigger value="settings">Taxas</TabsTrigger>
+          <TabsTrigger value="gateway">Gateway</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="gateway" className="mt-4">
+          <SyncpayGatewayCard />
+        </TabsContent>
 
         <TabsContent value="withdrawals" className="mt-4">
           {(data?.withdrawals.length ?? 0) === 0 ? (
