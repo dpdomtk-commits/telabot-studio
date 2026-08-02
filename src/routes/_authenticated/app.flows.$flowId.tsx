@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Database } from "@/integrations/supabase/types";
 
 type StepType = Database["public"]["Enums"]["flow_node_type"];
+import { MediaPicker } from "@/components/app/MediaPicker";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId")({
   head: () => ({
