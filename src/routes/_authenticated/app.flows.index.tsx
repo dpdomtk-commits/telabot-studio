@@ -98,7 +98,7 @@ function FlowsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [botId, setBotId] = useState("");
-  const [mode, setMode] = useState<FlowMode>("simple");
+  
   const [filter, setFilter] = useState<"live" | "archived">("live");
 
   const [importOpen, setImportOpen] = useState(false);
@@ -490,31 +490,12 @@ function FlowsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Novo fluxo</DialogTitle>
-            <DialogDescription>Escolha o modo de edição e o bot que vai executar esta jornada.</DialogDescription>
+            <DialogDescription>
+              Todo fluxo é criado no modo simples (configuração por páginas) e roda dentro de um bot.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {(
-                [
-                  { value: "simple", title: "Fluxo simples", hint: "Configuração por páginas, ideal para começar." },
-                  { value: "advanced", title: "Fluxo avançado", hint: "Editor visual com nós e conexões." },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setMode(option.value)}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    mode === option.value
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-surface/60 hover:bg-surface-hover"
-                  }`}
-                >
-                  <p className="font-display text-sm font-bold">{option.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{option.hint}</p>
-                </button>
-              ))}
-            </div>
+
             <div className="space-y-2">
               <Label htmlFor="flow-name">Nome</Label>
               <Input
