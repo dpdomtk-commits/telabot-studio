@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -87,7 +87,14 @@ function FlowEditorPage() {
   });
 
   useEffect(() => {
+    if (data?.flow?.mode === "simple") {
+      navigate({ to: "/app/flows/$flowId/simple", params: { flowId }, replace: true });
+    }
+  }, [data, flowId, navigate]);
+
+  useEffect(() => {
     if (!data) return;
+
     setNodes(
       data.steps.map((s, index) => ({
         id: s.id,
