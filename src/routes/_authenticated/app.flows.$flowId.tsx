@@ -74,7 +74,7 @@ function FlowEditorPage() {
     queryKey: ["flow-editor", flowId],
     queryFn: async () => {
       const [flow, steps, connections] = await Promise.all([
-        supabase.from("flows").select("id,name,description,status,bots(name)").eq("id", flowId).maybeSingle(),
+        supabase.from("flows").select("id,name,description,status,mode,bots(name)").eq("id", flowId).maybeSingle(),
         supabase.from("flow_steps").select("id,type,title,config,position,position_x,position_y").eq("flow_id", flowId),
         supabase
           .from("flow_connections")
