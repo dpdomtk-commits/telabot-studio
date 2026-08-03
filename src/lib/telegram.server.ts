@@ -339,18 +339,24 @@ export async function runFlowForLead(params: {
     }
 
     if (!result.ok) {
+      const mediaStep = ["image", "video", "audio", "document"].includes(step.type);
       await notify(
         params.userId,
-        "error",
-        "Falha ao enviar etapa do fluxo",
+        mediaStep ? "warning" : "error",
+        mediaStep ? "Mídia do fluxo não pôde ser enviada" : "Falha ao enviar etapa do fluxo",
         `Etapa "${step.type}": ${result.error}`,
         "flow_step",
         step.id,
       );
-      await log("error", `Falha na etapa ${step.type}: ${result.error}`, step.id);
+      await log(mediaStep ? "warn" : "error", `Falha na etapa ${step.type}: ${result.error}`, step.id);
       await logActivity(params.userId, "fluxo", "falha no envio da etapa", step.id, { error: result.error });
-      await finish("failed", step.id);
-      return;
+      if (!mediaStep) {
+        await finish("failed", step.id);
+        return;
+      }
+      // Mídia inválida (ex.: file_id de outro bot) não interrompe o funil.
+      current = nextStep(step.id, handle);
+      continue;
     }
 
     await log("info", `Etapa ${step.type} executada`, step.id);
