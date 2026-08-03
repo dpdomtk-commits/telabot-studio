@@ -98,7 +98,7 @@ function FlowsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [botId, setBotId] = useState("");
-  const [mode, setMode] = useState<FlowMode>("simple");
+  
   const [filter, setFilter] = useState<"live" | "archived">("live");
 
   const [importOpen, setImportOpen] = useState(false);
@@ -160,25 +160,13 @@ function FlowsPage() {
           bot_id: parsed.botId,
           user_id: userData.user.id,
           status: "draft",
-          mode,
-          simple_config: mode === "simple" ? (defaultSimpleConfig() as never) : ({} as never),
+          mode: "simple",
+          simple_config: defaultSimpleConfig() as never,
         })
         .select("id")
         .maybeSingle();
       if (error) throw error;
 
-      if (flow) {
-        await supabase.from("flow_steps").insert({
-          flow_id: flow.id,
-          user_id: userData.user.id,
-          type: "start",
-          title: "Início",
-          position: 0,
-          position_x: 80,
-          position_y: 120,
-          config: { trigger: "/start" },
-        });
-      }
       return flow?.id ?? null;
     },
     onSuccess: (flowId) => {
@@ -188,9 +176,9 @@ function FlowsPage() {
       setDescription("");
       qc.invalidateQueries({ queryKey: ["flows-overview"] });
       if (!flowId) return;
-      if (mode === "simple") navigate({ to: "/app/flows/$flowId/simple", params: { flowId } });
-      else navigate({ to: "/app/flows/$flowId", params: { flowId } });
+      navigate({ to: "/app/flows/$flowId/simple", params: { flowId } });
     },
+
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -209,18 +197,8 @@ function FlowsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const switchMode = useMutation({
-    mutationFn: async (vars: { id: string; mode: FlowMode }) => {
-      const { error } = await supabase.from("flows").update({ mode: vars.mode }).eq("id", vars.id);
-      if (error) throw error;
-    },
-    onSuccess: (_r, vars) => {
-      qc.invalidateQueries({ queryKey: ["flows-overview"] });
-      if (vars.mode === "simple") navigate({ to: "/app/flows/$flowId/simple", params: { flowId: vars.id } });
-      else navigate({ to: "/app/flows/$flowId", params: { flowId: vars.id } });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+
+
 
   const duplicate = useMutation({
     mutationFn: async (flowId: string) => {
@@ -421,36 +399,19 @@ function FlowsPage() {
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {flow.mode === "simple" ? (
-                    <>
-                      <Button asChild size="sm">
-                        <Link to="/app/flows/$flowId/simple" params={{ flowId: flow.id }}>
-                          <LayoutList /> Editar páginas
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => switchMode.mutate({ id: flow.id, mode: "advanced" })}
-                      >
-                        <Workflow /> Modo avançado
-                      </Button>
-                    </>
+                    <Button asChild size="sm">
+                      <Link to="/app/flows/$flowId/simple" params={{ flowId: flow.id }}>
+                        <LayoutList /> Editar páginas
+                      </Link>
+                    </Button>
                   ) : (
-                    <>
-                      <Button asChild size="sm">
-                        <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
-                          <PencilLine /> Editor visual
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => switchMode.mutate({ id: flow.id, mode: "simple" })}
-                      >
-                        <LayoutList /> Modo simples
-                      </Button>
-                    </>
+                    <Button asChild size="sm" variant="secondary">
+                      <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
+                        <PencilLine /> Editor visual (legado)
+                      </Link>
+                    </Button>
                   )}
+
                   <Button
                     size="sm"
                     variant="secondary"
@@ -529,31 +490,12 @@ function FlowsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Novo fluxo</DialogTitle>
-            <DialogDescription>Escolha o modo de edição e o bot que vai executar esta jornada.</DialogDescription>
+            <DialogDescription>
+              Todo fluxo é criado no modo simples (configuração por páginas) e roda dentro de um bot.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {(
-                [
-                  { value: "simple", title: "Fluxo simples", hint: "Configuração por páginas, ideal para começar." },
-                  { value: "advanced", title: "Fluxo avançado", hint: "Editor visual com nós e conexões." },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setMode(option.value)}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    mode === option.value
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-surface/60 hover:bg-surface-hover"
-                  }`}
-                >
-                  <p className="font-display text-sm font-bold">{option.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{option.hint}</p>
-                </button>
-              ))}
-            </div>
+
             <div className="space-y-2">
               <Label htmlFor="flow-name">Nome</Label>
               <Input

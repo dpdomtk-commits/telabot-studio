@@ -2,7 +2,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Plus, Save, Trash2, Workflow } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { saveSimpleFlow } from "@/lib/flow-share.functions";
 import {
@@ -160,15 +160,11 @@ function SimpleFlowPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild variant="secondary">
-            <Link to="/app/flows/$flowId" params={{ flowId }}>
-              <Workflow /> Abrir modo avançado
-            </Link>
-          </Button>
           <Button onClick={save} disabled={saving}>
             {saving ? <Loader2 className="animate-spin" /> : <Save />} Salvar
           </Button>
         </div>
+
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
