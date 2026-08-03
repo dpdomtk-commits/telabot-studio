@@ -26,10 +26,6 @@ export const enableBotWebhook = createServerFn({ method: "POST" })
     if (!bot) return { ok: false, message: "Bot não encontrado" };
 
     const host = getRequest().headers.get("host") ?? "";
-    if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
-      return { ok: false, message: "Publique o projeto para registrar o webhook do Telegram" };
-    }
-
     const url = `${publicBaseUrl(host)}/api/public/telegram/${bot.id}`;
     const result = await setWebhook(bot.token, url, bot.webhook_secret);
     if (!result.ok) return { ok: false, message: result.error ?? "Falha ao registrar webhook" };
