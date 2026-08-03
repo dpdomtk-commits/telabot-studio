@@ -44,8 +44,12 @@ export function deleteWebhook(token: string) {
   return callTelegram(token, "deleteWebhook", { drop_pending_updates: false });
 }
 
-/** Converte o host atual para a URL pública estável do projeto. */
+/** URL pública estável do projeto (o Telegram só aceita hosts públicos HTTPS). */
+const STABLE_PUBLIC_URL = "https://project--bc07337f-068d-4ee7-a47b-447c0c8aa62c-dev.lovable.app";
+
 export function publicBaseUrl(host: string): string {
+  // Hosts internos do sandbox/execução (run.app, localhost) não recebem o webhook.
+  if (!host || !host.endsWith("lovable.app")) return STABLE_PUBLIC_URL;
   if (host.startsWith("id-preview--")) {
     const rest = host.slice("id-preview--".length);
     const dot = rest.indexOf(".");
@@ -335,18 +339,24 @@ export async function runFlowForLead(params: {
     }
 
     if (!result.ok) {
+      const mediaStep = ["image", "video", "audio", "document"].includes(step.type);
       await notify(
         params.userId,
-        "error",
-        "Falha ao enviar etapa do fluxo",
+        mediaStep ? "warning" : "error",
+        mediaStep ? "Mídia do fluxo não pôde ser enviada" : "Falha ao enviar etapa do fluxo",
         `Etapa "${step.type}": ${result.error}`,
         "flow_step",
         step.id,
       );
-      await log("error", `Falha na etapa ${step.type}: ${result.error}`, step.id);
+      await log(mediaStep ? "warn" : "error", `Falha na etapa ${step.type}: ${result.error}`, step.id);
       await logActivity(params.userId, "fluxo", "falha no envio da etapa", step.id, { error: result.error });
-      await finish("failed", step.id);
-      return;
+      if (!mediaStep) {
+        await finish("failed", step.id);
+        return;
+      }
+      // Mídia inválida (ex.: file_id de outro bot) não interrompe o funil.
+      current = nextStep(step.id, handle);
+      continue;
     }
 
     await log("info", `Etapa ${step.type} executada`, step.id);
