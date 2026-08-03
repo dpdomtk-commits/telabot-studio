@@ -59,7 +59,9 @@ const tempId = () => `tmp-${Date.now()}-${tempCounter++}`;
 
 function FlowEditorPage() {
   const { flowId } = useParams({ from: "/_authenticated/app/flows/$flowId" });
+  const navigate = useNavigate();
   const qc = useQueryClient();
+
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition } = useReactFlow();
 
