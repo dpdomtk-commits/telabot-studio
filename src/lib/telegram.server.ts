@@ -451,14 +451,7 @@ export async function deliverForPayment(paymentId: string) {
     ? await supabaseAdmin.from("leads").select("id,telegram_id").eq("id", payment.lead_id).maybeSingle()
     : { data: null };
 
-  const { data: flow } = await supabaseAdmin
-    .from("flows")
-    .select("id")
-    .eq("bot_id", payment.bot_id)
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const flow = await resolveBotFlow(payment.bot_id);
 
   const { data: steps } = flow
     ? await supabaseAdmin
