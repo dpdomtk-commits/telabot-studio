@@ -146,6 +146,9 @@ export async function runFlowForLead(params: {
   token: string;
   leadId: string;
   chatId: number;
+  /** Retoma o fluxo a partir da saída desta etapa (clique em botão/menu). */
+  resumeFromStepId?: string;
+  resumeHandle?: string;
 }) {
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
