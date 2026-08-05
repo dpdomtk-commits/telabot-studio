@@ -47,15 +47,9 @@ export function deleteWebhook(token: string) {
 /** URL pública estável do projeto (o Telegram só aceita hosts públicos HTTPS). */
 const STABLE_PUBLIC_URL = "https://project--bc07337f-068d-4ee7-a47b-447c0c8aa62c-dev.lovable.app";
 
-export function publicBaseUrl(host: string): string {
-  // Hosts internos do sandbox/execução (run.app, localhost) não recebem o webhook.
-  if (!host || !host.endsWith("lovable.app")) return STABLE_PUBLIC_URL;
-  if (host.startsWith("id-preview--")) {
-    const rest = host.slice("id-preview--".length);
-    const dot = rest.indexOf(".");
-    return `https://project--${rest.slice(0, dot)}-dev${rest.slice(dot)}`;
-  }
-  return `https://${host}`;
+export function publicBaseUrl(_host?: string): string {
+  // Sempre o host estável de preview: recebe o build mais recente do projeto.
+  return STABLE_PUBLIC_URL;
 }
 
 export async function notify(
