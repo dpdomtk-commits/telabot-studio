@@ -147,8 +147,8 @@ export async function runFlowForLead(params: {
   leadId: string;
   chatId: number;
   /** Retoma o fluxo a partir da saída desta etapa (clique em botão/menu). */
-  resumeFromStepId?: string;
-  resumeHandle?: string;
+  resumeFromStepId?: string | undefined;
+  resumeHandle?: string | undefined;
 }) {
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
