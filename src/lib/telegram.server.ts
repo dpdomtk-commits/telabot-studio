@@ -202,13 +202,22 @@ export async function runFlowForLead(params: {
   const nextStep = (stepId: string, handle = "saída"): StepRow | undefined => {
     const outgoing = connections.filter((c) => c.source_step_id === stepId);
     const match =
-      outgoing.find((c) => (c.source_handle ?? "saída") === handle) ?? (outgoing.length === 1 ? outgoing[0] : undefined);
+      outgoing.find((c) => (c.source_handle ?? "saída") === handle) ?? outgoing[0];
     return match ? byId.get(match.target_step_id) : undefined;
   };
 
-  // Nó inicial: o "start" do canvas ou, sem ele, a primeira etapa.
-  let current: StepRow | undefined = steps.find((s) => s.type === "start") ?? steps[0];
-  if (current?.type === "start") current = nextStep(current.id);
+  // Nó inicial: retomada por clique, o "start" do canvas ou a primeira etapa.
+  let current: StepRow | undefined;
+  if (params.resumeFromStepId) {
+    current = nextStep(params.resumeFromStepId, params.resumeHandle ?? "saída");
+    if (!current) {
+      await finish("completed");
+      return;
+    }
+  } else {
+    current = steps.find((s) => s.type === "start") ?? steps[0];
+    if (current?.type === "start") current = nextStep(current.id);
+  }
 
   const visited = new Set<string>();
 
