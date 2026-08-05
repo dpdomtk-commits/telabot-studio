@@ -47,15 +47,9 @@ export function deleteWebhook(token: string) {
 /** URL pública estável do projeto (o Telegram só aceita hosts públicos HTTPS). */
 const STABLE_PUBLIC_URL = "https://project--bc07337f-068d-4ee7-a47b-447c0c8aa62c-dev.lovable.app";
 
-export function publicBaseUrl(host: string): string {
-  // Hosts internos do sandbox/execução (run.app, localhost) não recebem o webhook.
-  if (!host || !host.endsWith("lovable.app")) return STABLE_PUBLIC_URL;
-  if (host.startsWith("id-preview--")) {
-    const rest = host.slice("id-preview--".length);
-    const dot = rest.indexOf(".");
-    return `https://project--${rest.slice(0, dot)}-dev${rest.slice(dot)}`;
-  }
-  return `https://${host}`;
+export function publicBaseUrl(_host?: string): string {
+  // Sempre o host estável de preview: recebe o build mais recente do projeto.
+  return STABLE_PUBLIC_URL;
 }
 
 export async function notify(
@@ -146,6 +140,9 @@ export async function runFlowForLead(params: {
   token: string;
   leadId: string;
   chatId: number;
+  /** Retoma o fluxo a partir da saída desta etapa (clique em botão/menu). */
+  resumeFromStepId?: string | undefined;
+  resumeHandle?: string | undefined;
 }) {
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
@@ -199,13 +196,22 @@ export async function runFlowForLead(params: {
   const nextStep = (stepId: string, handle = "saída"): StepRow | undefined => {
     const outgoing = connections.filter((c) => c.source_step_id === stepId);
     const match =
-      outgoing.find((c) => (c.source_handle ?? "saída") === handle) ?? (outgoing.length === 1 ? outgoing[0] : undefined);
+      outgoing.find((c) => (c.source_handle ?? "saída") === handle) ?? outgoing[0];
     return match ? byId.get(match.target_step_id) : undefined;
   };
 
-  // Nó inicial: o "start" do canvas ou, sem ele, a primeira etapa.
-  let current: StepRow | undefined = steps.find((s) => s.type === "start") ?? steps[0];
-  if (current?.type === "start") current = nextStep(current.id);
+  // Nó inicial: retomada por clique, o "start" do canvas ou a primeira etapa.
+  let current: StepRow | undefined;
+  if (params.resumeFromStepId) {
+    current = nextStep(params.resumeFromStepId, params.resumeHandle ?? "saída");
+    if (!current) {
+      await finish("completed");
+      return;
+    }
+  } else {
+    current = steps.find((s) => s.type === "start") ?? steps[0];
+    if (current?.type === "start") current = nextStep(current.id);
+  }
 
   const visited = new Set<string>();
 
@@ -403,7 +409,9 @@ async function sendCharge(
   },
 ): Promise<TelegramSendResult> {
   const { createPixCharge } = await import("@/lib/finance.server");
-  const charge = await createPixCharge({
+  let charge: { id: string; pix_code?: string | null };
+  try {
+    charge = await createPixCharge({
     userId: params.userId,
     botId: params.botId,
     leadId: params.leadId,
@@ -416,8 +424,36 @@ async function sendCharge(
     idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
     flowId: params.flowId,
     platformFeePercent: input.platformFeePercent ?? null,
-    payerName: input.payerName ?? null,
-  });
+      payerName: input.payerName ?? null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao gerar a cobrança";
+    await notify(
+      params.userId,
+      "error",
+      "Não foi possível gerar o PIX",
+      `${message}. Configure uma gateway de pagamento ou a chave PIX da plataforma.`,
+      "flow_step",
+      step.id,
+    );
+    await sendMessage(
+      params.token,
+      params.chatId,
+      "Não conseguimos gerar o pagamento agora. Tente novamente em instantes.",
+    );
+    return { ok: false, error: message };
+  }
+
+  if (!charge.pix_code) {
+    await notify(
+      params.userId,
+      "error",
+      "Cobrança criada sem código PIX",
+      "A gateway não retornou o código copia e cola. Verifique as credenciais em Gateways.",
+      "flow_step",
+      step.id,
+    );
+  }
 
   const lines = [
     `<b>${input.productName ?? input.description}</b>`,
