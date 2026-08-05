@@ -349,12 +349,23 @@ export const saveSimpleFlow = createServerFn({ method: "POST" })
       connections: compiled.connections,
     });
 
-    await supabase
+    const { data: updated } = await supabase
       .from("flows")
-      .update({ mode: "simple", simple_config: config as never })
-      .eq("id", data.flowId);
+      .update({ mode: "simple", simple_config: config as never, status: "active", is_active: true })
+      .eq("id", data.flowId)
+      .select("bot_id")
+      .maybeSingle();
 
-    return { ok: true, message: "Fluxo simples salvo", flowId: data.flowId };
+    // Um bot só executa um fluxo: desativa os demais do mesmo bot.
+    if (updated?.bot_id) {
+      await supabase
+        .from("flows")
+        .update({ status: "draft", is_active: false })
+        .eq("bot_id", updated.bot_id)
+        .neq("id", data.flowId);
+    }
+
+    return { ok: true, message: "Fluxo salvo e ativado", flowId: data.flowId };
   });
 
 /** Publica um fluxo como modelo do marketplace (aguarda aprovação). */

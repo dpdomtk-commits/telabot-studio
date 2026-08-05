@@ -106,6 +106,35 @@ type ConnectionRow = {
 };
 
 /**
+ * Resolve qual fluxo o bot deve executar: o ativo e, se nenhum estiver
+ * marcado como ativo, o fluxo mais recente que já tenha etapas compiladas.
+ * Assim o /start nunca fica mudo por causa de um flag esquecido.
+ */
+async function resolveBotFlow(botId: string): Promise<{ id: string } | null> {
+  const { data: active } = await supabaseAdmin
+    .from("flows")
+    .select("id")
+    .eq("bot_id", botId)
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (active) return active;
+
+  const { data: candidates } = await supabaseAdmin
+    .from("flows")
+    .select("id,flow_steps(id)")
+    .eq("bot_id", botId)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  const withSteps = (candidates ?? []).find(
+    (f) => Array.isArray((f as { flow_steps?: unknown[] }).flow_steps) && (f as { flow_steps: unknown[] }).flow_steps.length > 0,
+  );
+  return withSteps ? { id: (withSteps as { id: string }).id } : null;
+}
+
+/**
  * Executa o fluxo ativo de um bot para um lead percorrendo o grafo visual
  * (nós + conexões). Para nos nós de cobrança (aguardando pagamento),
  * nas perguntas/menus (aguardando resposta) e nos nós de entrega,
@@ -118,15 +147,7 @@ export async function runFlowForLead(params: {
   leadId: string;
   chatId: number;
 }) {
-  const { data: flow } = await supabaseAdmin
-    .from("flows")
-    .select("id")
-    .eq("bot_id", params.botId)
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
+  const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
 
   const [{ data: stepsData }, { data: connectionsData }] = await Promise.all([
@@ -430,14 +451,7 @@ export async function deliverForPayment(paymentId: string) {
     ? await supabaseAdmin.from("leads").select("id,telegram_id").eq("id", payment.lead_id).maybeSingle()
     : { data: null };
 
-  const { data: flow } = await supabaseAdmin
-    .from("flows")
-    .select("id")
-    .eq("bot_id", payment.bot_id)
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const flow = await resolveBotFlow(payment.bot_id);
 
   const { data: steps } = flow
     ? await supabaseAdmin
