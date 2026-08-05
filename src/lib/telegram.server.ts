@@ -409,7 +409,9 @@ async function sendCharge(
   },
 ): Promise<TelegramSendResult> {
   const { createPixCharge } = await import("@/lib/finance.server");
-  const charge = await createPixCharge({
+  let charge: { id: string; pix_code?: string | null };
+  try {
+    charge = await createPixCharge({
     userId: params.userId,
     botId: params.botId,
     leadId: params.leadId,
@@ -422,8 +424,36 @@ async function sendCharge(
     idempotencyKey: `step:${step.id}:lead:${params.leadId}`,
     flowId: params.flowId,
     platformFeePercent: input.platformFeePercent ?? null,
-    payerName: input.payerName ?? null,
-  });
+      payerName: input.payerName ?? null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao gerar a cobrança";
+    await notify(
+      params.userId,
+      "error",
+      "Não foi possível gerar o PIX",
+      `${message}. Configure uma gateway de pagamento ou a chave PIX da plataforma.`,
+      "flow_step",
+      step.id,
+    );
+    await sendMessage(
+      params.token,
+      params.chatId,
+      "Não conseguimos gerar o pagamento agora. Tente novamente em instantes.",
+    );
+    return { ok: false, error: message };
+  }
+
+  if (!charge.pix_code) {
+    await notify(
+      params.userId,
+      "error",
+      "Cobrança criada sem código PIX",
+      "A gateway não retornou o código copia e cola. Verifique as credenciais em Gateways.",
+      "flow_step",
+      step.id,
+    );
+  }
 
   const lines = [
     `<b>${input.productName ?? input.description}</b>`,

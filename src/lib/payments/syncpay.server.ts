@@ -14,7 +14,7 @@ function config() {
     clientId: process.env["SYNCPAY_CLIENT_ID"] ?? "",
     clientSecret: process.env["SYNCPAY_CLIENT_SECRET"] ?? "",
     webhookToken: process.env["SYNCPAY_WEBHOOK_TOKEN"] ?? "",
-    publicUrl: (process.env["PUBLIC_SITE_URL"] || "https://telabot-studio.lovable.app").replace(/\/+$/, ""),
+    publicUrl: (process.env["PUBLIC_SITE_URL"] || "https://aurumapi.lovable.app").replace(/\/+$/, ""),
   };
 }
 
