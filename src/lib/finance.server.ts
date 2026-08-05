@@ -66,7 +66,9 @@ export async function createPixCharge(input: CreateChargeInput) {
       .select("id,pix_code,amount_cents,description,product_name,success_message,status")
       .eq("idempotency_key", input.idempotencyKey)
       .maybeSingle();
-    if (existing) return existing;
+    // Só reaproveita cobranças válidas: sem código PIX a cobrança é refeita.
+    if (existing && existing.pix_code) return existing;
+    if (existing) await supabaseAdmin.from("payments").delete().eq("id", existing.id);
   }
 
   const settings = await getFinanceSettings();
