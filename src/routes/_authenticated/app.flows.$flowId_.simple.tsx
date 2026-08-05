@@ -161,7 +161,7 @@ function SimpleFlowPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="animate-spin" /> : <Save />} Salvar
+            {saving ? <Loader2 className="animate-spin" /> : <Save />} Salvar e ativar
           </Button>
         </div>
 
