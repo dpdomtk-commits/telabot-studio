@@ -118,15 +118,7 @@ export async function runFlowForLead(params: {
   leadId: string;
   chatId: number;
 }) {
-  const { data: flow } = await supabaseAdmin
-    .from("flows")
-    .select("id")
-    .eq("bot_id", params.botId)
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
+  const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
 
   const [{ data: stepsData }, { data: connectionsData }] = await Promise.all([
