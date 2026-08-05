@@ -133,7 +133,7 @@ function SimpleFlowPage() {
     try {
       const result: { ok: boolean; message: string } = await saveSimpleFlow({ data: { flowId, config: config as unknown as Record<string, unknown> } });
       if (!result.ok) throw new Error(result.message);
-      toast.success("Fluxo simples salvo e compilado");
+      toast.success("Fluxo salvo e ativado — envie /start no bot para testar");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar");
     } finally {
