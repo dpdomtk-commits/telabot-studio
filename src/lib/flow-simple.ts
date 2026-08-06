@@ -226,7 +226,9 @@ export function compileSimpleConfig(config: SimpleConfig): CompiledFlow {
     previous = bump;
   }
 
-  const mainPlan = config.plans.items[0];
+  // PIX sob demanda: um nó de cobrança por plano, disparado apenas quando o
+  // lead clica no botão daquele plano no menu.
+  const pixKeys: string[] = [];
   if (config.subscription.enabled) {
     const sub = add("subscription", "subscription", "Assinatura", {
       plan_name: config.subscription.planName,
@@ -235,43 +237,53 @@ export function compileSimpleConfig(config: SimpleConfig): CompiledFlow {
       success_message: config.subscription.successMessage,
     });
     link(previous, sub);
-    previous = sub;
+    pixKeys.push(sub);
   } else {
-    const pix = add("pix", "pix", "Pagamento PIX", {
-      product_name: mainPlan?.name ?? "Acesso",
-      description: config.payment.instructions,
-      amount: mainPlan?.price ?? 0,
-      expires_minutes: config.payment.expiresMinutes,
-      success_message: config.payment.successMessage,
-    });
-    link(previous, pix);
-
-    if (config.downsell.enabled) {
-      const down = add(
-        "downsell",
-        "downsell",
-        "Downsell",
+    config.plans.items.forEach((plan, i) => {
+      const key = add(
+        `pix-${plan.id}`,
+        "pix",
+        `Pagamento · ${plan.name}`,
         {
-          product_name: config.downsell.productName,
-          amount: config.downsell.price,
-          pitch: config.downsell.pitch,
+          product_name: plan.name || "Acesso",
+          description: plan.description || config.payment.instructions,
+          amount: plan.price ?? 0,
+          expires_minutes: config.payment.expiresMinutes,
+          success_message: config.payment.successMessage,
         },
         1,
       );
-      link(pix, down, "expirado", "expirado");
-    }
-    previous = pix;
+      // O handle precisa bater com o callback_data do menu (24 caracteres).
+      link(previous, key, plan.name.slice(0, 24), plan.name);
+      pixKeys.push(key);
+      if (i === 0 && config.downsell.enabled) {
+        const down = add(
+          "downsell",
+          "downsell",
+          "Downsell",
+          {
+            product_name: config.downsell.productName,
+            amount: config.downsell.price,
+            pitch: config.downsell.pitch,
+          },
+          2,
+        );
+        link(key, down, "expirado", "expirado");
+      }
+    });
   }
 
   const paidHandle = config.subscription.enabled ? null : "pago";
-  let branch = previous;
-  let firstAfterPayment = true;
-
+  let branch: string | null = null;
   const chain = (key: string, type: string, title: string, stepConfig: Record<string, unknown>) => {
     const created = add(key, type, title, stepConfig);
-    link(branch, created, firstAfterPayment ? paidHandle : null, firstAfterPayment ? "pago" : null);
+    if (branch === null) {
+      // Primeira etapa pós-pagamento: sai de todas as cobranças pelo "pago".
+      for (const source of pixKeys) link(source, created, paidHandle, "pago");
+    } else {
+      link(branch, created, null, null);
+    }
     branch = created;
-    firstAfterPayment = false;
   };
 
   if (config.upsell.enabled) {
@@ -308,6 +320,7 @@ export function compileSimpleConfig(config: SimpleConfig): CompiledFlow {
   }
 
   chain("end", "end", "Finalizar", { message: config.conversions.thankYouMessage });
+
 
   return { steps, connections };
 }
