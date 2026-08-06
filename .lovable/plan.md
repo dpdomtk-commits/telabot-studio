@@ -1,70 +1,57 @@
-## AURUMBOT — Arquitetura e Plano do MVP
+# AURUMBOT — Evolução em etapas
 
-### Observação sobre stack
-Esta plataforma roda **TanStack Start (React 19 + TypeScript + Vite)**, não Next.js — o resultado é equivalente (SSR, rotas por arquivo, server functions) e a UI/Tailwind/shadcn é idêntica. Backend, banco e auth via **Lovable Cloud** (Postgres + Auth + Storage gerenciados, sem conta externa). Hospedagem pela própria plataforma (publicação em 1 clique).
+Escopo enorme: vou entregar em 7 etapas, cada uma funcional e testada, sem remover nada do que já existe (bots, fluxos, mídias, financeiro, gateways, marketplace, admin).
 
----
+## Etapa 0 — Auditoria e correções
+- Varredura de rotas, autenticação, permissões (RLS), integrações (Telegram/SyncPay) e erros de console.
+- Correção dos bugs encontrados antes de qualquer feature nova.
+- Ajustes de responsividade mobile no layout do app.
+- Paleta atualizada: preto premium + rosa/roxo/azul neon (tokens semânticos, sem quebrar componentes).
 
-### 1. Identidade visual
-Dark por padrão, estilo Linear/Vercel: fundo quase-preto em camadas, superfícies com borda sutil, acento âmbar-dourado "aurum", tipografia geométrica (títulos) + sans neutra (corpo), raio 10px, sombras discretas, tabelas densas, sem gradientes decorativos. Tokens 100% em `src/styles.css` (oklch).
+## Etapa 1 — PIX sob demanda + Split fixo R$ 0,50
+- PIX nunca automático: só gerado quando o lead clica no botão do plano.
+- Plano com nome, valor, descrição e expiração.
+- Envio de QR Code + copia e cola no Telegram.
+- Retenção fixa de R$ 0,50 por venda aprovada (percentual removido da lógica de cobrança).
+- Painéis: seller vê bruto/líquido/taxas; admin vê receita da plataforma e total de taxas.
 
-### 2. Rotas e navegação
+## Etapa 2 — Dashboard e Eventos em tempo real
+- Cards: Vendas Aprovadas, Taxa de Conversão, Receita Total, Ticket Médio.
+- Filtros Hoje / Ontem / 7d / 30d / Tudo, sem refresh.
+- Gráficos diários de receita, vendas e conversão.
+- Métricas: leads, PIX gerados/pagos/expirados, receita, ticket médio.
+- Painel "Últimos eventos" em tempo real, com scroll infinito e filtro por tipo.
 
-```text
-/                      landing + CTA (público)
-/auth                  login / cadastro (público)
-/app  (protegido)      shell com sidebar
-  /app/dashboard       métricas + gráfico + eventos
-  /app/bots            lista + criar/editar/excluir/ativar
-  /app/flows           fluxos por bot
-  /app/flows/$id       editor de etapas (lista ordenada, sem drag&drop)
-  /app/leads           tabela + filtros (data, bot, status)
-  /app/payments        tabela PIX + status
-  /app/settings        perfil, email, senha, avatar
-  /app/admin           só role=admin: usuários, bots, leads, pagamentos, logs
-```
+## Etapa 3 — Gateway SyncPay por usuário
+- Configurações → Gateway de Pagamento com Client ID e Client Secret próprios.
+- Botão "Conectar SyncPay" valida credenciais e grava de forma protegida (só o servidor lê).
+- Status visível: Conectado / Desconectado / Erro.
+- Conta da plataforma continua como fallback.
 
-Sidebar colapsável, header com breadcrumb e menu de conta.
+## Etapa 4 — Fluxos: mídias, ofertas e remarketing
+- Até 2 mídias por etapa (imagem, vídeo, GIF), com upload direto, preview, trocar e remover.
+- Duplicar etapa e reordenar arrastando.
+- Order Bump (até 10), Upsell (até 5, após aprovação), Downsell (até 20, após recusa) — por fluxo, independentes.
+- Remarketing por fluxo: intervalos de 3h a 72h, sequência de mensagens, segmentação (não comprou, PIX expirado, abandono, tags) e estatísticas.
 
-### 3. Banco de dados
+## Etapa 5 — Links de Redirect e Central de Conversas
+- Redirects: até 10 por usuário, URL curta, registro de clique/data/origem/dispositivo, estatísticas e CRUD completo.
+- Inbox: lista de conversas, janela de chat com histórico, envio de texto/imagem/vídeo/áudio/documento, tempo real nos dois sentidos.
+- Filtros, busca, tags (inclusive personalizadas), perfil do lead e ações (gerar PIX, tag, bloquear, exportar).
 
-```text
-profiles(id→auth.users, full_name, email, avatar_url, created_at)
-user_roles(id, user_id, role: app_role enum[admin,user])   -- tabela separada, has_role() security definer
-bots(id, user_id, name, token_encrypted, telegram_username, status[active|inactive],
-     created_at, updated_at)
-flows(id, user_id, bot_id, name, is_active, created_at)
-flow_steps(id, flow_id, position, type[message|image|button|delay|payment|delivery],
-           config jsonb, created_at)
-leads(id, user_id, bot_id, telegram_id, telegram_username, name,
-      status[new|engaged|converted], created_at)
-payments(id, user_id, bot_id, lead_id, amount_cents, currency, method[pix],
-         status[pending|approved|failed|refunded], external_id, paid_at, created_at)
-deliveries(id, payment_id, flow_step_id, status, delivered_at)
-activity_logs(id, user_id, entity, entity_id, action, metadata jsonb, created_at)
-```
+## Etapa 6 — Seller Network e Painel Admin
+- Chat da comunidade com canais (#geral, #estrategias, #telegram, #pagamentos, #divulgacao), emojis, menções, respostas e mídias.
+- Ranking Top 10 sellers do mês.
+- Admin restrito a dpz09@hotmail.com: botão oculto para os demais, bloqueio por URL e registro de tentativas.
+- Dashboard admin (plataforma, sellers, bots), gestão de usuários (editar, suspender, reativar, excluir) e gestão financeira com filtros.
 
-FKs com `on delete cascade`; índices em `user_id`, `bot_id`, `created_at desc`, `(flow_id, position)`, `status`.
+## Etapa 7 — Autenticação completa
+- Recuperação de senha com link de uso único (30 min) e página de redefinição.
+- Confirmação de e-mail, reenvio e bloqueio até confirmar.
+- Revisão final: mobile, desktop, tempo real e relatório completo do que foi entregue.
 
-### 4. Segurança
-- RLS em todas as tabelas: dono acessa via `auth.uid() = user_id`; admin via `has_role(auth.uid(),'admin')`.
-- GRANTs explícitos por tabela (authenticated/service_role).
-- Papéis **nunca** no profile — só em `user_roles`.
-- Rotas protegidas pelo layout `_authenticated`; admin com guarda extra de papel.
-- Validação com zod em todos os formulários (client) e nas server functions.
-- Token do Telegram nunca exposto ao browser: validado e usado apenas em server function (`getMe` na API do Telegram); UI mostra só os últimos dígitos.
-
-### 5. Ordem de implementação (um módulo por vez)
-1. Design system + shell/sidebar + landing + auth (cadastro, login, logout, sessão reativa)
-2. Migração completa do banco + RLS + papéis
-3. Bots (CRUD + validação real do token)
-4. Fluxos (CRUD de fluxo + editor de etapas ordenadas com formulário por tipo)
-5. Leads (tabela + filtros)
-6. Pagamentos (estrutura PIX, sem gateway)
-7. Configurações (perfil, email, senha, avatar no storage)
-8. Admin (visões globais + logs)
-9. Dashboard com dados reais + gráfico (Recharts) + últimos eventos
-10. Checklist final do MVP
-
-### Detalhes técnicos
-Server functions (`createServerFn`) para toda leitura/escrita sensível, com middleware de auth; React Query para cache; Recharts para o gráfico; shadcn/ui como base de componentes, customizado pelos tokens. Sem gateway de pagamento, sem webhook do Telegram nesta fase — apenas a estrutura preparada.
+## Notas técnicas
+- Novas tabelas: conversas, mensagens, tags de lead, redirects e cliques, remarketing (campanhas, mensagens, envios), ofertas (bump/upsell/downsell), canais e mensagens da comunidade, credenciais de gateway por usuário, logs de acesso admin.
+- Tempo real via canais do backend, com assinaturas limpas ao desmontar.
+- Toda tabela nova nasce com RLS por dono + permissões de admin.
+- Credenciais de gateway só são lidas no servidor; nunca vão para o navegador.
