@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_access_logs: {
+        Row: {
+          allowed: boolean
+          created_at: string
+          email: string | null
+          id: string
+          ip_address: string | null
+          path: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          allowed?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          ip_address?: string | null
+          path: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          allowed?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          ip_address?: string | null
+          path?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       bots: {
         Row: {
           created_at: string
@@ -123,6 +156,138 @@ export type Database = {
             columns: ["payment_id"]
             isOneToOne: true
             referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_channels: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          position: number
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          position?: number
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          position?: number
+          slug?: string
+        }
+        Relationships: []
+      }
+      community_messages: {
+        Row: {
+          attachments: Json
+          body: string | null
+          channel_id: string
+          created_at: string
+          id: string
+          reply_to: string | null
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          channel_id: string
+          created_at?: string
+          id?: string
+          reply_to?: string | null
+          user_id: string
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          channel_id?: string
+          created_at?: string
+          id?: string
+          reply_to?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "community_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "community_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          bot_id: string | null
+          created_at: string
+          id: string
+          is_blocked: boolean
+          last_inbound_at: string | null
+          last_message_at: string
+          last_message_preview: string | null
+          lead_id: string
+          status: string
+          unread_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bot_id?: string | null
+          created_at?: string
+          id?: string
+          is_blocked?: boolean
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          lead_id: string
+          status?: string
+          unread_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bot_id?: string | null
+          created_at?: string
+          id?: string
+          is_blocked?: boolean
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          lead_id?: string
+          status?: string
+          unread_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -492,6 +657,65 @@ export type Database = {
           },
         ]
       }
+      flow_offers: {
+        Row: {
+          amount_cents: number
+          buttons: Json
+          created_at: string
+          description: string | null
+          flow_id: string
+          id: string
+          is_active: boolean
+          kind: string
+          media: Json
+          name: string
+          pitch: string | null
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          buttons?: Json
+          created_at?: string
+          description?: string | null
+          flow_id: string
+          id?: string
+          is_active?: boolean
+          kind: string
+          media?: Json
+          name: string
+          pitch?: string | null
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          buttons?: Json
+          created_at?: string
+          description?: string | null
+          flow_id?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          media?: Json
+          name?: string
+          pitch?: string | null
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_offers_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flow_shares: {
         Row: {
           code: string
@@ -807,6 +1031,38 @@ export type Database = {
           },
         ]
       }
+      lead_tags: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          tag: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          tag: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          tag?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tags_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           bot_id: string | null
@@ -989,6 +1245,53 @@ export type Database = {
             columns: ["bot_id"]
             isOneToOne: false
             referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string | null
+          conversation_id: string
+          created_at: string
+          direction: string
+          file_id: string | null
+          file_name: string | null
+          id: string
+          kind: string
+          telegram_message_id: number | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          conversation_id: string
+          created_at?: string
+          direction: string
+          file_id?: string | null
+          file_name?: string | null
+          id?: string
+          kind?: string
+          telegram_message_id?: number | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          file_id?: string | null
+          file_name?: string | null
+          id?: string
+          kind?: string
+          telegram_message_id?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -1261,6 +1564,256 @@ export type Database = {
         }
         Relationships: []
       }
+      redirect_clicks: {
+        Row: {
+          created_at: string
+          device: string | null
+          id: string
+          ip_address: string | null
+          link_id: string
+          referrer: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device?: string | null
+          id?: string
+          ip_address?: string | null
+          link_id: string
+          referrer?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device?: string | null
+          id?: string
+          ip_address?: string | null
+          link_id?: string
+          referrer?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redirect_clicks_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "redirect_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      redirect_links: {
+        Row: {
+          bot_id: string | null
+          clicks_total: number
+          created_at: string
+          destination: string | null
+          id: string
+          is_active: boolean
+          last_click_at: string | null
+          name: string
+          slug: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bot_id?: string | null
+          clicks_total?: number
+          created_at?: string
+          destination?: string | null
+          id?: string
+          is_active?: boolean
+          last_click_at?: string | null
+          name: string
+          slug: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bot_id?: string | null
+          clicks_total?: number
+          created_at?: string
+          destination?: string | null
+          id?: string
+          is_active?: boolean
+          last_click_at?: string | null
+          name?: string
+          slug?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redirect_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remarketing_campaigns: {
+        Row: {
+          created_at: string
+          flow_id: string
+          id: string
+          is_active: boolean
+          name: string
+          segment: string
+          tag_filter: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          flow_id: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          segment?: string
+          tag_filter?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          flow_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          segment?: string
+          tag_filter?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remarketing_campaigns_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remarketing_messages: {
+        Row: {
+          buttons: Json
+          campaign_id: string
+          created_at: string
+          delay_hours: number
+          id: string
+          media: Json
+          position: number
+          text: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          buttons?: Json
+          campaign_id: string
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          media?: Json
+          position?: number
+          text?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          buttons?: Json
+          campaign_id?: string
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          media?: Json
+          position?: number
+          text?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remarketing_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "remarketing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remarketing_sends: {
+        Row: {
+          campaign_id: string
+          clicked_at: string | null
+          converted_payment_id: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          message_id: string
+          revenue_cents: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          clicked_at?: string | null
+          converted_payment_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          message_id: string
+          revenue_cents?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          clicked_at?: string | null
+          converted_payment_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          message_id?: string
+          revenue_cents?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remarketing_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "remarketing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remarketing_sends_converted_payment_id_fkey"
+            columns: ["converted_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remarketing_sends_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remarketing_sends_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "remarketing_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           amount_cents: number
@@ -1333,6 +1886,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_gateway_credentials: {
+        Row: {
+          client_id: string | null
+          client_secret: string | null
+          created_at: string
+          id: string
+          last_checked_at: string | null
+          last_error: string | null
+          provider: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
