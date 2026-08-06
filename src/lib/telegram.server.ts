@@ -463,9 +463,18 @@ async function sendCharge(
   if (input.expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${input.expiresMinutes} minutos.`);
   lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
 
+  // QR Code do PIX enviado como imagem, além do copia e cola.
+  if (charge.pix_code) {
+    const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
+      charge.pix_code,
+    )}`;
+    await sendPhoto(params.token, params.chatId, qr, "Escaneie o QR Code para pagar");
+  }
+
   const result = await sendMessage(params.token, params.chatId, lines.join("\n"));
   await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
   return result;
+
 }
 
 

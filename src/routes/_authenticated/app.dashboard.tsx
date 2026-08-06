@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, Users, CheckCircle2, Wallet } from "lucide-react";
+import { Activity, BadgePercent, QrCode, Receipt, ShoppingBag, TimerOff, Users, Wallet } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -19,46 +20,66 @@ export const Route = createFileRoute("/_authenticated/app/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard | AURUMBOT" },
-      { name: "description", content: "Acompanhe bots, leads, pagamentos e receita em tempo real." },
+      { name: "description", content: "Acompanhe vendas, conversão, receita e ticket médio em tempo real." },
       { property: "og:title", content: "Dashboard | AURUMBOT" },
-      { property: "og:description", content: "Acompanhe bots, leads, pagamentos e receita." },
+      { property: "og:description", content: "Vendas, conversão, receita e ticket médio da sua operação." },
     ],
   }),
   component: Dashboard,
 });
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
+const periods = [
+  { key: "7", label: "7 dias", days: 7 },
+  { key: "30", label: "30 dias", days: 30 },
+  { key: "90", label: "90 dias", days: 90 },
+  { key: "all", label: "Tudo", days: 3650 },
+] as const;
+
+type PeriodKey = (typeof periods)[number]["key"];
 
 function Dashboard() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => {
-      const since = new Date(Date.now() - 13 * 86400000);
-      since.setHours(0, 0, 0, 0);
+  const [period, setPeriod] = useState<PeriodKey>("30");
+  const days = periods.find((p) => p.key === period)?.days ?? 30;
+  const since = useMemo(() => {
+    const d = new Date(Date.now() - days * 86400000);
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }, [days]);
 
-      const [bots, leadsToday, payments, leads, logs] = await Promise.all([
-        supabase.from("bots").select("id", { count: "exact", head: true }),
-        supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfToday()),
-        supabase.from("payments").select("amount_cents,status,created_at"),
-        supabase.from("leads").select("created_at").gte("created_at", since.toISOString()),
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", period],
+    refetchInterval: 20000,
+    queryFn: async () => {
+      const [payments, leads, logs] = await Promise.all([
+        supabase
+          .from("payments")
+          .select("id,amount_cents,net_cents,status,created_at,product_name,description")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("leads")
+          .select("id,name,telegram_username,created_at")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false }),
         supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(8),
       ]);
 
-      const approved = (payments.data ?? []).filter((p) => p.status === "approved");
+      const rows = payments.data ?? [];
+      const leadRows = leads.data ?? [];
+      const approved = rows.filter((p) => p.status === "approved");
+      const expired = rows.filter((p) => p.status === "expired" || p.status === "cancelled");
       const revenue = approved.reduce((sum, p) => sum + (p.amount_cents ?? 0), 0);
+      const net = approved.reduce((sum, p) => sum + (p.net_cents ?? 0), 0);
 
-      const days: { day: string; leads: number; vendas: number }[] = [];
-      for (let i = 13; i >= 0; i--) {
+      const chartDays: { day: string; leads: number; vendas: number }[] = [];
+      const window = Math.min(days, 30);
+      for (let i = window - 1; i >= 0; i--) {
         const d = new Date(Date.now() - i * 86400000);
         d.setHours(0, 0, 0, 0);
         const key = d.toISOString().slice(0, 10);
-        days.push({
+        chartDays.push({
           day: formatDay(d.toISOString()),
-          leads: (leads.data ?? []).filter((l) => l.created_at.slice(0, 10) === key).length,
+          leads: leadRows.filter((l) => l.created_at.slice(0, 10) === key).length,
           vendas: approved.filter((p) => p.created_at.slice(0, 10) === key).length,
         });
       }
@@ -68,21 +89,29 @@ function Dashboard() {
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const rows = approved.filter((p) => p.created_at.slice(0, 7) === key);
+        const monthRows = approved.filter((p) => p.created_at.slice(0, 7) === key);
         months.push({
           key,
           label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-          total: rows.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
-          count: rows.length,
+          total: monthRows.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
+          count: monthRows.length,
         });
       }
 
       return {
-        bots: bots.count ?? 0,
-        leadsToday: leadsToday.count ?? 0,
-        approved: approved.length,
+        sales: approved.length,
         revenue,
-        days,
+        net,
+        ticket: approved.length ? Math.round(revenue / approved.length) : 0,
+        conversion: leadRows.length ? (approved.length / leadRows.length) * 100 : 0,
+        leadsCount: leadRows.length,
+        pixCount: rows.length,
+        expiredCount: expired.length,
+        recentLeads: leadRows.slice(0, 6),
+        recentPix: rows.filter((p) => p.status === "pending").slice(0, 6),
+        recentSales: approved.slice(0, 6),
+        recentExpired: expired.slice(0, 6),
+        days: chartDays,
         months,
         logs: logs.data ?? [],
       };
@@ -90,15 +119,80 @@ function Dashboard() {
   });
 
   const cards = [
-    { label: "Bots cadastrados", value: data?.bots ?? 0, icon: Bot },
-    { label: "Leads hoje", value: data?.leadsToday ?? 0, icon: Users },
-    { label: "Pagamentos aprovados", value: data?.approved ?? 0, icon: CheckCircle2 },
-    { label: "Receita total", value: formatBRL(data?.revenue ?? 0), icon: Wallet },
+    { label: "Vendas", value: data?.sales ?? 0, icon: ShoppingBag, hint: `${data?.pixCount ?? 0} cobranças geradas` },
+    {
+      label: "Conversão",
+      value: `${(data?.conversion ?? 0).toFixed(1)}%`,
+      icon: BadgePercent,
+      hint: `${data?.leadsCount ?? 0} leads no período`,
+    },
+    { label: "Receita", value: formatBRL(data?.revenue ?? 0), icon: Wallet, hint: `${formatBRL(data?.net ?? 0)} líquido` },
+    { label: "Ticket médio", value: formatBRL(data?.ticket ?? 0), icon: Receipt, hint: "por venda aprovada" },
+  ];
+
+  const eventPanels = [
+    {
+      title: "Leads",
+      icon: Users,
+      accent: "text-[var(--color-chart-1)]",
+      items: (data?.recentLeads ?? []).map((l) => ({
+        id: l.id,
+        primary: l.name ?? l.telegram_username ?? "Lead",
+        secondary: formatDate(l.created_at),
+      })),
+    },
+    {
+      title: "PIX gerados",
+      icon: QrCode,
+      accent: "text-[var(--color-chart-3)]",
+      items: (data?.recentPix ?? []).map((p) => ({
+        id: p.id,
+        primary: `${p.product_name ?? p.description ?? "Cobrança"} · ${formatBRL(p.amount_cents ?? 0)}`,
+        secondary: formatDate(p.created_at),
+      })),
+    },
+    {
+      title: "Vendas aprovadas",
+      icon: ShoppingBag,
+      accent: "text-[var(--color-chart-2)]",
+      items: (data?.recentSales ?? []).map((p) => ({
+        id: p.id,
+        primary: `${p.product_name ?? p.description ?? "Venda"} · ${formatBRL(p.amount_cents ?? 0)}`,
+        secondary: formatDate(p.created_at),
+      })),
+    },
+    {
+      title: "Expirados",
+      icon: TimerOff,
+      accent: "text-muted-foreground",
+      items: (data?.recentExpired ?? []).map((p) => ({
+        id: p.id,
+        primary: `${p.product_name ?? p.description ?? "Cobrança"} · ${formatBRL(p.amount_cents ?? 0)}`,
+        secondary: formatDate(p.created_at),
+      })),
+    },
   ];
 
   return (
     <div>
       <PageHeader title="Dashboard" description="Visão geral da sua operação." />
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {periods.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => setPeriod(p.key)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+              period === p.key
+                ? "border-primary/50 bg-primary/15 text-primary"
+                : "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c, i) => (
@@ -116,14 +210,17 @@ function Dashboard() {
             {isLoading ? (
               <Skeleton className="mt-3 h-9 w-28" />
             ) : (
-              <p className="mt-3 font-display text-3xl font-bold tracking-tight">{c.value}</p>
+              <>
+                <p className="mt-3 font-display text-3xl font-bold tracking-tight">{c.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{c.hint}</p>
+              </>
             )}
           </div>
         ))}
       </div>
 
       <div className="panel mt-6 p-5">
-        <p className="text-sm font-medium">Atividade dos últimos 14 dias</p>
+        <p className="text-sm font-medium">Leads x vendas no período</p>
         <div className="mt-4 h-64">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data?.days ?? []}>
@@ -155,6 +252,33 @@ function Dashboard() {
         </div>
       </div>
 
+      <div className="mt-6">
+        <p className="mb-3 flex items-center gap-2 text-sm font-medium">
+          <Activity className="size-4 text-primary" /> Últimos eventos
+        </p>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {eventPanels.map((panel) => (
+            <div key={panel.title} className="panel p-4">
+              <p className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${panel.accent}`}>
+                <panel.icon className="size-4" /> {panel.title}
+              </p>
+              <div className="mt-3 space-y-2">
+                {panel.items.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nada por aqui ainda.</p>
+                ) : (
+                  panel.items.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+                      <p className="truncate text-sm">{item.primary}</p>
+                      <p className="text-[11px] text-muted-foreground">{item.secondary}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="panel mt-6 p-5">
         <p className="text-sm font-medium">Resumo mensal da receita</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -169,7 +293,7 @@ function Dashboard() {
       </div>
 
       <div className="mt-6">
-        <p className="mb-3 text-sm font-medium">Últimos eventos</p>
+        <p className="mb-3 text-sm font-medium">Histórico de ações</p>
         {(data?.logs.length ?? 0) === 0 ? (
           <EmptyState title="Nenhum evento ainda" description="As ações no painel aparecem aqui." />
         ) : (
