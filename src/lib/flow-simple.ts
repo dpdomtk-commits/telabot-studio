@@ -209,6 +209,16 @@ export function compileSimpleConfig(config: SimpleConfig): CompiledFlow {
     previous = media;
   }
 
+  if (config.welcome.media2FileId && config.welcome.media2Kind) {
+    const media2 = add("welcome-media-2", config.welcome.media2Kind, "Mídia de boas-vindas (2)", {
+      file_id: config.welcome.media2FileId,
+      caption: config.welcome.caption2,
+    });
+    link(previous, media2);
+    previous = media2;
+  }
+
+
   const welcome = add("welcome", "message", "Boas-vindas", { text: config.welcome.message });
   link(previous, welcome);
   previous = welcome;
