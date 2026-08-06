@@ -32,7 +32,11 @@ export type SimpleConfig = {
     mediaFileId: string;
     mediaKind: "" | "image" | "video";
     caption: string;
+    media2FileId: string;
+    media2Kind: "" | "image" | "video";
+    caption2: string;
   };
+
   plans: {
     intro: string;
     items: SimplePlan[];
