@@ -39,6 +39,14 @@ export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple"
 
 const rid = () => Math.random().toString(36).slice(2, 9);
 
+/** Reordena um item da lista mantendo os demais na ordem original. */
+function move<T>(items: T[], from: number, to: number): T[] {
+  const copy = [...items];
+  const [item] = copy.splice(from, 1);
+  if (item !== undefined) copy.splice(to, 0, item);
+  return copy;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
