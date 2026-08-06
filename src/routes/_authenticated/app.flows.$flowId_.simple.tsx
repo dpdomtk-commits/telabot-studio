@@ -196,7 +196,7 @@ function SimpleFlowPage() {
                 />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Imagem de capa (opcional)">
+                <Field label="Mídia 1 (opcional)">
                   <MediaPicker
                     kind="image"
                     value={config.welcome.mediaKind === "image" ? config.welcome.mediaFileId : ""}
@@ -205,7 +205,7 @@ function SimpleFlowPage() {
                     }
                   />
                 </Field>
-                <Field label="Legenda da mídia">
+                <Field label="Legenda da mídia 1">
                   <Input
                     value={config.welcome.caption}
                     onChange={(e) => patch("welcome", { caption: e.target.value })}
@@ -214,9 +214,37 @@ function SimpleFlowPage() {
               </div>
               {config.welcome.mediaFileId ? (
                 <Button variant="secondary" size="sm" onClick={() => patch("welcome", { mediaFileId: "", mediaKind: "" })}>
-                  <Trash2 /> Remover mídia
+                  <Trash2 /> Remover mídia 1
                 </Button>
               ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Mídia 2 (opcional)">
+                  <MediaPicker
+                    kind="image"
+                    value={config.welcome.media2Kind === "image" ? config.welcome.media2FileId : ""}
+                    onSelect={(asset) =>
+                      patch("welcome", { media2FileId: asset.telegram_file_id, media2Kind: "image" })
+                    }
+                  />
+                </Field>
+                <Field label="Legenda da mídia 2">
+                  <Input
+                    value={config.welcome.caption2}
+                    onChange={(e) => patch("welcome", { caption2: e.target.value })}
+                  />
+                </Field>
+              </div>
+              {config.welcome.media2FileId ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => patch("welcome", { media2FileId: "", media2Kind: "" })}
+                >
+                  <Trash2 /> Remover mídia 2
+                </Button>
+              ) : null}
+
             </>
           ) : null}
 
