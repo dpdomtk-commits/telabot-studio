@@ -317,18 +317,51 @@ function SimpleFlowPage() {
                         />
                       </Field>
                     </div>
-                    {config.plans.items.length > 1 ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <Button
-                        className="mt-4"
                         size="sm"
-                        variant="destructive"
+                        variant="secondary"
+                        disabled={i === 0}
+                        onClick={() => patch("plans", { items: move(config.plans.items, i, i - 1) })}
+                      >
+                        <ArrowUp /> Subir
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={i === config.plans.items.length - 1}
+                        onClick={() => patch("plans", { items: move(config.plans.items, i, i + 1) })}
+                      >
+                        <ArrowDown /> Descer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
                         onClick={() =>
-                          patch("plans", { items: config.plans.items.filter((_, idx) => idx !== i) })
+                          patch("plans", {
+                            items: [
+                              ...config.plans.items.slice(0, i + 1),
+                              { ...plan, id: rid(), name: `${plan.name} (cópia)` },
+                              ...config.plans.items.slice(i + 1),
+                            ],
+                          })
                         }
                       >
-                        <Trash2 /> Remover plano
+                        <Copy /> Duplicar
                       </Button>
-                    ) : null}
+                      {config.plans.items.length > 1 ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            patch("plans", { items: config.plans.items.filter((_, idx) => idx !== i) })
+                          }
+                        >
+                          <Trash2 /> Remover
+                        </Button>
+                      ) : null}
+                    </div>
+
                   </div>
                 ))}
                 <Button
