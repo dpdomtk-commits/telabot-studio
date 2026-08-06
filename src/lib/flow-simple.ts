@@ -92,6 +92,10 @@ export function defaultSimpleConfig(): SimpleConfig {
       mediaFileId: "",
       mediaKind: "",
       caption: "",
+      media2FileId: "",
+      media2Kind: "",
+      caption2: "",
+
     },
     plans: {
       intro: "Estes são os planos disponíveis:",
