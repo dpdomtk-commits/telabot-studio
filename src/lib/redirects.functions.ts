@@ -109,10 +109,11 @@ export const updateRedirect = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = {};
-    if (data.name !== undefined) patch["name"] = data.name;
-    if (data.destination !== undefined) patch["destination"] = data.destination;
-    if (data.isActive !== undefined) patch["is_active"] = data.isActive;
+    const patch: { name?: string; destination?: string; is_active?: boolean } = {};
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.destination !== undefined) patch.destination = data.destination;
+    if (data.isActive !== undefined) patch.is_active = data.isActive;
+
 
     const { error } = await supabaseAdmin
       .from("redirect_links")
