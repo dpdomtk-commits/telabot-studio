@@ -472,6 +472,16 @@ async function sendCharge(
   }
 
   const result = await sendMessage(params.token, params.chatId, lines.join("\n"));
+  // Order bump: ofertas complementares logo após o PIX principal.
+  if (result.ok) {
+    await sendFlowOffers({
+      token: params.token,
+      chatId: params.chatId,
+      flowId: params.flowId,
+      kind: "order_bump",
+    });
+  }
+
   await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
   return result;
 
