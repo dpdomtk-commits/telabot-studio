@@ -560,3 +560,122 @@ export async function deliverForPayment(paymentId: string) {
     await supabaseAdmin.from("leads").update({ status: "converted" }).eq("id", payment.lead_id);
   }
 }
+
+/* ──────────────── Ofertas por fluxo (order bump, upsell, downsell) ──────────────── */
+
+type OfferRow = {
+  id: string;
+  name: string;
+  pitch: string | null;
+  description: string | null;
+  amount_cents: number;
+};
+
+/**
+ * Envia as ofertas ativas de um fluxo como botões.
+ * Cada botão gera o PIX daquela oferta somente quando clicado.
+ */
+export async function sendFlowOffers(args: {
+  token: string;
+  chatId: number;
+  flowId: string;
+  kind: "order_bump" | "upsell" | "downsell";
+}) {
+  const { data } = await supabaseAdmin
+    .from("flow_offers")
+    .select("id,name,pitch,description,amount_cents")
+    .eq("flow_id", args.flowId)
+    .eq("kind", args.kind)
+    .eq("is_active", true)
+    .order("position", { ascending: true });
+
+  const offers = (data ?? []) as OfferRow[];
+  if (offers.length === 0) return;
+
+  const title =
+    args.kind === "order_bump"
+      ? "🎁 Aproveite também"
+      : args.kind === "upsell"
+        ? "🚀 Oferta especial para você"
+        : "💡 Que tal uma opção mais leve?";
+
+  const lines = [`<b>${title}</b>`];
+  for (const offer of offers) {
+    const pitch = offer.pitch ?? offer.description ?? "";
+    lines.push(
+      `\n• <b>${offer.name}</b> — R$ ${(offer.amount_cents / 100).toFixed(2).replace(".", ",")}${
+        pitch ? `\n${pitch}` : ""
+      }`,
+    );
+  }
+
+  await sendMessage(args.token, args.chatId, lines.join("\n"), {
+    inline_keyboard: offers.map((offer) => [
+      {
+        text: `${offer.name} · R$ ${(offer.amount_cents / 100).toFixed(2).replace(".", ",")}`,
+        callback_data: `offer:${offer.id}`,
+      },
+    ]),
+  });
+}
+
+/** Gera e envia o PIX de uma oferta clicada no Telegram. */
+export async function sendOfferCharge(args: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  offerId: string;
+}) {
+  const { data: offer } = await supabaseAdmin
+    .from("flow_offers")
+    .select("id,flow_id,name,pitch,description,amount_cents,is_active")
+    .eq("id", args.offerId)
+    .eq("user_id", args.userId)
+    .maybeSingle();
+  if (!offer || !offer.is_active) return;
+
+  const { createPixCharge } = await import("@/lib/finance.server");
+  try {
+    const charge = await createPixCharge({
+      userId: args.userId,
+      botId: args.botId,
+      leadId: args.leadId,
+      amountCents: offer.amount_cents,
+      description: offer.pitch ?? offer.description ?? offer.name,
+      productName: offer.name,
+      idempotencyKey: `offer:${offer.id}:lead:${args.leadId}`,
+      flowId: offer.flow_id,
+    });
+
+    const lines = [
+      `<b>${offer.name}</b>`,
+      `Valor: R$ ${(offer.amount_cents / 100).toFixed(2).replace(".", ",")}`,
+    ];
+    if (charge.pix_code) {
+      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
+        charge.pix_code,
+      )}`;
+      await sendPhoto(args.token, args.chatId, qr, "Escaneie o QR Code para pagar");
+      lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
+    }
+    lines.push("", "Assim que o PIX for confirmado, liberamos o acesso automaticamente.");
+    await sendMessage(args.token, args.chatId, lines.join("\n"));
+    await logActivity(args.userId, "pagamento", "cobrança de oferta criada", charge.id);
+  } catch (error) {
+    await sendMessage(
+      args.token,
+      args.chatId,
+      "Não conseguimos gerar o pagamento desta oferta agora. Tente novamente em instantes.",
+    );
+    await notify(
+      args.userId,
+      "error",
+      "Falha ao gerar PIX da oferta",
+      error instanceof Error ? error.message : "Erro desconhecido",
+      "flow_offer",
+      offer.id,
+    );
+  }
+}
