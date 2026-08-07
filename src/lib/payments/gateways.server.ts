@@ -48,10 +48,21 @@ export async function selectGateways(
   return [preferred, ...rest];
 }
 
-export type GatewayChargeResult = {
-  gatewayId: string | null;
-  provider: string;
-  externalId: string | null;
+/** Credenciais SyncPay salvas pelo próprio usuário (quando conectadas). */
+export async function getUserCredentials(
+  userId: string,
+): Promise<{ clientId: string; clientSecret: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("user_gateway_credentials")
+    .select("client_id,client_secret,status")
+    .eq("user_id", userId)
+    .eq("provider", "syncpay")
+    .maybeSingle();
+  if (!data?.client_id || !data.client_secret || data.status !== "connected") return null;
+  return { clientId: data.client_id, clientSecret: data.client_secret };
+}
+
+
   pixCode: string;
 };
 
