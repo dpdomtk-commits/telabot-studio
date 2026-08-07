@@ -291,6 +291,8 @@ function GatewaysPage() {
         }
       />
 
+      <UserSyncpayCard />
+
 
       <Tabs defaultValue="list">
         <TabsList>
