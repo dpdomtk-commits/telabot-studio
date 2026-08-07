@@ -61,10 +61,13 @@ export async function getUserCredentials(
   if (!data?.client_id || !data.client_secret || data.status !== "connected") return null;
   return { clientId: data.client_id, clientSecret: data.client_secret };
 }
-
-
+export type GatewayChargeResult = {
+  gatewayId: string | null;
+  provider: string;
+  externalId: string | null;
   pixCode: string;
 };
+
 
 /**
  * Tenta criar a cobrança percorrendo a fila de gateways (fallback inteligente).
