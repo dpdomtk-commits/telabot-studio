@@ -566,9 +566,20 @@ export async function deliverForPayment(paymentId: string) {
     }
   }
 
+  // Upsell: oferta enviada logo após o pagamento aprovado.
+  if (flow && bot?.token && lead?.telegram_id) {
+    await sendFlowOffers({
+      token: bot.token,
+      chatId: Number(lead.telegram_id),
+      flowId: flow.id,
+      kind: "upsell",
+    });
+  }
+
   if (payment.lead_id) {
     await supabaseAdmin.from("leads").update({ status: "converted" }).eq("id", payment.lead_id);
   }
+
 }
 
 /* ──────────────── Ofertas por fluxo (order bump, upsell, downsell) ──────────────── */
