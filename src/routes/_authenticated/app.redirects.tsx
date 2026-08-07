@@ -71,7 +71,11 @@ function RedirectsPage() {
     mutationFn: () =>
       create({ data: { name: name.trim(), destination: destination.trim(), slug: slug.trim() || undefined } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast.error(r.message);
+      if (!r.ok) {
+        toast.error(r.message);
+        return;
+      }
+
       toast.success(r.message);
       setOpen(false);
       setName("");
