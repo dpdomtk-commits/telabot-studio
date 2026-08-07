@@ -8,6 +8,8 @@ import {
   CreditCard,
   Wallet,
   Network,
+  Link2,
+
   Settings,
   Images,
   Store,
