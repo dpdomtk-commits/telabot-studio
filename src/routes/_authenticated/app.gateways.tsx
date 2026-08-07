@@ -6,6 +6,8 @@ import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, Split, Activity } from "lucid
 import { supabase } from "@/integrations/supabase/client";
 import { validatePixKey, type PixKeyType } from "@/lib/payments/pix";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
+import { UserSyncpayCard } from "@/components/app/UserSyncpayCard";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
