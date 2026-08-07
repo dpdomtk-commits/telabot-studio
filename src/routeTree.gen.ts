@@ -24,12 +24,15 @@ import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/app.marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/app.media'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
+import { Route as AuthenticatedAppRedirectsRouteImport } from './routes/_authenticated/app.redirects'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
+import { Route as ApiPublicRSlugRouteImport } from './routes/api/public/r/$slug'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
 import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/public/webhooks/syncpay'
+import { Route as AuthenticatedAppFlowsFlowIdOffersRouteImport } from './routes/_authenticated/app.flows.$flowId_.offers'
 import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
 const IndexRoute = IndexRouteImport.update({
@@ -111,6 +114,12 @@ const AuthenticatedAppPaymentsRoute =
     path: '/payments',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppRedirectsRoute =
+  AuthenticatedAppRedirectsRouteImport.update({
+    id: '/redirects',
+    path: '/redirects',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -134,6 +143,11 @@ const ApiPublicMediaUploadRoute = ApiPublicMediaUploadRouteImport.update({
   path: '/api/public/media/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRSlugRoute = ApiPublicRSlugRouteImport.update({
+  id: '/api/public/r/$slug',
+  path: '/api/public/r/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   id: '/api/public/telegram/$botId',
   path: '/api/public/telegram/$botId',
@@ -144,6 +158,12 @@ const ApiPublicWebhooksSyncpayRoute =
     id: '/api/public/webhooks/syncpay',
     path: '/api/public/webhooks/syncpay',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedAppFlowsFlowIdOffersRoute =
+  AuthenticatedAppFlowsFlowIdOffersRouteImport.update({
+    id: '/flows/$flowId_/offers',
+    path: '/flows/$flowId/offers',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppFlowsFlowIdSimpleRoute =
   AuthenticatedAppFlowsFlowIdSimpleRouteImport.update({
@@ -166,13 +186,16 @@ export interface FileRoutesByFullPath {
   '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesByTo {
@@ -188,13 +211,16 @@ export interface FileRoutesByTo {
   '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
+  '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRoutesById {
@@ -213,13 +239,16 @@ export interface FileRoutesById {
   '/_authenticated/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
+  '/_authenticated/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
+  '/_authenticated/app/flows/$flowId_/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 export interface FileRouteTypes {
@@ -238,13 +267,16 @@ export interface FileRouteTypes {
     | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
+    | '/app/redirects'
     | '/app/settings'
     | '/app/'
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/app/flows/'
+    | '/app/flows/$flowId/offers'
     | '/app/flows/$flowId/simple'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -260,13 +292,16 @@ export interface FileRouteTypes {
     | '/app/marketplace'
     | '/app/media'
     | '/app/payments'
+    | '/app/redirects'
     | '/app/settings'
     | '/app'
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/app/flows'
+    | '/app/flows/$flowId/offers'
     | '/app/flows/$flowId/simple'
   id:
     | '__root__'
@@ -284,13 +319,16 @@ export interface FileRouteTypes {
     | '/_authenticated/app/marketplace'
     | '/_authenticated/app/media'
     | '/_authenticated/app/payments'
+    | '/_authenticated/app/redirects'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/'
     | '/_authenticated/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/_authenticated/app/flows/'
+    | '/_authenticated/app/flows/$flowId_/offers'
     | '/_authenticated/app/flows/$flowId_/simple'
   fileRoutesById: FileRoutesById
 }
@@ -299,6 +337,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicMediaUploadRoute: typeof ApiPublicMediaUploadRoute
+  ApiPublicRSlugRoute: typeof ApiPublicRSlugRoute
   ApiPublicTelegramBotIdRoute: typeof ApiPublicTelegramBotIdRoute
   ApiPublicWebhooksSyncpayRoute: typeof ApiPublicWebhooksSyncpayRoute
 }
@@ -410,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPaymentsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/redirects': {
+      id: '/_authenticated/app/redirects'
+      path: '/redirects'
+      fullPath: '/app/redirects'
+      preLoaderRoute: typeof AuthenticatedAppRedirectsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/settings': {
       id: '/_authenticated/app/settings'
       path: '/settings'
@@ -438,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMediaUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/r/$slug': {
+      id: '/api/public/r/$slug'
+      path: '/api/public/r/$slug'
+      fullPath: '/api/public/r/$slug'
+      preLoaderRoute: typeof ApiPublicRSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/$botId': {
       id: '/api/public/telegram/$botId'
       path: '/api/public/telegram/$botId'
@@ -451,6 +504,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/webhooks/syncpay'
       preLoaderRoute: typeof ApiPublicWebhooksSyncpayRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/app/flows/$flowId_/offers': {
+      id: '/_authenticated/app/flows/$flowId_/offers'
+      path: '/flows/$flowId/offers'
+      fullPath: '/app/flows/$flowId/offers'
+      preLoaderRoute: typeof AuthenticatedAppFlowsFlowIdOffersRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/flows/$flowId_/simple': {
       id: '/_authenticated/app/flows/$flowId_/simple'
@@ -473,10 +533,12 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
+  AuthenticatedAppRedirectsRoute: typeof AuthenticatedAppRedirectsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFlowsFlowIdRoute: typeof AuthenticatedAppFlowsFlowIdRoute
   AuthenticatedAppFlowsIndexRoute: typeof AuthenticatedAppFlowsIndexRoute
+  AuthenticatedAppFlowsFlowIdOffersRoute: typeof AuthenticatedAppFlowsFlowIdOffersRoute
   AuthenticatedAppFlowsFlowIdSimpleRoute: typeof AuthenticatedAppFlowsFlowIdSimpleRoute
 }
 
@@ -491,10 +553,13 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
+  AuthenticatedAppRedirectsRoute: AuthenticatedAppRedirectsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFlowsFlowIdRoute: AuthenticatedAppFlowsFlowIdRoute,
   AuthenticatedAppFlowsIndexRoute: AuthenticatedAppFlowsIndexRoute,
+  AuthenticatedAppFlowsFlowIdOffersRoute:
+    AuthenticatedAppFlowsFlowIdOffersRoute,
   AuthenticatedAppFlowsFlowIdSimpleRoute:
     AuthenticatedAppFlowsFlowIdSimpleRoute,
 }
@@ -518,6 +583,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicMediaUploadRoute: ApiPublicMediaUploadRoute,
+  ApiPublicRSlugRoute: ApiPublicRSlugRoute,
   ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
   ApiPublicWebhooksSyncpayRoute: ApiPublicWebhooksSyncpayRoute,
 }

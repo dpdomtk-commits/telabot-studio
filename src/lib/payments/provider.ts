@@ -28,7 +28,10 @@ export type ProviderConfig = {
   pixReceiverKey: string | null;
   pixReceiverName: string;
   pixReceiverCity: string;
+  /** Credenciais próprias do usuário (quando o provedor exige API própria). */
+  credentials?: { clientId: string | null; clientSecret: string | null } | null;
 };
+
 
 export interface PaymentProvider {
   readonly id: string;

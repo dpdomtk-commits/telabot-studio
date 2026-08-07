@@ -48,12 +48,26 @@ export async function selectGateways(
   return [preferred, ...rest];
 }
 
+/** Credenciais SyncPay salvas pelo próprio usuário (quando conectadas). */
+export async function getUserCredentials(
+  userId: string,
+): Promise<{ clientId: string; clientSecret: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("user_gateway_credentials")
+    .select("client_id,client_secret,status")
+    .eq("user_id", userId)
+    .eq("provider", "syncpay")
+    .maybeSingle();
+  if (!data?.client_id || !data.client_secret || data.status !== "connected") return null;
+  return { clientId: data.client_id, clientSecret: data.client_secret };
+}
 export type GatewayChargeResult = {
   gatewayId: string | null;
   provider: string;
   externalId: string | null;
   pixCode: string;
 };
+
 
 /**
  * Tenta criar a cobrança percorrendo a fila de gateways (fallback inteligente).
@@ -67,16 +81,56 @@ export async function createChargeWithFallback(args: {
   fallbackProvider: string;
 }): Promise<GatewayChargeResult> {
   const queue = await selectGateways(args.userId, args.input.amountCents, args.preferredGatewayId);
+  const userCredentials = await getUserCredentials(args.userId);
+
+  // Credenciais SyncPay próprias do usuário têm prioridade sobre a fila.
+  if (userCredentials) {
+    const started = Date.now();
+    try {
+      const result = await getProvider("syncpay").createPixCharge(args.input, {
+        pixReceiverKey: null,
+        pixReceiverName: args.fallbackConfig.pixReceiverName,
+        pixReceiverCity: args.fallbackConfig.pixReceiverCity,
+        credentials: userCredentials,
+      });
+      if (!result.pixCode) throw new Error("SyncPay não retornou código PIX");
+      await logAttempt({
+        userId: args.userId,
+        gatewayId: null,
+        paymentId: args.input.chargeId,
+        provider: "syncpay",
+        success: true,
+        amountCents: args.input.amountCents,
+        latencyMs: Date.now() - started,
+      });
+      return { gatewayId: null, provider: "syncpay", externalId: result.externalId, pixCode: result.pixCode };
+    } catch (error) {
+      await logAttempt({
+        userId: args.userId,
+        gatewayId: null,
+        paymentId: args.input.chargeId,
+        provider: "syncpay",
+        success: false,
+        amountCents: args.input.amountCents,
+        latencyMs: Date.now() - started,
+        error: error instanceof Error ? error.message : "Falha desconhecida",
+      });
+    }
+  }
 
   for (const gateway of queue) {
     const started = Date.now();
     try {
-      if (!gateway.pix_key) throw new Error("Gateway sem chave PIX configurada");
+      if (gateway.provider !== "syncpay" && !gateway.pix_key) {
+        throw new Error("Gateway sem chave PIX configurada");
+      }
       const result = await getProvider(gateway.provider).createPixCharge(args.input, {
         pixReceiverKey: gateway.pix_key,
         pixReceiverName: gateway.receiver_name,
         pixReceiverCity: gateway.receiver_city,
+        credentials: gateway.provider === "syncpay" ? userCredentials : null,
       });
+
       if (!result.pixCode) throw new Error("Gateway não retornou código PIX");
 
       await logAttempt({
