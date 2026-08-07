@@ -28,6 +28,7 @@ import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppFlowsIndexRouteImport } from './routes/_authenticated/app.flows.index'
 import { Route as AuthenticatedAppFlowsFlowIdRouteImport } from './routes/_authenticated/app.flows.$flowId'
 import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
+import { Route as ApiPublicRSlugRouteImport } from './routes/api/public/r/$slug'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
 import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/public/webhooks/syncpay'
 import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
@@ -134,6 +135,11 @@ const ApiPublicMediaUploadRoute = ApiPublicMediaUploadRouteImport.update({
   path: '/api/public/media/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRSlugRoute = ApiPublicRSlugRouteImport.update({
+  id: '/api/public/r/$slug',
+  path: '/api/public/r/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTelegramBotIdRoute = ApiPublicTelegramBotIdRouteImport.update({
   id: '/api/public/telegram/$botId',
   path: '/api/public/telegram/$botId',
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -192,6 +199,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/flows/$flowId': typeof AuthenticatedAppFlowsFlowIdRoute
   '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
+  '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/app/flows/'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/app/flows'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/'
     | '/_authenticated/app/flows/$flowId'
     | '/api/public/media/upload'
+    | '/api/public/r/$slug'
     | '/api/public/telegram/$botId'
     | '/api/public/webhooks/syncpay'
     | '/_authenticated/app/flows/'
@@ -299,6 +311,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicMediaUploadRoute: typeof ApiPublicMediaUploadRoute
+  ApiPublicRSlugRoute: typeof ApiPublicRSlugRoute
   ApiPublicTelegramBotIdRoute: typeof ApiPublicTelegramBotIdRoute
   ApiPublicWebhooksSyncpayRoute: typeof ApiPublicWebhooksSyncpayRoute
 }
@@ -438,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMediaUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/r/$slug': {
+      id: '/api/public/r/$slug'
+      path: '/api/public/r/$slug'
+      fullPath: '/api/public/r/$slug'
+      preLoaderRoute: typeof ApiPublicRSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/$botId': {
       id: '/api/public/telegram/$botId'
       path: '/api/public/telegram/$botId'
@@ -518,19 +538,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicMediaUploadRoute: ApiPublicMediaUploadRoute,
+  ApiPublicRSlugRoute: ApiPublicRSlugRoute,
   ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
   ApiPublicWebhooksSyncpayRoute: ApiPublicWebhooksSyncpayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
