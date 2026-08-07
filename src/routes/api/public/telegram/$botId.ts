@@ -82,6 +82,18 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           let resumeFromStepId: string | undefined;
           let resumeHandle: string | undefined;
           const data = cb?.data ?? "";
+          if (data.startsWith("offer:")) {
+            const { sendOfferCharge } = await import("@/lib/telegram.server");
+            await sendOfferCharge({
+              userId: bot.user_id,
+              botId: bot.id,
+              token: bot.token,
+              leadId,
+              chatId,
+              offerId: data.slice(6),
+            });
+            return Response.json({ ok: true });
+          }
           if (data.startsWith("step:")) {
             resumeFromStepId = data.slice(5);
           } else if (data.startsWith("menu:")) {
@@ -89,6 +101,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             resumeFromStepId = stepId;
             resumeHandle = option;
           }
+
 
           await runFlowForLead({
             userId: bot.user_id,
