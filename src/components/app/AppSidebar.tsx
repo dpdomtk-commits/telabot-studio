@@ -39,6 +39,8 @@ const items = [
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
   { title: "Financeiro", url: "/app/finance", icon: Wallet },
   { title: "Gateways", url: "/app/gateways", icon: Network },
+  { title: "Links", url: "/app/redirects", icon: Link2 },
+
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ] as const;
 
