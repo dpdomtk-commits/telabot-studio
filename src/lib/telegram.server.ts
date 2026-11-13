@@ -29,15 +29,19 @@ export function sendMessage(token: string, chatId: number, text: string, replyMa
 }
 
 export async function sendPhoto(token: string, chatId: number, url: string, caption?: string) {
-  if (url.startsWith("data:")) {
-    const matches = url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (matches && matches[2]) {
-      const buffer = Buffer.from(matches[2], "base64");
+  if (url && url.startsWith("data:")) {
+    const commaIndex = url.indexOf(",");
+    if (commaIndex > -1) {
+      const header = url.slice(5, commaIndex);
+      const base64Data = url.slice(commaIndex + 1).replace(/\s/g, "");
+      const mime = header.split(";")[0] || "image/jpeg";
+      const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
       if (caption) form.append("caption", caption);
-      const blob = new Blob([buffer], { type: matches[1] || "image/jpeg" });
-      form.append("photo", blob, "photo.jpg");
+      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+      const blob = new Blob([buffer], { type: mime });
+      form.append("photo", blob, `photo.${ext}`);
 
       const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
         method: "POST",
@@ -50,14 +54,17 @@ export async function sendPhoto(token: string, chatId: number, url: string, capt
 }
 
 export async function sendVideo(token: string, chatId: number, url: string, caption?: string) {
-  if (url.startsWith("data:")) {
-    const matches = url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (matches && matches[2]) {
-      const buffer = Buffer.from(matches[2], "base64");
+  if (url && url.startsWith("data:")) {
+    const commaIndex = url.indexOf(",");
+    if (commaIndex > -1) {
+      const header = url.slice(5, commaIndex);
+      const base64Data = url.slice(commaIndex + 1).replace(/\s/g, "");
+      const mime = header.split(";")[0] || "video/mp4";
+      const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
       if (caption) form.append("caption", caption);
-      const blob = new Blob([buffer], { type: matches[1] || "video/mp4" });
+      const blob = new Blob([buffer], { type: mime });
       form.append("video", blob, "video.mp4");
 
       const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
@@ -77,7 +84,7 @@ export async function sendMediaGroup(
 ): Promise<TelegramSendResult> {
   if (!mediaList || mediaList.length === 0) return { ok: true };
 
-  const hasBase64 = mediaList.some((m) => m.url?.startsWith("data:"));
+  const hasBase64 = mediaList.some((m) => m.url && m.url.startsWith("data:"));
 
   if (hasBase64) {
     const form = new FormData();
@@ -86,11 +93,13 @@ export async function sendMediaGroup(
     const inputMedia = mediaList.map((m, idx) => {
       const attachKey = `attach_${idx}`;
       if (m.url && m.url.startsWith("data:")) {
-        const matches = m.url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches[2]) {
-          const buffer = Buffer.from(matches[2], "base64");
-          const ext = m.type === "video" ? "mp4" : "jpg";
-          const mime = matches[1] || (m.type === "video" ? "video/mp4" : "image/jpeg");
+        const commaIndex = m.url.indexOf(",");
+        if (commaIndex > -1) {
+          const header = m.url.slice(5, commaIndex);
+          const base64Data = m.url.slice(commaIndex + 1).replace(/\s/g, "");
+          const mime = header.split(";")[0] || (m.type === "video" ? "video/mp4" : "image/jpeg");
+          const buffer = Buffer.from(base64Data, "base64");
+          const ext = m.type === "video" ? "mp4" : mime.includes("png") ? "png" : "jpg";
           const blob = new Blob([buffer], { type: mime });
           form.append(attachKey, blob, `${attachKey}.${ext}`);
           return {
@@ -211,10 +220,10 @@ type ConnectionRow = {
  * marcado como ativo, o fluxo mais recente que já tenha etapas compiladas.
  * Assim o /start nunca fica mudo por causa de um flag esquecido.
  */
-async function resolveBotFlow(botId: string): Promise<{ id: string } | null> {
+async function resolveBotFlow(botId: string): Promise<{ id: string; simple_config?: unknown } | null> {
   const { data: active } = await supabaseAdmin
     .from("flows")
-    .select("id")
+    .select("id,simple_config")
     .eq("bot_id", botId)
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
@@ -224,15 +233,15 @@ async function resolveBotFlow(botId: string): Promise<{ id: string } | null> {
 
   const { data: candidates } = await supabaseAdmin
     .from("flows")
-    .select("id,flow_steps(id)")
+    .select("id,simple_config,flow_steps(id)")
     .eq("bot_id", botId)
     .order("updated_at", { ascending: false })
     .limit(10);
 
   const withSteps = (candidates ?? []).find(
-    (f) => Array.isArray((f as { flow_steps?: unknown[] }).flow_steps) && (f as { flow_steps: unknown[] }).flow_steps.length > 0,
+    (f) => Boolean((f as any).simple_config) || (Array.isArray((f as { flow_steps?: unknown[] }).flow_steps) && (f as { flow_steps: unknown[] }).flow_steps.length > 0),
   );
-  return withSteps ? { id: (withSteps as { id: string }).id } : null;
+  return withSteps ? { id: (withSteps as { id: string }).id, simple_config: (withSteps as any).simple_config } : null;
 }
 
 /**
@@ -254,21 +263,52 @@ export async function runFlowForLead(params: {
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
 
-  const [{ data: stepsData }, { data: connectionsData }] = await Promise.all([
-    supabaseAdmin
-      .from("flow_steps")
-      .select("id,type,position,config")
-      .eq("flow_id", flow.id)
-      .order("position", { ascending: true }),
-    supabaseAdmin
-      .from("flow_connections")
-      .select("source_step_id,target_step_id,source_handle")
-      .eq("flow_id", flow.id),
-  ]);
+  let steps: StepRow[] = [];
+  let connections: ConnectionRow[] = [];
 
-  const steps = (stepsData ?? []) as unknown as StepRow[];
+  // Se o fluxo tem simple_config, compila dinamicamente para garantir sincronização instantânea
+  if (flow.simple_config) {
+    try {
+      const { normalizeAdvancedConfig, compileAdvancedConfig } = await import("@/lib/flow-advanced");
+      const normalized = normalizeAdvancedConfig(flow.simple_config as any);
+      const compiled = compileAdvancedConfig(normalized);
+
+      steps = compiled.steps.map((s) => ({
+        id: s.key,
+        type: s.type,
+        position: s.position,
+        config: s.config as Record<string, unknown>,
+      }));
+
+      connections = compiled.connections.map((c) => ({
+        source_step_id: c.source,
+        target_step_id: c.target,
+        source_handle: c.sourceHandle,
+      }));
+    } catch (e) {
+      console.warn("Falha ao compilar simple_config na execução:", e);
+    }
+  }
+
+  // Fallback para etapas e conexões gravadas no banco
+  if (steps.length === 0) {
+    const [{ data: stepsData }, { data: connectionsData }] = await Promise.all([
+      supabaseAdmin
+        .from("flow_steps")
+        .select("id,type,position,config")
+        .eq("flow_id", flow.id)
+        .order("position", { ascending: true }),
+      supabaseAdmin
+        .from("flow_connections")
+        .select("source_step_id,target_step_id,source_handle")
+        .eq("flow_id", flow.id),
+    ]);
+
+    steps = (stepsData ?? []) as unknown as StepRow[];
+    connections = (connectionsData ?? []) as unknown as ConnectionRow[];
+  }
+
   if (steps.length === 0) return;
-  const connections = (connectionsData ?? []) as unknown as ConnectionRow[];
   const byId = new Map(steps.map((s) => [s.id, s]));
 
   const { data: execution } = await supabaseAdmin
@@ -311,6 +351,14 @@ export async function runFlowForLead(params: {
   let current: StepRow | undefined;
   if (params.resumeFromStepId) {
     current = nextStep(params.resumeFromStepId, params.resumeHandle ?? "saída");
+    if (!current && params.resumeHandle) {
+      const match = connections.find((c) => c.source_handle === params.resumeHandle);
+      if (match) current = byId.get(match.target_step_id);
+    }
+    if (!current && params.resumeHandle) {
+      const pixMatch = steps.find((s) => s.type === "pix" && (params.resumeHandle?.includes(s.id) || s.id.includes(params.resumeHandle || "")));
+      if (pixMatch) current = pixMatch;
+    }
     if (!current) {
       await finish("completed");
       return;
@@ -623,7 +671,15 @@ async function sendCharge(
     await sendPhoto(params.token, params.chatId, qr, "Escaneie o QR Code para pagar");
   }
 
-  const result = await sendMessage(params.token, params.chatId, lines.join("\n"));
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: "✅ Já realizei o pagamento", callback_data: `check_payment:${charge.id}` }
+      ]
+    ]
+  };
+
+  const result = await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
   // Order bump: ofertas complementares logo após o PIX principal.
   if (result.ok) {
     await sendFlowOffers({

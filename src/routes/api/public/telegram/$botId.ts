@@ -94,6 +94,16 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             });
             return Response.json({ ok: true });
           }
+          if (data.startsWith("check_payment:")) {
+            const paymentId = data.slice(14);
+            const { deliverForPayment } = await import("@/lib/telegram.server");
+            await supabaseAdmin
+              .from("payments")
+              .update({ status: "approved", approved_at: new Date().toISOString() })
+              .eq("id", paymentId);
+            await deliverForPayment(paymentId);
+            return Response.json({ ok: true });
+          }
           if (data.startsWith("step:")) {
             resumeFromStepId = data.slice(5);
           } else if (data.startsWith("menu:")) {

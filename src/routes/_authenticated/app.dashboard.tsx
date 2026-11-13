@@ -49,7 +49,8 @@ export function Dashboard() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
-    refetchInterval: 12000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     queryFn: async () => {
       const [payments, leads, allLogs, bots] = await Promise.all([
         supabase

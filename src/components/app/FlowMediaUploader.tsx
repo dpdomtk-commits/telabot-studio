@@ -149,6 +149,12 @@ export function FlowMediaUploader({
         )}
       </div>
 
+      {media.some((m) => m.url?.startsWith("blob:") || m.fileId?.startsWith("local_")) && (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2 text-xs text-amber-300">
+          ⚠️ Algumas mídias estavam em formato local temporário. Recomendamos remover e adicionar novamente para garantir o envio direto no Telegram.
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         {media.map((item) => (
           <div
