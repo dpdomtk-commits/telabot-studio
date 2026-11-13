@@ -69,6 +69,19 @@ export function editMessageText(
   });
 }
 
+export function editMessageReplyMarkup(
+  token: string,
+  chatId: number,
+  messageId: number,
+  replyMarkup: unknown
+) {
+  return callTelegram(token, "editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup,
+  });
+}
+
 export async function sendPhoto(
   token: string,
   chatId: number,
@@ -539,8 +552,9 @@ export async function handleLanguageSelect(params: {
 
 /**
  * Trata a escolha de moeda no fluxo em inglês (USD, EUR, GBP):
- * Quando o lead escolhe qual moeda utilizar para pagar, remove a mensagem anterior
- * e exibe os planos correspondentes na moeda selecionada.
+ * Realiza a substituição in-place dos botões via editMessageReplyMarkup:
+ * NÃO envia nova mensagem nem altera o texto/caption atual,
+ * apenas substitui instantaneamente os botões de moedas pelos botões dos Planos na moeda escolhida.
  */
 export async function handleCurrencySelect(params: {
   userId: string;
@@ -553,20 +567,46 @@ export async function handleCurrencySelect(params: {
 }) {
   await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
 
-  // Remove a mensagem anterior com a copy e as moedas
-  if (params.messageId) {
-    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
-  }
-
   const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const { normalizeAdvancedConfig, formatCurrencyPrice } = await import("@/lib/flow-advanced");
   const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
 
-  if (params.currency === "BRL") {
-    await sendBrlPlansMenu(params, cfg, true);
-  } else {
-    await sendIntlPlansMenu(params, cfg, params.currency, true);
+  const planItems = cfg.plans?.items?.length
+    ? cfg.plans.items
+    : [
+        { id: "plan-1", name: "VIP ACCESS", price: 29.9, duration: "Lifetime Access" },
+      ];
+
+  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const plan of planItems) {
+    const conv = formatCurrencyPrice(plan.price, params.currency);
+    const emoji = plan.emoji ? `${plan.emoji} ` : "";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} — ${conv.formatted}`;
+    inline_keyboard.push([
+      {
+        text: label,
+        callback_data: `intl_plan:${plan.id}:${params.currency}`,
+      },
+    ]);
   }
+
+  // Opção para trocar a moeda mantendo o chat limpo
+  inline_keyboard.push([
+    { text: "🌐 Change Currency", callback_data: "nav:curr" },
+  ]);
+
+  // Substituição in-place dos botões sem enviar nova mensagem e sem alterar texto/mídia
+  if (params.messageId) {
+    const editRes = await editMessageReplyMarkup(params.token, params.chatId, params.messageId, {
+      inline_keyboard,
+    });
+    if (editRes.ok) return;
+  }
+
+  // Fallback caso a mensagem não suporte edição de botões ou não tenha messageId
+  await sendIntlPlansMenu(params, cfg, params.currency, false);
 }
 
 /**

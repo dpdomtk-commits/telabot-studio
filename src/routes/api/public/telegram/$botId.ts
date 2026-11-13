@@ -283,7 +283,21 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           }
 
           if (data === "nav:curr") {
-            const { resolveBotFlow } = await import("@/lib/telegram.server");
+            const currencyMarkup = {
+              inline_keyboard: [
+                [
+                  { text: "💵 USD ($)", callback_data: "curr:USD" },
+                  { text: "💶 EUR (€)", callback_data: "curr:EUR" },
+                  { text: "💷 GBP (£)", callback_data: "curr:GBP" },
+                ],
+              ],
+            };
+            if (cbMessageId) {
+              const { editMessageReplyMarkup } = await import("@/lib/telegram.server");
+              await editMessageReplyMarkup(bot.token, chatId, cbMessageId, currencyMarkup);
+              return Response.json({ ok: true });
+            }
+            const { resolveBotFlow, sendCurrencySelectionMenu } = await import("@/lib/telegram.server");
             const flow = await resolveBotFlow(bot.id);
             const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
             const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
