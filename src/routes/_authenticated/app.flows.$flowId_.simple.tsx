@@ -1292,9 +1292,9 @@ export function AdvancedFlowEditorPage() {
                   >
                     <option value="all">Bot Principal do Fluxo</option>
                     {userBots.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
+                      <option key={b.id} value={b.id}>
                         {b.name} (@{b.username || "bot"})
-                      </SelectItem>
+                      </option>
                     ))}
                   </select>
                   <p className="text-[11px] text-zinc-500">
