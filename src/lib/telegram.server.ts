@@ -70,6 +70,69 @@ export async function sendVideo(token: string, chatId: number, url: string, capt
   return callTelegram(token, "sendVideo", { chat_id: chatId, video: url, caption: caption || undefined });
 }
 
+export async function sendMediaGroup(
+  token: string,
+  chatId: number,
+  mediaList: Array<{ type: "photo" | "video"; url: string; caption?: string }>
+): Promise<TelegramSendResult> {
+  if (!mediaList || mediaList.length === 0) return { ok: true };
+
+  const hasBase64 = mediaList.some((m) => m.url?.startsWith("data:"));
+
+  if (hasBase64) {
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+
+    const inputMedia = mediaList.map((m, idx) => {
+      const attachKey = `attach_${idx}`;
+      if (m.url && m.url.startsWith("data:")) {
+        const matches = m.url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches[2]) {
+          const buffer = Buffer.from(matches[2], "base64");
+          const ext = m.type === "video" ? "mp4" : "jpg";
+          const mime = matches[1] || (m.type === "video" ? "video/mp4" : "image/jpeg");
+          const blob = new Blob([buffer], { type: mime });
+          form.append(attachKey, blob, `${attachKey}.${ext}`);
+          return {
+            type: m.type,
+            media: `attach://${attachKey}`,
+            ...(m.caption ? { caption: m.caption } : {}),
+          };
+        }
+      }
+      return {
+        type: m.type,
+        media: m.url,
+        ...(m.caption ? { caption: m.caption } : {}),
+      };
+    });
+
+    form.append("media", JSON.stringify(inputMedia));
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
+      method: "POST",
+      body: form,
+    });
+    return (await res.json()) as TelegramSendResult;
+  }
+
+  const inputMedia = mediaList.map((m) => ({
+    type: m.type,
+    media: m.url,
+    ...(m.caption ? { caption: m.caption } : {}),
+  }));
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      media: inputMedia,
+    }),
+  });
+  return (await res.json()) as TelegramSendResult;
+}
+
 export function setWebhook(token: string, url: string, secret: string) {
   return callTelegram(token, "setWebhook", {
     url,
@@ -291,6 +354,13 @@ export async function runFlowForLead(params: {
         }
         break;
       }
+      case "media_group": {
+        const mediaList = config["media"] as Array<{ type: "photo" | "video"; url: string; caption?: string }> | undefined;
+        if (Array.isArray(mediaList) && mediaList.length > 0) {
+          result = await sendMediaGroup(params.token, params.chatId, mediaList);
+        }
+        break;
+      }
       case "audio": {
         const fileId = str(config, "file_id");
         const url = str(config, "url");
@@ -468,6 +538,8 @@ export async function runFlowForLead(params: {
 
     await log("info", `Etapa ${step.type} executada`, step.id);
     if (step.type === "end") break;
+    // Pequeno intervalo para garantir entrega na ordem correta e evitar rate limit no Telegram
+    await new Promise((resolve) => setTimeout(resolve, 400));
     current = nextStep(step.id, handle);
   }
 

@@ -371,32 +371,28 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
 
   // 1. Mídias de boas-vindas
   if (config.welcome.media && config.welcome.media.length > 0) {
-    for (let i = 0; i < config.welcome.media.length; i++) {
-      const m = config.welcome.media[i];
-      const mediaKey = add(`welcome-media-${i + 1}`, m.kind || "image", `Mídia ${i + 1}`, {
-        url: m.url || "",
-        file_id: m.fileId || "",
-        caption: m.caption || "",
+    if (config.welcome.mediaMode === "grouped" && config.welcome.media.length > 1) {
+      const albumKey = add("welcome-media-album", "media_group", "Álbum de Mídias", {
+        media: config.welcome.media.map((m) => ({
+          type: m.kind === "video" ? "video" : "photo",
+          url: m.fileId || m.url || "",
+          caption: m.caption || "",
+        })),
       });
-      link(previous, mediaKey);
-      previous = mediaKey;
+      link(previous, albumKey);
+      previous = albumKey;
+    } else {
+      for (let i = 0; i < config.welcome.media.length; i++) {
+        const m = config.welcome.media[i];
+        const mediaKey = add(`welcome-media-${i + 1}`, m.kind || "image", `Mídia ${i + 1}`, {
+          url: m.url || "",
+          file_id: m.fileId || "",
+          caption: m.caption || "",
+        });
+        link(previous, mediaKey);
+        previous = mediaKey;
+      }
     }
-  }
-
-  // 2. Mensagem de boas-vindas
-  const welcomeKey = add("welcome", "message", "Boas-vindas", {
-    text: config.welcome.message || "Olá! Seja bem-vindo(a).",
-  });
-  link(previous, welcomeKey);
-  previous = welcomeKey;
-
-  // 3. Segunda mensagem (se habilitada)
-  if (config.welcome.hasSecondaryMessage && config.welcome.secondaryMessage) {
-    const secKey = add("welcome-secondary", "message", "Mensagem Secundária", {
-      text: config.welcome.secondaryMessage,
-    });
-    link(previous, secKey);
-    previous = secKey;
   }
 
   // 4. Menu de Planos (com valor do lado, cores e botões extras)
@@ -448,13 +444,35 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
     }
   }
 
-  const plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
-    text: config.welcome.message || "Escolha o seu plano abaixo para prosseguir:",
-    options: planOptions.join("\n"),
-    buttons: buttonsConfig,
-  });
-  link(previous, plansMenuKey);
-  previous = plansMenuKey;
+  // 2 e 3. Mensagem de Boas-vindas e Menu de Planos (SEM REPETIÇÃO DE TEXTO!)
+  if (config.welcome.hasSecondaryMessage && config.welcome.secondaryMessage) {
+    // Caso com 2 mensagens distintas:
+    // Envia primeiro a mensagem principal de boas-vindas:
+    const welcomeKey = add("welcome", "message", "Boas-vindas", {
+      text: config.welcome.message || "Olá! Seja bem-vindo(a).",
+    });
+    link(previous, welcomeKey);
+    previous = welcomeKey;
+
+    // Envia a segunda mensagem contendo os botões de planos anexados:
+    const plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
+      text: config.welcome.secondaryMessage,
+      options: planOptions.join("\n"),
+      buttons: buttonsConfig,
+    });
+    link(previous, plansMenuKey);
+    previous = plansMenuKey;
+  } else {
+    // Caso padrão (apenas 1 mensagem):
+    // A mensagem de boas-vindas já carrega os botões de planos DIRETAMENTE — NUNCA REPETE!
+    const plansMenuKey = add("plans-menu", "menu", "Boas-vindas e Planos", {
+      text: config.welcome.message || "Olá! Seja bem-vindo(a). Escolha seu plano abaixo:",
+      options: planOptions.join("\n"),
+      buttons: buttonsConfig,
+    });
+    link(previous, plansMenuKey);
+    previous = plansMenuKey;
+  }
 
   // 5. Para cada plano: cria um nó PIX com valor e nome EXATOS do plano
   const pixKeys: string[] = [];

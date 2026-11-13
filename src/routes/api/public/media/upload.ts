@@ -59,6 +59,7 @@ export const Route = createFileRoute("/api/public/media/upload")({
         let uniqueId: string | null = null;
         let thumbnail: string | null = null;
         let publicUrl: string | null = null;
+        let tgMessageId: number | null = null;
 
         // 1. Tenta canal de cache de mídia do Telegram (se configurado)
         const { data: settings } = await admin
@@ -90,6 +91,7 @@ export const Route = createFileRoute("/api/public/media/upload")({
               const json = (await res.json()) as TgResult;
               if (json.ok && json.result) {
                 const r = json.result;
+                tgMessageId = r.message_id ?? null;
                 if (kind === "image" && r.photo?.length) {
                   const best = [...r.photo].sort((a, b) => a.width - b.width).at(-1)!;
                   fileId = best.file_id;
@@ -159,7 +161,7 @@ export const Route = createFileRoute("/api/public/media/upload")({
             user_id: user.id,
             telegram_file_id: fileId,
             telegram_file_unique_id: uniqueId,
-            message_id: r.message_id ?? null,
+            message_id: tgMessageId,
             file_name: file.name.slice(0, 200),
             file_type: kind,
             mime_type: file.type || null,

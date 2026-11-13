@@ -34,55 +34,64 @@ export function FlowMediaUploader({
   const [uploading, setUploading] = useState(false);
 
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+    const fileList = event.target.files;
+    if (!fileList || fileList.length === 0) return;
 
-    if (media.length >= maxItems) {
+    const availableSlots = maxItems - media.length;
+    if (availableSlots <= 0) {
       toast.error(`Limite máximo de ${maxItems} mídias atingido`);
       return;
     }
 
-    const file = files[0];
+    const filesToUpload = Array.from(fileList).slice(0, availableSlots);
     setUploading(true);
 
     try {
-      const localUrl = URL.createObjectURL(file);
-      const kind = kindFromFile(file);
+      const addedItems: FlowMediaItem[] = [];
 
-      // Tenta upload para o servidor/Telegram em background
-      let telegramFileId = "";
-      let mediaUrl = localUrl;
+      for (const file of filesToUpload) {
+        const kind = kindFromFile(file);
 
-      try {
-        const asset = await uploadMedia(file, kind);
-        telegramFileId = asset.telegram_file_id;
-        if (asset.telegram_file_id?.startsWith("http")) {
-          mediaUrl = asset.telegram_file_id;
-        }
-      } catch (uploadErr) {
-        console.warn("Upload fallback base64:", uploadErr);
-        // Converte em base64 Data URL permanente para salvar no fluxo e enviar ao Telegram
-        try {
+        // Converte primeiro para base64 persistente para garantir visualização e envio
+        const base64Data = await new Promise<string>((resolve) => {
           const reader = new FileReader();
-          mediaUrl = await new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        } catch (_) {}
+          reader.onloadend = () => resolve((reader.result as string) || "");
+          reader.readAsDataURL(file);
+        });
+
+        let telegramFileId = "";
+        let finalUrl = base64Data;
+
+        // Tenta upload para o servidor/Telegram em background
+        try {
+          const asset = await uploadMedia(file, kind);
+          if (asset?.telegram_file_id) {
+            telegramFileId = asset.telegram_file_id;
+            if (asset.telegram_file_id.startsWith("http")) {
+              finalUrl = asset.telegram_file_id;
+            }
+          }
+        } catch (uploadErr) {
+          console.warn("Upload fallback permanente base64:", uploadErr);
+        }
+
+        addedItems.push({
+          id: Math.random().toString(36).slice(2, 9),
+          url: finalUrl,
+          fileId: telegramFileId || finalUrl,
+          kind: kind === "audio" ? "audio" : kind === "video" ? "video" : "image",
+          name: file.name,
+          caption: "",
+          isDynamic: false,
+        });
       }
 
-      const newItem: FlowMediaItem = {
-        id: Math.random().toString(36).slice(2, 9),
-        url: mediaUrl,
-        fileId: telegramFileId || (mediaUrl.startsWith("http") ? mediaUrl : ""),
-        kind: kind === "audio" ? "audio" : kind === "video" ? "video" : "image",
-        name: file.name,
-        caption: "",
-        isDynamic: false,
-      };
-
-      onChange([...media, newItem]);
-      toast.success("Mídia adicionada com sucesso!");
+      onChange([...media, ...addedItems]);
+      toast.success(
+        addedItems.length === 1
+          ? "Mídia adicionada com sucesso!"
+          : `${addedItems.length} mídias adicionadas com sucesso!`
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao carregar mídia");
     } finally {
@@ -231,6 +240,7 @@ export function FlowMediaUploader({
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept="image/*,video/*,audio/*"
         className="hidden"
         onChange={handleFileSelect}
