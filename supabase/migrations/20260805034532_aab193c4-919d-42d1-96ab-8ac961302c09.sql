@@ -1,0 +1,1 @@
+UPDATE public.finance_settings SET provider = 'syncpay';
