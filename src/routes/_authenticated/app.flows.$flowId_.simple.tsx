@@ -72,7 +72,7 @@ export function AdvancedFlowEditorPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("flows")
-        .select("id,name,bot_id,user_id,status,settings")
+        .select("id,name,bot_id,user_id,status,mode,simple_config")
         .eq("id", flowId)
         .single();
       if (error) throw error;
@@ -93,25 +93,30 @@ export function AdvancedFlowEditorPage() {
   });
 
   useEffect(() => {
-    if (flowData?.settings) {
-      setConfig(normalizeAdvancedConfig(flowData.settings));
+    if (flowData?.simple_config) {
+      setConfig(normalizeAdvancedConfig(flowData.simple_config));
     }
   }, [flowData]);
 
   async function handleSave() {
     setSaving(true);
     try {
+      const selectedBotId = config.bots.linkedBots[0] || flowData?.bot_id;
+
       const { error } = await supabase
         .from("flows")
         .update({
-          settings: config as never,
+          simple_config: config as never,
+          mode: "simple",
+          ...(selectedBotId ? { bot_id: selectedBotId } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq("id", flowId);
 
       if (error) throw error;
-      toast.success("Todas as alterações foram salvas com sucesso!");
+      toast.success("Fluxo salvo com sucesso!");
     } catch (e) {
+      console.error("Erro ao salvar fluxo:", e);
       toast.error(e instanceof Error ? e.message : "Erro ao salvar alterações");
     } finally {
       setSaving(false);

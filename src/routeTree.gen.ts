@@ -23,6 +23,7 @@ import { Route as AuthenticatedAppGatewaysRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppLeadsRouteImport } from './routes/_authenticated/app.leads'
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/app.marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/app.media'
+import { Route as AuthenticatedAppRemarketingRouteImport } from './routes/_authenticated/app.remarketing'
 import { Route as AuthenticatedAppPaymentsRouteImport } from './routes/_authenticated/app.payments'
 import { Route as AuthenticatedAppRedirectsRouteImport } from './routes/_authenticated/app.redirects'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -108,6 +109,12 @@ const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
   path: '/media',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppRemarketingRoute =
+  AuthenticatedAppRemarketingRouteImport.update({
+    id: '/remarketing',
+    path: '/remarketing',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppPaymentsRoute =
   AuthenticatedAppPaymentsRouteImport.update({
     id: '/payments',
@@ -185,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/app/leads': typeof AuthenticatedAppLeadsRoute
   '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
+  '/app/remarketing': typeof AuthenticatedAppRemarketingRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -210,6 +218,7 @@ export interface FileRoutesByTo {
   '/app/leads': typeof AuthenticatedAppLeadsRoute
   '/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/app/media': typeof AuthenticatedAppMediaRoute
+  '/app/remarketing': typeof AuthenticatedAppRemarketingRoute
   '/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -238,6 +247,7 @@ export interface FileRoutesById {
   '/_authenticated/app/leads': typeof AuthenticatedAppLeadsRoute
   '/_authenticated/app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/app/media': typeof AuthenticatedAppMediaRoute
+  '/_authenticated/app/remarketing': typeof AuthenticatedAppRemarketingRoute
   '/_authenticated/app/payments': typeof AuthenticatedAppPaymentsRoute
   '/_authenticated/app/redirects': typeof AuthenticatedAppRedirectsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -442,6 +452,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMediaRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/remarketing': {
+      id: '/_authenticated/app/remarketing'
+      path: '/remarketing'
+      fullPath: '/app/remarketing'
+      preLoaderRoute: typeof AuthenticatedAppRemarketingRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/payments': {
       id: '/_authenticated/app/payments'
       path: '/payments'
@@ -532,6 +549,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppLeadsRoute: typeof AuthenticatedAppLeadsRoute
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
+  AuthenticatedAppRemarketingRoute: typeof AuthenticatedAppRemarketingRoute
   AuthenticatedAppPaymentsRoute: typeof AuthenticatedAppPaymentsRoute
   AuthenticatedAppRedirectsRoute: typeof AuthenticatedAppRedirectsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -552,6 +570,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppLeadsRoute: AuthenticatedAppLeadsRoute,
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
+  AuthenticatedAppRemarketingRoute: AuthenticatedAppRemarketingRoute,
   AuthenticatedAppPaymentsRoute: AuthenticatedAppPaymentsRoute,
   AuthenticatedAppRedirectsRoute: AuthenticatedAppRedirectsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
