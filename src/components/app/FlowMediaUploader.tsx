@@ -51,20 +51,30 @@ export function FlowMediaUploader({
 
       // Tenta upload para o servidor/Telegram em background
       let telegramFileId = "";
+      let mediaUrl = localUrl;
+
       try {
         const asset = await uploadMedia(file, kind);
         telegramFileId = asset.telegram_file_id;
+        if (asset.telegram_file_id?.startsWith("http")) {
+          mediaUrl = asset.telegram_file_id;
+        }
       } catch (uploadErr) {
-        // Se o canal de cache do telegram ainda não estiver configurado pelo usuário, 
-        // mantemos o preview local e geramos um id temporário para não travar o fluxo
-        console.warn("Upload Telegram warning:", uploadErr);
-        telegramFileId = `local_${Date.now()}`;
+        console.warn("Upload fallback base64:", uploadErr);
+        // Converte em base64 Data URL permanente para salvar no fluxo e enviar ao Telegram
+        try {
+          const reader = new FileReader();
+          mediaUrl = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        } catch (_) {}
       }
 
       const newItem: FlowMediaItem = {
         id: Math.random().toString(36).slice(2, 9),
-        url: localUrl,
-        fileId: telegramFileId,
+        url: mediaUrl,
+        fileId: telegramFileId || (mediaUrl.startsWith("http") ? mediaUrl : ""),
         kind: kind === "audio" ? "audio" : kind === "video" ? "video" : "image",
         name: file.name,
         caption: "",

@@ -58,10 +58,12 @@ export type AdvancedFlowConfig = {
       name: string;
       price: number;
       duration: string;
-      buttonColor: "default" | "blue" | "green" | "red";
-      deliveryType: "fallback" | "custom";
+      buttonText?: string;
+      emoji?: string;
+      buttonColor?: "default" | "blue" | "green" | "red" | "gold" | "purple";
+      deliveryType?: "fallback" | "custom";
       deliveryCustomDestination?: string;
-      hasCustomOrderBump: boolean;
+      hasCustomOrderBump?: boolean;
     }[];
   };
   upsell: {
@@ -397,14 +399,59 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
     previous = secKey;
   }
 
-  // 4. Menu de Planos (IMPORTANTE: o menu pausa a execução até o lead clicar!)
+  // 4. Menu de Planos (com valor do lado, cores e botões extras)
   const planItems = config.plans?.items?.length
     ? config.plans.items
-    : [{ id: "plan-1", name: "ACESSO COMPLETO", price: 12.99, duration: "Vitalício" }];
+    : [
+        {
+          id: "plan-1",
+          name: "VITALÍCIO",
+          price: 9.23,
+          duration: "Vitalício",
+          emoji: "🎗️",
+          buttonColor: "blue" as const,
+        },
+      ];
+
+  const formatBRLPrice = (val: number) => {
+    return Number(val || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const buttonsConfig: Array<{ text: string; handle?: string; url?: string; color?: string }> = [];
+  const planOptions: string[] = [];
+
+  planItems.forEach((plan, i) => {
+    const handleKey = `plan-${plan.id || i}`;
+    const priceStr = formatBRLPrice(plan.price);
+    const emoji = plan.emoji ? `${plan.emoji} ` : "";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
+
+    planOptions.push(label);
+    buttonsConfig.push({
+      text: label,
+      handle: handleKey,
+      color: plan.buttonColor || "blue",
+    });
+  });
+
+  // Botões de links externos / pagamentos mundiais
+  if (config.welcome.redirectButtons && config.welcome.redirectButtons.length > 0) {
+    for (const b of config.welcome.redirectButtons) {
+      if (b.active && b.url) {
+        buttonsConfig.push({
+          text: b.label || "PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺 ↗",
+          url: b.url,
+          color: (b as any).color || "red",
+        });
+      }
+    }
+  }
 
   const plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
-    text: "Escolha o seu plano abaixo para prosseguir:",
-    options: planItems.map((p) => p.name).join("\n"),
+    text: config.welcome.message || "Escolha o seu plano abaixo para prosseguir:",
+    options: planOptions.join("\n"),
+    buttons: buttonsConfig,
   });
   link(previous, plansMenuKey);
   previous = plansMenuKey;
@@ -412,6 +459,12 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
   // 5. Para cada plano: cria um nó PIX com valor e nome EXATOS do plano
   const pixKeys: string[] = [];
   planItems.forEach((plan, i) => {
+    const handleKey = `plan-${plan.id || i}`;
+    const priceStr = formatBRLPrice(plan.price);
+    const emoji = plan.emoji ? `${plan.emoji} ` : "";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
+
     const pixKey = add(
       `pix-${plan.id || i}`,
       "pix",
@@ -425,7 +478,10 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
       },
       1
     );
-    // Vincula a opção clicada no menu ao nó PIX correto
+
+    // Múltiplos vínculos para garantir que qualquer clique resolva para este nó PIX
+    link(plansMenuKey, pixKey, handleKey, label);
+    link(plansMenuKey, pixKey, label.slice(0, 24), label);
     link(plansMenuKey, pixKey, plan.name.slice(0, 24), plan.name);
     pixKeys.push(pixKey);
   });

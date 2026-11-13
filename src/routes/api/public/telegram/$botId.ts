@@ -97,9 +97,9 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           if (data.startsWith("step:")) {
             resumeFromStepId = data.slice(5);
           } else if (data.startsWith("menu:")) {
-            const [, stepId, option] = data.split(":");
-            resumeFromStepId = stepId;
-            resumeHandle = option;
+            const parts = data.split(":");
+            resumeFromStepId = parts[1];
+            resumeHandle = parts.slice(2).join(":");
           }
 
 

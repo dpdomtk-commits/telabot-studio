@@ -55,24 +55,27 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-white/5 bg-[#0a0a0c]">
+    <Sidebar collapsible="icon" className="border-r border-white/5 bg-[#050508]">
       <SidebarHeader className="px-3 py-4 border-b border-white/5">
         <Link to="/app/dashboard" className="flex items-center gap-2.5 truncate font-serif text-base font-bold">
-          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-red-500/40 bg-zinc-950 shadow-[0_0_15px_-4px_rgba(217,4,41,0.5)]">
-            <span className="flex items-center gap-0.5 text-red-600 font-black text-sm select-none">
-              <span className="inline-block transform -skew-x-12 h-3.5 w-0.5 bg-red-600 rounded-sm"></span>
-              <span className="inline-block transform -skew-x-12 h-4 w-0.5 bg-red-600 rounded-sm translate-y-[-1px]"></span>
-              <span className="inline-block transform -skew-x-12 h-3 w-0.5 bg-red-600 rounded-sm"></span>
+          <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-cyan-500/40 bg-black shadow-[0_0_18px_rgba(6,182,212,0.4)]">
+            <img src="/chefbot-emblem.jpg" alt="Chef Bot" className="size-full object-cover" />
+          </span>
+          <div className="flex flex-col truncate">
+            <span className="truncate tracking-wider text-white font-extrabold text-sm flex items-center gap-1">
+              CHEF<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">BOT</span>
             </span>
-          </span>
-          <span className="truncate tracking-wider text-white">
-            CASH<span className="text-red-600">BOT</span>
-          </span>
+            <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-sans font-semibold">
+              O Mundo É Seu
+            </span>
+          </div>
         </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold">Operação</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold">
+            Operação
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -81,7 +84,7 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
                     asChild
                     isActive={path.startsWith(item.url)}
                     tooltip={item.title}
-                    className="hover:bg-red-600/10 hover:text-red-400 data-[active=true]:bg-red-600/15 data-[active=true]:text-red-500 data-[active=true]:font-semibold"
+                    className="transition-all hover:bg-cyan-500/10 hover:text-cyan-300 data-[active=true]:bg-gradient-to-r data-[active=true]:from-cyan-500/15 data-[active=true]:to-purple-500/15 data-[active=true]:text-cyan-300 data-[active=true]:border-l-2 data-[active=true]:border-cyan-400 data-[active=true]:font-bold"
                   >
                     <Link to={item.url}>
                       <item.icon className="size-4" />

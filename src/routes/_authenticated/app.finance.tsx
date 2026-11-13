@@ -31,13 +31,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/finance")({
   head: () => ({
     meta: [
-      { title: "Financeiro | CASH BOT" },
+      { title: "Financeiro | Chef Bot" },
       {
         name: "description",
         content: "Carteira interna, cobranças PIX, extrato financeiro e saques dos seus bots.",
       },
-      { property: "og:title", content: "Financeiro | CASH BOT" },
-      { property: "og:description", content: "Carteira, extrato e saques da sua gateway interna." },
+      { property: "og:title", content: "Financeiro | Chef Bot" },
+      { property: "og:description", content: "Carteira, extrato e saques da sua gateway nativa Chef Bot." },
     ],
   }),
   component: FinancePage,
@@ -151,14 +151,14 @@ function FinancePage() {
       />
 
       {/* Banner Gateway Nativa Ativa */}
-      <div className="rounded-2xl border border-red-500/30 bg-gradient-to-r from-red-950/40 to-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+      <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-red-600/20 text-red-500 border border-red-600/30">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
             <Wallet className="size-5" />
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-white text-sm">Gateway Interna CASH BOT (PIX Automático)</h3>
+              <h3 className="font-bold text-white text-sm">Gateway Interna Chef Bot (PIX Automático)</h3>
               <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
                 Ativa e Conectada
               </Badge>
@@ -176,7 +176,7 @@ function FinancePage() {
           <div key={c.label} className="panel p-5 border-white/10 bg-[#0e0e11]/80 backdrop-blur">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase tracking-wide text-zinc-400">{c.label}</span>
-              <c.icon className="size-4 text-red-500" />
+              <c.icon className="size-4 text-cyan-400" />
             </div>
             {isLoading ? (
               <Skeleton className="mt-3 h-8 w-24" />
@@ -220,8 +220,8 @@ function FinancePage() {
             <AreaChart data={daily}>
               <defs>
                 <linearGradient id="gFin" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#d90429" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#d90429" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#00d2ff" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -229,14 +229,14 @@ function FinancePage() {
               <YAxis stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "#18181b",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "#0d0e14",
+                  border: "1px solid rgba(6,182,212,0.3)",
                   borderRadius: "8px",
                   fontSize: "12px",
                   color: "#fff",
                 }}
               />
-              <Area type="monotone" dataKey="valor" stroke="#d90429" fill="url(#gFin)" strokeWidth={2} />
+              <Area type="monotone" dataKey="valor" stroke="#00d2ff" fill="url(#gFin)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -252,13 +252,13 @@ function FinancePage() {
 
       <Tabs defaultValue="charges" className="mt-6">
         <TabsList className="bg-zinc-900 border border-white/5">
-          <TabsTrigger value="charges" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+          <TabsTrigger value="charges" className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
             Cobranças & Vendas
           </TabsTrigger>
-          <TabsTrigger value="withdrawals" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+          <TabsTrigger value="withdrawals" className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
             Histórico de Saques PIX
           </TabsTrigger>
-          <TabsTrigger value="ledger" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+          <TabsTrigger value="ledger" className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
             Extrato Detalhado
           </TabsTrigger>
         </TabsList>

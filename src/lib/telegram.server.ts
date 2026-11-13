@@ -28,8 +28,46 @@ export function sendMessage(token: string, chatId: number, text: string, replyMa
   });
 }
 
-export function sendPhoto(token: string, chatId: number, url: string, caption?: string) {
+export async function sendPhoto(token: string, chatId: number, url: string, caption?: string) {
+  if (url.startsWith("data:")) {
+    const matches = url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (matches && matches[2]) {
+      const buffer = Buffer.from(matches[2], "base64");
+      const form = new FormData();
+      form.append("chat_id", String(chatId));
+      if (caption) form.append("caption", caption);
+      const blob = new Blob([buffer], { type: matches[1] || "image/jpeg" });
+      form.append("photo", blob, "photo.jpg");
+
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+        method: "POST",
+        body: form,
+      });
+      return (await res.json()) as TelegramSendResult;
+    }
+  }
   return callTelegram(token, "sendPhoto", { chat_id: chatId, photo: url, caption: caption || undefined });
+}
+
+export async function sendVideo(token: string, chatId: number, url: string, caption?: string) {
+  if (url.startsWith("data:")) {
+    const matches = url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (matches && matches[2]) {
+      const buffer = Buffer.from(matches[2], "base64");
+      const form = new FormData();
+      form.append("chat_id", String(chatId));
+      if (caption) form.append("caption", caption);
+      const blob = new Blob([buffer], { type: matches[1] || "video/mp4" });
+      form.append("video", blob, "video.mp4");
+
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+        method: "POST",
+        body: form,
+      });
+      return (await res.json()) as TelegramSendResult;
+    }
+  }
+  return callTelegram(token, "sendVideo", { chat_id: chatId, video: url, caption: caption || undefined });
 }
 
 export function setWebhook(token: string, url: string, secret: string) {
@@ -45,11 +83,17 @@ export function deleteWebhook(token: string) {
 }
 
 /** URL pública estável do projeto (o Telegram só aceita hosts públicos HTTPS). */
-const STABLE_PUBLIC_URL = "https://project--bc07337f-068d-4ee7-a47b-447c0c8aa62c-dev.lovable.app";
-
-export function publicBaseUrl(_host?: string): string {
-  // Sempre o host estável de preview: recebe o build mais recente do projeto.
-  return STABLE_PUBLIC_URL;
+export function publicBaseUrl(host?: string): string {
+  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+    return host.startsWith("http") ? host : `https://${host}`;
+  }
+  if (typeof process !== "undefined" && process.env?.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (typeof process !== "undefined" && process.env?.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "https://telabot-studio.vercel.app";
 }
 
 export async function notify(
@@ -229,30 +273,50 @@ export async function runFlowForLead(params: {
       case "end":
         result = await sendMessage(params.token, params.chatId, str(config, "text") || str(config, "message") || "…");
         break;
-      case "image":
-        result = await sendPhoto(params.token, params.chatId, str(config, "file_id") || str(config, "url"), str(config, "caption"));
+      case "image": {
+        const fileId = str(config, "file_id");
+        const url = str(config, "url");
+        const target = fileId && !fileId.startsWith("local_") ? fileId : url;
+        if (target) {
+          result = await sendPhoto(params.token, params.chatId, target, str(config, "caption"));
+        }
         break;
-      case "video":
-        result = await callTelegram(params.token, "sendVideo", {
-          chat_id: params.chatId,
-          video: str(config, "file_id") || str(config, "url"),
-          caption: str(config, "caption") || undefined,
-        });
+      }
+      case "video": {
+        const fileId = str(config, "file_id");
+        const url = str(config, "url");
+        const target = fileId && !fileId.startsWith("local_") ? fileId : url;
+        if (target) {
+          result = await sendVideo(params.token, params.chatId, target, str(config, "caption"));
+        }
         break;
-      case "audio":
-        result = await callTelegram(params.token, "sendAudio", {
-          chat_id: params.chatId,
-          audio: str(config, "file_id") || str(config, "url"),
-          caption: str(config, "caption") || undefined,
-        });
+      }
+      case "audio": {
+        const fileId = str(config, "file_id");
+        const url = str(config, "url");
+        const target = fileId && !fileId.startsWith("local_") ? fileId : url;
+        if (target) {
+          result = await callTelegram(params.token, "sendAudio", {
+            chat_id: params.chatId,
+            audio: target,
+            caption: str(config, "caption") || undefined,
+          });
+        }
         break;
-      case "document":
-        result = await callTelegram(params.token, "sendDocument", {
-          chat_id: params.chatId,
-          document: str(config, "file_id") || str(config, "url"),
-          caption: str(config, "caption") || undefined,
-        });
+      }
+      case "document": {
+        const fileId = str(config, "file_id");
+        const url = str(config, "url");
+        const target = fileId && !fileId.startsWith("local_") ? fileId : url;
+        if (target) {
+          result = await callTelegram(params.token, "sendDocument", {
+            chat_id: params.chatId,
+            document: target,
+            caption: str(config, "caption") || undefined,
+          });
+        }
         break;
+      }
       case "button": {
         const label = str(config, "label") || "Continuar";
         result = await sendMessage(params.token, params.chatId, str(config, "text") || label, {
@@ -262,12 +326,26 @@ export async function runFlowForLead(params: {
         return; // Pausa a execução e aguarda o clique do lead no botão
       }
       case "menu": {
-        const options = str(config, "options")
-          .split("\n")
-          .map((o) => o.trim())
-          .filter(Boolean);
-        result = await sendMessage(params.token, params.chatId, str(config, "text") || "Escolha uma opção", {
-          inline_keyboard: options.map((o) => [{ text: o, callback_data: `menu:${step.id}:${o.slice(0, 24)}` }]),
+        const rawButtons = config["buttons"] as Array<{ text: string; handle?: string; url?: string }> | undefined;
+        let inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+        if (Array.isArray(rawButtons) && rawButtons.length > 0) {
+          inline_keyboard = rawButtons.map((b) => {
+            if (b.url) {
+              return [{ text: b.text, url: b.url }];
+            }
+            return [{ text: b.text, callback_data: `menu:${step.id}:${b.handle || b.text.slice(0, 24)}` }];
+          });
+        } else {
+          const options = str(config, "options")
+            .split("\n")
+            .map((o) => o.trim())
+            .filter(Boolean);
+          inline_keyboard = options.map((o) => [{ text: o, callback_data: `menu:${step.id}:${o.slice(0, 24)}` }]);
+        }
+
+        result = await sendMessage(params.token, params.chatId, str(config, "text") || "Escolha uma opção:", {
+          inline_keyboard,
         });
         await finish("waiting_payment", step.id);
         return; // Pausa a execução e aguarda o lead escolher o plano (não gera PIX automático)

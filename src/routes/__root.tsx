@@ -44,9 +44,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#070709] px-4 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[#050508] px-4 text-white">
       <div className="max-w-md text-center">
-        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-950/60 border border-red-600/40 text-red-500 text-xl font-bold">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-cyan-950/60 border border-cyan-500/40 text-cyan-400 text-xl font-bold">
           !
         </div>
         <h1 className="text-xl font-bold tracking-tight text-white">
@@ -57,8 +57,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
 
         {error?.message && (
-          <div className="mt-4 rounded-lg bg-zinc-900 border border-red-900/40 p-3 text-left">
-            <p className="text-[11px] font-mono text-red-400 break-all">{error.message}</p>
+          <div className="mt-4 rounded-lg bg-zinc-900 border border-cyan-900/40 p-3 text-left">
+            <p className="text-[11px] font-mono text-cyan-300 break-all">{error.message}</p>
           </div>
         )}
 
@@ -68,7 +68,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 shadow-lg shadow-red-950/50"
+            className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:from-cyan-600 hover:to-purple-700 shadow-lg shadow-cyan-950/50"
           >
             Tentar novamente
           </button>

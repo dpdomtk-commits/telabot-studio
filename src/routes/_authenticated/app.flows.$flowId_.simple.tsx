@@ -449,77 +449,233 @@ export function AdvancedFlowEditorPage() {
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                {config.plans.items.map((plan, idx) => (
-                  <div
-                    key={plan.id}
-                    className="p-4 rounded-xl border border-border/80 bg-surface/50 space-y-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm text-foreground">
-                        Plano #{idx + 1} — {plan.name} (R$ {plan.price.toFixed(2)})
-                      </span>
-                      {config.plans.items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setConfig({
-                              ...config,
-                              plans: {
-                                ...config.plans,
-                                items: config.plans.items.filter((p) => p.id !== plan.id),
-                              },
-                            });
-                          }}
-                          className="text-red-400 hover:text-red-300"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
+              <div className="grid gap-6 lg:grid-cols-12">
+                {/* Coluna Esquerda: Edição dos Planos (7 cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  {config.plans.items.map((plan, idx) => {
+                    const priceFormatted = Number(plan.price || 0).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    });
+                    const emoji = plan.emoji || (idx === 0 ? "🎗️" : idx === 1 ? "💎" : "👑");
+                    const previewText =
+                      plan.buttonText?.trim() || `${emoji} ${plan.name} ${emoji} por R$ ${priceFormatted}`;
+
+                    return (
+                      <div
+                        key={plan.id}
+                        className="p-5 rounded-2xl border border-white/10 bg-[#0d0e14]/90 space-y-4 shadow-lg"
+                      >
+                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="flex size-6 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 font-bold text-xs">
+                              #{idx + 1}
+                            </span>
+                            <span className="font-bold text-sm text-white">{plan.name}</span>
+                            <Badge variant="outline" className="text-[10px] border-cyan-500/40 text-cyan-300">
+                              R$ {priceFormatted}
+                            </Badge>
+                          </div>
+                          {config.plans.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfig({
+                                  ...config,
+                                  plans: {
+                                    ...config.plans,
+                                    items: config.plans.items.filter((p) => p.id !== plan.id),
+                                  },
+                                });
+                              }}
+                              className="text-red-400 hover:text-red-300 p-1"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <Label className="text-xs text-zinc-300">Nome do Plano</Label>
+                            <Input
+                              value={plan.name}
+                              className="bg-black/40 border-white/10 text-white text-xs h-9"
+                              onChange={(e) => {
+                                const updated = config.plans.items.map((p) =>
+                                  p.id === plan.id ? { ...p, name: e.target.value } : p
+                                );
+                                setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-zinc-300">Preço (BRL)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={plan.price}
+                              className="bg-black/40 border-white/10 text-white text-xs h-9 font-bold text-cyan-300"
+                              onChange={(e) => {
+                                const updated = config.plans.items.map((p) =>
+                                  p.id === plan.id ? { ...p, price: Number(e.target.value) } : p
+                                );
+                                setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-zinc-300">Duração</Label>
+                            <Input
+                              value={plan.duration}
+                              className="bg-black/40 border-white/10 text-white text-xs h-9"
+                              onChange={(e) => {
+                                const updated = config.plans.items.map((p) =>
+                                  p.id === plan.id ? { ...p, duration: e.target.value } : p
+                                );
+                                setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Cores e Emojis do Botão */}
+                        <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-white/5">
+                          <div>
+                            <Label className="text-xs text-zinc-400">Cor do Botão no Preview</Label>
+                            <select
+                              value={plan.buttonColor || "blue"}
+                              onChange={(e) => {
+                                const updated = config.plans.items.map((p) =>
+                                  p.id === plan.id ? { ...p, buttonColor: e.target.value as any } : p
+                                );
+                                setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                              }}
+                              className="w-full h-9 rounded-xl border border-white/10 bg-black/60 px-3 text-xs text-white"
+                            >
+                              <option value="blue">🔵 Azul Clássico</option>
+                              <option value="green">🟢 Verde Destaque</option>
+                              <option value="gold">🟡 Dourado / Âmbar</option>
+                              <option value="purple">🟣 Roxo Chef Bot</option>
+                              <option value="red">🔴 Vermelho / Marrom</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs text-zinc-400">Emoji do Botão</Label>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {["🎗️", "💎", "👑", "🎁", "🔒", "🔥", "⚡"].map((em) => (
+                                <button
+                                  key={em}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = config.plans.items.map((p) =>
+                                      p.id === plan.id ? { ...p, emoji: em } : p
+                                    );
+                                    setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  }}
+                                  className={`size-7 text-xs flex items-center justify-center rounded-lg border transition ${
+                                    plan.emoji === em
+                                      ? "bg-cyan-500/30 border-cyan-400 scale-110"
+                                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                                  }`}
+                                >
+                                  {em}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-[11px] text-zinc-400">
+                            Texto Exibido no Botão (Com valor ao lado):
+                          </Label>
+                          <Input
+                            value={plan.buttonText || ""}
+                            placeholder={previewText}
+                            className="bg-black/50 border-white/10 text-white text-xs h-8 font-mono"
+                            onChange={(e) => {
+                              const updated = config.plans.items.map((p) =>
+                                p.id === plan.id ? { ...p, buttonText: e.target.value } : p
+                              );
+                              setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Coluna Direita: Live Preview dos Botões no Telegram (5 cols) */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="sticky top-6 rounded-2xl border border-white/10 bg-[#090a0f] p-5 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Bot className="size-4 text-cyan-400" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                          Preview dos Botões no Telegram
+                        </h4>
+                      </div>
+                      <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px]">
+                        Ao Vivo
+                      </Badge>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div>
-                        <Label className="text-xs">Nome do Plano</Label>
-                        <Input
-                          value={plan.name}
-                          onChange={(e) => {
-                            const updated = config.plans.items.map((p) =>
-                              p.id === plan.id ? { ...p, name: e.target.value } : p
-                            );
-                            setConfig({ ...config, plans: { ...config.plans, items: updated } });
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Preço (BRL)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={plan.price}
-                          onChange={(e) => {
-                            const updated = config.plans.items.map((p) =>
-                              p.id === plan.id ? { ...p, price: Number(e.target.value) } : p
-                            );
-                            setConfig({ ...config, plans: { ...config.plans, items: updated } });
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Duração</Label>
-                        <Input
-                          value={plan.duration}
-                          onChange={(e) => {
-                            const updated = config.plans.items.map((p) =>
-                              p.id === plan.id ? { ...p, duration: e.target.value } : p
-                            );
-                            setConfig({ ...config, plans: { ...config.plans, items: updated } });
-                          }}
-                        />
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Assim que o lead der /start, estes botões com valor e emojis aparecerão para escolha do plano:
+                    </p>
+
+                    {/* MOCKUP EXATO DO TELEGRAM COM BOTÕES COLORIDOS */}
+                    <div className="rounded-xl border border-white/10 bg-[#161a23]/90 p-3.5 space-y-2.5 shadow-inner">
+                      {config.plans.items.map((plan, idx) => {
+                        const priceFormatted = Number(plan.price || 0).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        });
+                        const emoji = plan.emoji || (idx === 0 ? "🎗️" : idx === 1 ? "💎" : "👑");
+                        const label =
+                          plan.buttonText?.trim() || `${emoji} ${plan.name} ${emoji} por R$ ${priceFormatted}`;
+
+                        const colorClasses =
+                          plan.buttonColor === "green"
+                            ? "bg-[#4b9e67] hover:bg-[#43915d] text-white"
+                            : plan.buttonColor === "gold"
+                            ? "bg-[#d29922] hover:bg-[#b0801a] text-black font-extrabold"
+                            : plan.buttonColor === "red"
+                            ? "bg-[#b94a48] hover:bg-[#a33e3c] text-white"
+                            : plan.buttonColor === "purple"
+                            ? "bg-[#7c3aed] hover:bg-[#6d28d9] text-white"
+                            : "bg-[#4693b7] hover:bg-[#3c81a2] text-white";
+
+                        return (
+                          <div
+                            key={plan.id}
+                            className={`w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${colorClasses}`}
+                          >
+                            <span>{label}</span>
+                          </div>
+                        );
+                      })}
+
+                      {/* Botão de Redirecionamento Mundial */}
+                      <div className="w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md bg-[#b95d52] hover:bg-[#a64e43] text-white cursor-pointer flex items-center justify-center gap-2">
+                        <span>PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺</span>
+                        <span className="text-xs">↗</span>
                       </div>
                     </div>
+
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-3 text-[11px] text-cyan-300/90 space-y-1">
+                      <p className="font-bold flex items-center gap-1">
+                        <Sparkles className="size-3.5" /> Valor e PIX Dinâmico:
+                      </p>
+                      <p>
+                        O lead escolhe o plano clicando no botão. O PIX será gerado com o nome e valor exatos do plano escolhido.
+                      </p>
+                    </div>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
           )}

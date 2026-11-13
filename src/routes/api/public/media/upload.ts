@@ -55,62 +55,101 @@ export const Route = createFileRoute("/api/public/media/upload")({
 
         const kind = kindFromMime(file.type || "", (form.get("kind") as string | null) ?? null);
 
+        let fileId = "";
+        let uniqueId: string | null = null;
+        let thumbnail: string | null = null;
+        let publicUrl: string | null = null;
+
+        // 1. Tenta canal de cache de mídia do Telegram (se configurado)
         const { data: settings } = await admin
           .from("media_cache_settings")
           .select("chat_id,bot_id")
           .eq("user_id", user.id)
           .maybeSingle();
 
-        if (!settings?.chat_id || !settings.bot_id) {
-          return Response.json(
-            { error: "Configure o canal de cache de mídia em Configurações antes de enviar arquivos." },
-            { status: 400 },
-          );
+        if (settings?.chat_id && settings.bot_id) {
+          const { data: bot } = await admin
+            .from("bots")
+            .select("token")
+            .eq("id", settings.bot_id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (bot?.token) {
+            const { method, field } = METHOD[kind];
+            const tgForm = new FormData();
+            tgForm.append("chat_id", settings.chat_id);
+            tgForm.append("caption", file.name.slice(0, 200));
+            tgForm.append(field, file, file.name);
+
+            try {
+              const res = await fetch(`https://api.telegram.org/bot${bot.token}/${method}`, {
+                method: "POST",
+                body: tgForm,
+              });
+              const json = (await res.json()) as TgResult;
+              if (json.ok && json.result) {
+                const r = json.result;
+                if (kind === "image" && r.photo?.length) {
+                  const best = [...r.photo].sort((a, b) => a.width - b.width).at(-1)!;
+                  fileId = best.file_id;
+                  uniqueId = best.file_unique_id;
+                  thumbnail = r.photo[0]?.file_id ?? best.file_id;
+                } else if (kind === "video" && r.video) {
+                  fileId = r.video.file_id;
+                  uniqueId = r.video.file_unique_id;
+                  thumbnail = r.video.thumbnail?.file_id ?? null;
+                } else if (kind === "audio" && r.audio) {
+                  fileId = r.audio.file_id;
+                  uniqueId = r.audio.file_unique_id;
+                } else if (r.document) {
+                  fileId = r.document.file_id;
+                  uniqueId = r.document.file_unique_id;
+                  thumbnail = r.document.thumbnail?.file_id ?? null;
+                }
+              }
+            } catch (tgErr) {
+              console.warn("Telegram cache channel upload warning:", tgErr);
+            }
+          }
         }
 
-        const { data: bot } = await admin
-          .from("bots")
-          .select("token")
-          .eq("id", settings.bot_id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (!bot?.token) return Response.json({ error: "Bot do cache indisponível" }, { status: 400 });
+        // 2. Se não conseguiu pelo canal de cache, salva no Supabase Storage
+        if (!fileId) {
+          try {
+            try {
+              await admin.storage.createBucket("media", { public: true });
+            } catch (_) {}
 
-        const { method, field } = METHOD[kind];
-        const tgForm = new FormData();
-        tgForm.append("chat_id", settings.chat_id);
-        tgForm.append("caption", file.name.slice(0, 200));
-        tgForm.append(field, file, file.name);
+            const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const storagePath = `${user.id}/${Date.now()}_${sanitizedName}`;
+            const fileBuffer = await file.arrayBuffer();
 
-        const res = await fetch(`https://api.telegram.org/bot${bot.token}/${method}`, {
-          method: "POST",
-          body: tgForm,
-        });
-        const json = (await res.json()) as TgResult;
-        if (!json.ok || !json.result) {
-          return Response.json({ error: json.description ?? "Falha ao enviar para o Telegram" }, { status: 400 });
+            const { error: upErr } = await admin.storage
+              .from("media")
+              .upload(storagePath, fileBuffer, {
+                contentType: file.type || "application/octet-stream",
+                upsert: true,
+              });
+
+            if (!upErr) {
+              const { data: pubData } = admin.storage.from("media").getPublicUrl(storagePath);
+              if (pubData?.publicUrl) {
+                publicUrl = pubData.publicUrl;
+                fileId = publicUrl;
+              }
+            }
+          } catch (stErr) {
+            console.warn("Supabase storage upload warning:", stErr);
+          }
         }
 
-        const r = json.result;
-        let fileId = "";
-        let uniqueId: string | null = null;
-        let thumbnail: string | null = null;
-        if (kind === "image" && r.photo?.length) {
-          const best = [...r.photo].sort((a, b) => a.width - b.width).at(-1)!;
-          fileId = best.file_id;
-          uniqueId = best.file_unique_id;
-          thumbnail = r.photo[0]?.file_id ?? best.file_id;
-        } else if (kind === "video" && r.video) {
-          fileId = r.video.file_id;
-          uniqueId = r.video.file_unique_id;
-          thumbnail = r.video.thumbnail?.file_id ?? null;
-        } else if (kind === "audio" && r.audio) {
-          fileId = r.audio.file_id;
-          uniqueId = r.audio.file_unique_id;
-        } else if (r.document) {
-          fileId = r.document.file_id;
-          uniqueId = r.document.file_unique_id;
-          thumbnail = r.document.thumbnail?.file_id ?? null;
+        // 3. Se ainda não tiver URL, converte para Data URL persistente (base64)
+        if (!fileId) {
+          const fileBuffer = Buffer.from(await file.arrayBuffer());
+          const mime = file.type || "image/jpeg";
+          publicUrl = `data:${mime};base64,${fileBuffer.toString("base64")}`;
+          fileId = publicUrl;
         }
         if (!fileId) return Response.json({ error: "Telegram não retornou o arquivo" }, { status: 400 });
 
