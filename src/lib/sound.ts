@@ -88,7 +88,9 @@ export function synthesizeCashRegister(ctx: AudioContext) {
 }
 
 /**
- * Toca o som de caixa registradora usando Web Audio API ou arquivo de áudio.
+ * Toca o som real enviado pelo usuário para notificações de pedido gerado e venda.
+ * Usa o arquivo de áudio /sounds/cash-register.mp3 como prioritário,
+ * com fallback para síntese Web Audio API.
  */
 export async function playCashRegisterSound(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -102,24 +104,24 @@ export async function playCashRegisterSound(): Promise<void> {
     }
   }
 
-  // Tenta sintetizar instantaneamente via Web Audio API (sem dependência de rede)
+  // 1. Toca o arquivo de áudio real oficial
+  try {
+    const audio = new Audio("/sounds/cash-register.mp3");
+    audio.volume = 1.0;
+    await audio.play();
+    return;
+  } catch (err) {
+    // Se o navegador bloquear por autoplay ou falha de rede, recorre à síntese
+  }
+
+  // 2. Fallback de alta fidelidade via Web Audio API
   try {
     const ctx = getAudioContext();
     if (ctx) {
       synthesizeCashRegister(ctx);
-      return;
     }
   } catch {
-    // continua para fallback de áudio HTML5
-  }
-
-  // Fallback para arquivo de áudio
-  try {
-    const audio = new Audio("/sounds/cash-register.mp3");
-    audio.volume = 0.8;
-    await audio.play();
-  } catch {
-    // Ignora erro de autoplay
+    // ignora
   }
 }
 

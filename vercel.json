@@ -5,5 +5,11 @@
   "env": {
     "DANGEROUSLY_DEPLOY_VULNERABLE_TANSTACK_START_XSS": "1",
     "NITRO_PRESET": "vercel"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/process-downsells",
+      "schedule": "* * * * *"
+    }
+  ]
 }

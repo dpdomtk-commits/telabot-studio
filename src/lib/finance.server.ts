@@ -280,6 +280,13 @@ export async function approvePayment(paymentId: string, ip?: string | null) {
     payment.id,
   );
   await deliverForPayment(payment.id);
+
+  // Cancela qualquer downsell pendente para este lead/pedido imediatamente
+  if (payment.lead_id) {
+    const { cancelPendingDownsells } = await import("@/lib/downsell.server");
+    await cancelPendingDownsells({ leadId: payment.lead_id, orderId: payment.id }).catch(() => undefined);
+  }
+
   return { ok: true, message: "Pagamento confirmado", duplicate: false } as const;
 }
 

@@ -143,6 +143,16 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               chatId,
             });
 
+            // Gatilho 1: Agenda o downsell automático de /start em background
+            import("@/lib/downsell.server").then(({ scheduleStartDownsells }) => {
+              scheduleStartDownsells({
+                userId: bot.user_id,
+                botId: bot.id,
+                leadId: `lead-${from.id}`,
+                chatId,
+              });
+            }).catch((e) => console.warn("[downsell-start-schedule-bg]", e));
+
             // Aguarda o upsert terminar se necessário sem bloquear retorno
             leadUpsertPromise.catch(() => undefined);
             return Response.json({ ok: true });
@@ -327,6 +337,28 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               .update({ status: "approved", approved_at: new Date().toISOString() })
               .eq("id", paymentId);
             await deliverForPayment(paymentId);
+            // Cancela downsells pendentes deste lead
+            import("@/lib/downsell.server").then(({ cancelPendingDownsells }) => {
+              cancelPendingDownsells({ leadId, orderId: paymentId });
+            }).catch(() => undefined);
+            return Response.json({ ok: true });
+          }
+
+          // 6.1 Compra de Downsell via Botão Inline
+          if (data.startsWith("downsell_pay:")) {
+            const parts = data.slice(13).split(":");
+            const seqId = parts[0];
+            const planId = parts[1];
+            const { handleDownsellPurchase } = await import("@/lib/downsell.server");
+            await handleDownsellPurchase({
+              userId: bot.user_id,
+              botId: bot.id,
+              token: bot.token,
+              leadId,
+              chatId,
+              seqId,
+              planId,
+            });
             return Response.json({ ok: true });
           }
 

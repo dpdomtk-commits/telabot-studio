@@ -330,7 +330,7 @@ type ConnectionRow = {
  * marcado como ativo, o fluxo mais recente que já tenha etapas compiladas.
  * Assim o /start nunca fica mudo por causa de um flag esquecido.
  */
-async function resolveBotFlow(botId: string): Promise<{ id: string; simple_config?: unknown } | null> {
+export async function resolveBotFlow(botId: string): Promise<{ id: string; simple_config?: unknown } | null> {
   const { data: active } = await supabaseAdmin
     .from("flows")
     .select("id,simple_config")
@@ -974,6 +974,18 @@ export async function handlePixPlanPurchase(params: {
       amount_cents: amountCents,
     }
   );
+
+  // Gatilho 2: Agenda o downsell automático de PIX pendente (carrinho abandonado)
+  import("@/lib/downsell.server").then(({ schedulePixDownsells }) => {
+    schedulePixDownsells({
+      userId: params.userId,
+      botId: params.botId,
+      leadId: params.leadId,
+      chatId: params.chatId,
+      orderId: charge.id,
+      flowId: flow?.id,
+    });
+  }).catch((e) => console.warn("[downsell-pix-schedule-bg]", e));
 }
 
 /**
@@ -1427,6 +1439,21 @@ async function sendCharge(
   }
 
   await logActivity(params.userId, "pagamento", "cobrança criada", charge.id);
+
+  // Gatilho 2: Agenda o downsell automático de PIX pendente
+  if (charge?.id) {
+    import("@/lib/downsell.server").then(({ schedulePixDownsells }) => {
+      schedulePixDownsells({
+        userId: params.userId,
+        botId: params.botId,
+        leadId: params.leadId,
+        chatId: params.chatId,
+        orderId: charge.id,
+        flowId: params.flowId,
+      });
+    }).catch((e) => console.warn("[downsell-pix-schedule-bg]", e));
+  }
+
   return result;
 
 }
