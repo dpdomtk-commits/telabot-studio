@@ -28,6 +28,29 @@ export function sendMessage(token: string, chatId: number, text: string, replyMa
   });
 }
 
+export function deleteMessage(token: string, chatId: number, messageId: number) {
+  return callTelegram(token, "deleteMessage", {
+    chat_id: chatId,
+    message_id: messageId,
+  });
+}
+
+export function editMessageText(
+  token: string,
+  chatId: number,
+  messageId: number,
+  text: string,
+  replyMarkup?: unknown
+) {
+  return callTelegram(token, "editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: "HTML",
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+}
+
 export async function sendPhoto(token: string, chatId: number, url: string, caption?: string) {
   if (url && url.startsWith("data:")) {
     const commaIndex = url.indexOf(",");
@@ -394,9 +417,15 @@ export async function handleLanguageSelect(params: {
   token: string;
   leadId: string;
   chatId: number;
+  messageId?: number;
   language: "pt" | "en";
 }) {
   await setLeadPreferences(params.userId, params.leadId, { language: params.language });
+
+  // Remove a mensagem de escolha de idioma para não poluir o chat
+  if (params.messageId) {
+    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+  }
 
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
@@ -405,8 +434,10 @@ export async function handleLanguageSelect(params: {
 
   if (params.language === "pt") {
     await setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
+    // Exibe exclusivamente os planos em BRL via PIX (sem botões de idioma ou outras moedas)
     await sendBrlPlansMenu(params, cfg, true);
   } else {
+    // Apresenta a seleção de moeda internacional exclusiva
     await sendCurrencySelectionMenu(params, cfg);
   }
 }
@@ -426,20 +457,20 @@ export async function sendCurrencySelectionMenu(
 ) {
   const prompt =
     cfg.multilingual?.currencyPrompts?.en ||
-    "Perfect! 🌎\n\nChoose your preferred currency to view our available plans.";
+    "Perfect! 🌎\n\nChoose your preferred currency to view our available plans:";
 
   await sendMessage(params.token, params.chatId, prompt, {
     inline_keyboard: [
       [{ text: "🇺🇸 USD — US Dollar", callback_data: "curr:USD" }],
       [{ text: "🇪🇺 EUR — Euro", callback_data: "curr:EUR" }],
       [{ text: "🇬🇧 GBP — British Pound", callback_data: "curr:GBP" }],
-      [{ text: "🌐 Change Language", callback_data: "nav:lang" }],
     ],
   });
 }
 
 /**
  * Exibe os planos exclusivamente em REAL BRASILEIRO (BRL) via PIX.
+ * Oculta completamente opções de idioma ou moedas internacionais na tela principal.
  */
 export async function sendBrlPlansMenu(
   params: {
@@ -482,14 +513,7 @@ export async function sendBrlPlansMenu(
     inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
   }
 
-  // Botão de Pagamentos Mundiais (conforme layout solicitado)
-  inline_keyboard.push([
-    { text: "PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺 ↗", callback_data: "nav:curr" },
-  ]);
-
-  // Botão de alterar idioma
-  inline_keyboard.push([{ text: "🌐 Alterar Idioma", callback_data: "nav:lang" }]);
-
+  // Apenas planos e PIX! Sem botões de configuração na tela principal.
   await sendMessage(params.token, params.chatId, greeting, { inline_keyboard });
 }
 
@@ -502,20 +526,28 @@ export async function handleCurrencySelect(params: {
   token: string;
   leadId: string;
   chatId: number;
+  messageId?: number;
   currency: "USD" | "EUR" | "GBP";
 }) {
   await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
+
+  // Remove a mensagem de escolha de moeda para não poluir o chat
+  if (params.messageId) {
+    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+  }
 
   const flow = await resolveBotFlow(params.botId);
   if (!flow) return;
   const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
   const cfg = normalizeAdvancedConfig(flow.simple_config as any);
 
+  // Exibe exclusivamente os planos na moeda internacional selecionada
   await sendIntlPlansMenu(params, cfg, params.currency, true);
 }
 
 /**
  * Exibe os planos convertidos na moeda internacional escolhida com formatação correta.
+ * Não exibe opções de PIX, outras moedas ou idiomas na tela principal.
  */
 export async function sendIntlPlansMenu(
   params: {
@@ -536,7 +568,9 @@ export async function sendIntlPlansMenu(
         { id: "plan-1", name: "VIP ACCESS", price: 29.9, duration: "Lifetime Access" },
       ];
 
-  const header = `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nChoose the best option for you below:`;
+  const header = isFirstGreeting
+    ? `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nChoose your preferred option below to get instant VIP access:`
+    : `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nSelect a plan to proceed:`;
 
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
@@ -544,18 +578,42 @@ export async function sendIntlPlansMenu(
     const conv = formatCurrencyPrice(plan.price, currency, cfg.multilingual?.rates);
     inline_keyboard.push([
       {
-        text: `⭐ ${plan.name} — ${conv.formatted} [ ADQUIRIR PLANO ]`,
+        text: `⭐ ${plan.name} — ${conv.formatted} [ GET ACCESS ]`,
         callback_data: `intl_plan:${plan.id}:${currency}`,
       },
     ]);
   }
 
-  inline_keyboard.push([
-    { text: "💱 Change Currency", callback_data: "nav:curr" },
-    { text: "🌐 Change Language", callback_data: "nav:lang" },
-  ]);
-
+  // Apenas planos na moeda escolhida! Sem botões de configuração na tela principal.
   await sendMessage(params.token, params.chatId, header, { inline_keyboard });
+}
+
+/**
+ * Menu de Configuração Discreto e Secundário (acessado por /config, /idioma, /settings).
+ */
+export async function handleSettingsMenu(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+}) {
+  const prefs = await getLeadPreferences(params.leadId);
+  const isEn = prefs.language === "en";
+
+  const text = isEn
+    ? `⚙️ <b>Settings & Preferences</b>\n\nCurrent language: <b>English</b>\nSelected currency: <b>${prefs.currency || "USD"}</b>\n\nWould you like to change your preferences?`
+    : `⚙️ <b>Configurações & Preferências</b>\n\nIdioma atual: <b>Português 🇧🇷</b>\nMoeda atual: <b>BRL (Real)</b>\n\nDeseja alterar suas preferências?`;
+
+  const btnChange = isEn ? "🌐 Change Language / Currency" : "🌐 Alterar Idioma / Moeda";
+  const btnBack = isEn ? "↩️ Back to Plans" : "↩️ Voltar aos Planos";
+
+  await sendMessage(params.token, params.chatId, text, {
+    inline_keyboard: [
+      [{ text: btnChange, callback_data: "nav:lang" }],
+      [{ text: btnBack, callback_data: "nav:plans" }],
+    ],
+  });
 }
 
 /**

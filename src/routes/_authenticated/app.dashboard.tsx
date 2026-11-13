@@ -147,46 +147,58 @@ export function Dashboard() {
     {
       id: "10k",
       title: "The World Is Yours",
-      tag: "CLUBE 10K · CASH BOT",
+      tag: "CLUBE 10K",
       targetCents: 1000000, // 10k
       targetLabel: "R$ 10k",
-      image: "/cashbot-emblem.jpg",
-      color: "from-cyan-950/80 to-blue-950/80 border-cyan-500/40 text-cyan-300",
-      accentGlow: "shadow-[0_0_25px_rgba(6,182,212,0.35)]",
-    },
-    {
-      id: "50k",
-      title: "Zeppelin Syndicate",
-      tag: "CLUBE 50K · CASH BOT",
-      targetCents: 5000000, // 50k
-      targetLabel: "R$ 50k",
-      image: "/cashbot-blimp.jpg",
-      color: "from-blue-950/80 to-slate-950 border-blue-500/40 text-blue-300",
-      accentGlow: "shadow-[0_0_25px_rgba(37,99,235,0.35)]",
+      image: "/placas/placa-10k.jpg",
+      color: "from-[#08080A] via-[#0D0E12] to-[#0B3B99]/40 border-[#1049B8]/60",
+      accentGlow: "shadow-[0_0_30px_rgba(16,73,184,0.45)]",
     },
     {
       id: "100k",
-      title: "Empire Builder",
-      tag: "CLUBE 100K · CASH BOT",
+      title: "Monument Empire",
+      tag: "CLUBE 100K",
       targetCents: 10000000, // 100k
       targetLabel: "R$ 100k",
-      image: "/cashbot-logo.jpg",
-      color: "from-sky-950/80 to-blue-950/80 border-sky-500/40 text-sky-300",
-      accentGlow: "shadow-[0_0_25px_rgba(56,189,248,0.35)]",
+      image: "/placas/placa-100k.jpg",
+      color: "from-[#08080A] via-[#0D0E12] to-[#1049B8]/40 border-[#1049B8]/60",
+      accentGlow: "shadow-[0_0_30px_rgba(16,73,184,0.45)]",
+    },
+    {
+      id: "500k",
+      title: "Zeppelin Syndicate",
+      tag: "CLUBE 500K",
+      targetCents: 50000000, // 500k
+      targetLabel: "R$ 500k",
+      image: "/placas/placa-500k.jpg",
+      color: "from-[#08080A] via-[#0D0E12] to-[#0B3B99]/50 border-[#1049B8]/70",
+      accentGlow: "shadow-[0_0_35px_rgba(16,73,184,0.55)]",
     },
     {
       id: "1m",
       title: "Tony Montana Legend",
-      tag: "CLUBE 1M · O MUNDO É SEU",
+      tag: "CLUBE 1M",
       targetCents: 100000000, // 1M
       targetLabel: "R$ 1M",
-      image: "/cashbot-hero.jpg",
-      color: "from-cyan-950/80 to-black border-cyan-400/50 text-cyan-200",
-      accentGlow: "shadow-[0_0_30px_rgba(6,182,212,0.45)]",
+      image: "/placas/placa-1m.jpg",
+      color: "from-[#08080A] via-[#0D0E12] to-[#1049B8]/50 border-[#1049B8]/70",
+      accentGlow: "shadow-[0_0_40px_rgba(16,73,184,0.65)]",
+    },
+    {
+      id: "5m",
+      title: "The World Is Yours · Empire",
+      tag: "CLUBE 5M",
+      targetCents: 500000000, // 5M
+      targetLabel: "R$ 5M",
+      image: "/placas/placa-5m.jpg",
+      color: "from-[#08080A] via-[#0D0E12] to-[#1049B8]/60 border-[#60A5FA]/80",
+      accentGlow: "shadow-[0_0_45px_rgba(96,165,250,0.7)]",
     },
   ];
 
   const currentPlaque = plaques[activePlaqueIndex] || plaques[0];
+  const prevPlaque = plaques[(activePlaqueIndex - 1 + plaques.length) % plaques.length];
+  const nextPlaque = plaques[(activePlaqueIndex + 1) % plaques.length];
   const totalAccountRevenue = useMemo(() => {
     return (data?.payments ?? [])
       .filter((p) => p.status === "approved")
@@ -580,66 +592,121 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Column 2: Premiações CASH BOT (The World Is Yours) */}
-        <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col justify-between h-[400px]">
-          <div className="flex items-center justify-between border-b border-white/5 pb-3">
-            <div className="flex items-center gap-2">
-              <Award className="size-4 text-cyan-400" />
+        {/* Column 2: Premiações CASH BOT (The World Is Yours — Carrossel 3D) */}
+        <div className="lg:col-span-4 rounded-2xl border border-[#1049B8]/25 bg-gradient-to-b from-[#08080A] to-[#0D0E12] p-5 shadow-2xl flex flex-col justify-between h-[410px] relative overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-white/5 pb-3 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-[#1049B8]/20 border border-[#1049B8]/40 flex items-center justify-center shadow-[0_0_12px_rgba(16,73,184,0.35)]">
+                <Trophy className="size-4 text-[#38BDF8]" />
+              </div>
               <div>
-                <h4 className="font-bold text-white text-sm">Premiações CASH BOT</h4>
-                <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
+                <h4 className="font-sans font-bold text-white text-sm tracking-tight">Premiações</h4>
+                <span className="font-mono text-[9px] text-[#60A5FA] uppercase tracking-[0.2em] font-semibold">
                   CONQUISTE NOVAS PLACAS
                 </span>
               </div>
             </div>
+
+            {/* Setas de Navegação com estilo Azul Cobalto */}
             <div className="flex gap-1.5">
               <button
+                type="button"
                 onClick={() => setActivePlaqueIndex((prev) => (prev > 0 ? prev - 1 : plaques.length - 1))}
-                className="size-7 flex items-center justify-center rounded-lg bg-white/5 text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10 border border-white/10"
+                className="size-7 flex items-center justify-center rounded-lg bg-[#08080A] text-zinc-400 hover:text-white hover:bg-[#1049B8]/20 border border-white/10 hover:border-[#1049B8]/40 transition"
               >
                 <ChevronLeft className="size-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setActivePlaqueIndex((prev) => (prev < plaques.length - 1 ? prev + 1 : 0))}
-                className="size-7 flex items-center justify-center rounded-lg bg-white/5 text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10 border border-white/10"
+                className="size-7 flex items-center justify-center rounded-lg bg-[#1049B8]/20 text-[#60A5FA] hover:text-white hover:bg-[#1049B8]/35 border border-[#1049B8]/50 shadow-[0_0_12px_rgba(16,73,184,0.4)] transition"
               >
                 <ChevronRight className="size-4" />
               </button>
             </div>
           </div>
 
-          {/* Placa 3D / CASH BOT Glass Plaque */}
-          <div className="flex flex-col items-center justify-center my-auto py-2">
+          {/* Carrossel 3D com card central em destaque e cards laterais desfocados */}
+          <div className="relative flex items-center justify-center my-auto py-2 overflow-hidden w-full h-[260px]">
+            {/* Card Lateral Esquerdo (desfocado e reduzido) */}
             <div
-              className={`relative w-44 h-48 rounded-2xl border-2 overflow-hidden bg-gradient-to-b ${currentPlaque.color} p-4 flex flex-col items-center justify-between ${currentPlaque.accentGlow}`}
+              onClick={() => setActivePlaqueIndex((prev) => (prev > 0 ? prev - 1 : plaques.length - 1))}
+              className="absolute left-0 sm:left-2 w-28 sm:w-32 h-40 sm:h-44 rounded-2xl overflow-hidden border border-[#1049B8]/20 bg-[#08080A] opacity-35 scale-[0.82] -rotate-6 blur-[1px] transform -translate-x-3 cursor-pointer transition-all duration-500 z-0 pointer-events-auto hover:opacity-55 shadow-lg"
+            >
+              <img
+                src={prevPlaque.image}
+                alt={prevPlaque.title}
+                className="w-full h-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+            </div>
+
+            {/* Card Central Ativo (em destaque com perspectiva e glow cobalto) */}
+            <div
+              className={`relative z-20 w-44 sm:w-48 h-52 sm:h-56 rounded-2xl border-2 overflow-hidden bg-gradient-to-b ${currentPlaque.color} p-4 flex flex-col items-center justify-between ${currentPlaque.accentGlow} transition-all duration-500 transform scale-100 hover:scale-[1.02]`}
             >
               {/* Imagem de Fundo da Placa */}
               <img
                 src={currentPlaque.image}
                 alt={currentPlaque.title}
-                className="absolute inset-0 size-full object-cover opacity-45 mix-blend-luminosity"
+                className="absolute inset-0 size-full object-cover object-center opacity-80"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
 
-              <div className="relative z-10 flex size-9 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 mt-1 shadow-md">
-                <Lock className="size-4" />
+              {/* Gradiente escuro sutil na base inferior para garantir 100% de leitura dos textos */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#08080A] via-[#08080A]/60 to-transparent opacity-95" />
+
+              {/* Ícone de Cadeado nos Níveis Bloqueados / Check nos Conquistados */}
+              <div className="relative z-10 flex size-8 items-center justify-center rounded-full bg-[#050507]/85 text-[#60A5FA] border border-[#1049B8]/50 shadow-md">
+                {totalAccountRevenue * 100 >= currentPlaque.targetCents ? (
+                  <CheckCircle2 className="size-4 text-emerald-400" />
+                ) : (
+                  <Lock className="size-3.5" />
+                )}
               </div>
 
-              <div className="relative z-10 text-center">
-                <h5 className="font-black text-sm text-white drop-shadow-md">{currentPlaque.title}</h5>
-                <p className="text-[9px] text-cyan-300 font-bold uppercase tracking-wider">{currentPlaque.tag}</p>
+              {/* Título e Tag da Placa */}
+              <div className="relative z-10 text-center px-1">
+                <h5 className="font-sans font-black text-sm text-white drop-shadow-md tracking-tight leading-tight">
+                  {currentPlaque.title}
+                </h5>
+                <p className="font-mono text-[9px] text-[#60A5FA] font-bold uppercase tracking-widest mt-0.5">
+                  {currentPlaque.tag}
+                </p>
               </div>
 
-              <div className="relative z-10 w-full bg-black/80 rounded-full h-1.5 border border-cyan-500/40 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-cyan-400 to-purple-500 h-full rounded-full transition-all duration-700"
-                  style={{ width: `${plaqueProgressPercent}%` }}
-                ></div>
+              {/* Barra de Progresso em Gradiente Cobalto / Ciano */}
+              <div className="relative z-10 w-full space-y-1">
+                <div className="w-full bg-[#050507]/90 rounded-full h-1.5 border border-[#1049B8]/40 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-[#1049B8] via-[#38BDF8] to-white h-full rounded-full transition-all duration-700"
+                    style={{ width: `${plaqueProgressPercent}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            <p className="text-[11px] font-mono text-zinc-400 mt-3 font-semibold">
-              META <span className="text-white">R$ {totalAccountRevenue.toFixed(0)}</span> / {currentPlaque.targetLabel}
+            {/* Card Lateral Direito (desfocado e reduzido) */}
+            <div
+              onClick={() => setActivePlaqueIndex((prev) => (prev < plaques.length - 1 ? prev + 1 : 0))}
+              className="absolute right-0 sm:right-2 w-28 sm:w-32 h-40 sm:h-44 rounded-2xl overflow-hidden border border-[#1049B8]/20 bg-[#08080A] opacity-35 scale-[0.82] rotate-6 blur-[1px] transform translate-x-3 cursor-pointer transition-all duration-500 z-0 pointer-events-auto hover:opacity-55 shadow-lg"
+            >
+              <img
+                src={nextPlaque.image}
+                alt={nextPlaque.title}
+                className="w-full h-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+            </div>
+          </div>
+
+          {/* Barra inferior com META e o progresso em fonte pixelada retrô */}
+          <div className="border-t border-white/5 pt-2 text-center relative z-10">
+            <p className="text-[11px] font-mono tracking-widest font-semibold uppercase">
+              <span className="text-[#60A5FA] font-bold">META</span>{" "}
+              <span className="text-white font-bold">R$ {totalAccountRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}</span>
+              <span className="text-zinc-500 font-normal"> / </span>
+              <span className="text-[#93C5FD] font-bold">{currentPlaque.targetLabel}</span>
             </p>
           </div>
         </div>

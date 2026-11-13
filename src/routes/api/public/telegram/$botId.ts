@@ -31,6 +31,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             sendIntlPlansMenu,
             handleInternationalPlanPurchase,
             handlePixPlanPurchase,
+            handleSettingsMenu,
             getLeadPreferences,
             runFlowForLead,
             deliverForPayment,
@@ -113,6 +114,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           if (!leadId) return Response.json({ ok: true });
 
           const data = cb?.data ?? "";
+          const cbMessageId = cb?.message?.message_id;
 
           // 1. Seleção de Idioma (🇧🇷 Português / 🇺🇸 English)
           if (data === "lang:pt") {
@@ -122,6 +124,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               token: bot.token,
               leadId,
               chatId,
+              messageId: cbMessageId,
               language: "pt",
             });
             return Response.json({ ok: true });
@@ -133,6 +136,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               token: bot.token,
               leadId,
               chatId,
+              messageId: cbMessageId,
               language: "en",
             });
             return Response.json({ ok: true });
@@ -147,6 +151,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               token: bot.token,
               leadId,
               chatId,
+              messageId: cbMessageId,
               currency,
             });
             return Response.json({ ok: true });
@@ -250,6 +255,22 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           const msgText = (update.message?.text ?? "").trim();
           if (msgText.startsWith("/start")) {
             await handleTelegramStart({
+              userId: bot.user_id,
+              botId: bot.id,
+              token: bot.token,
+              leadId,
+              chatId,
+            });
+            return Response.json({ ok: true });
+          }
+
+          // 8.1 Menu Secundário de Configurações (/config, /idioma, /settings)
+          if (
+            msgText.startsWith("/config") ||
+            msgText.startsWith("/idioma") ||
+            msgText.startsWith("/settings")
+          ) {
+            await handleSettingsMenu({
               userId: bot.user_id,
               botId: bot.id,
               token: bot.token,
