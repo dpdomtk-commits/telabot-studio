@@ -34,12 +34,12 @@ import { normalizeAdvancedConfig } from "@/lib/flow-advanced";
 export const Route = createFileRoute("/_authenticated/app/remarketing")({
   head: () => ({
     meta: [
-      { title: "Remarketing | Chef Bot" },
+      { title: "Remarketing | CASH BOT" },
       {
         name: "description",
         content: "Recupere vendas de leads com PIX pendente ou carrinho abandonado via Telegram.",
       },
-      { property: "og:title", content: "Remarketing | Chef Bot" },
+      { property: "og:title", content: "Remarketing | CASH BOT" },
       { property: "og:description", content: "Campanhas de remarketing automatizadas para seus bots no Telegram." },
     ],
   }),
@@ -195,11 +195,11 @@ export function RemarketingPage() {
 
       <Tabs defaultValue="automations" className="space-y-6">
         <TabsList className="bg-zinc-900 border border-white/5">
-          <TabsTrigger value="automations" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+          <TabsTrigger value="automations" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
             <Clock className="size-3.5 mr-2" />
             Automações por Fluxo
           </TabsTrigger>
-          <TabsTrigger value="broadcast" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+          <TabsTrigger value="broadcast" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
             <Send className="size-3.5 mr-2" />
             Disparo Imediato
           </TabsTrigger>
@@ -263,7 +263,7 @@ export function RemarketingPage() {
                         />
                       </div>
 
-                      <Button asChild size="sm" variant="outline" className="border-white/10 hover:border-red-600/50">
+                      <Button asChild size="sm" variant="outline" className="border-white/10 hover:border-cyan-500/50">
                         <Link to="/app/flows/$flowId/simple" params={{ flowId: f.id }}>
                           Configurar Sequências
                         </Link>
@@ -326,7 +326,7 @@ export function RemarketingPage() {
                 value={broadcastMessage}
                 onChange={(e) => setBroadcastMessage(e.target.value)}
                 placeholder="Olá! Notamos que seu pedido está pendente. Use o cupom VOLTA20 para ganhar 20% de desconto e liberação imediata!"
-                className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-red-600"
+                className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
               />
               <p className="text-[11px] text-zinc-500">
                 Dica: Mensagens com cupom de desconto ou escassez convertem até 3x mais.
@@ -337,7 +337,7 @@ export function RemarketingPage() {
               <Button
                 onClick={handleSendBroadcast}
                 disabled={sendingBroadcast || !broadcastMessage.trim()}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-950/40"
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold shadow-lg shadow-cyan-950/40"
               >
                 <Send className="size-4 mr-2" />
                 {sendingBroadcast ? "Enviando Disparos..." : "Iniciar Disparo Agora"}

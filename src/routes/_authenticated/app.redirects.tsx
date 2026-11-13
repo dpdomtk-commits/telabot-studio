@@ -32,12 +32,12 @@ import {
 export const Route = createFileRoute("/_authenticated/app/redirects")({
   head: () => ({
     meta: [
-      { title: "Links de redirect | Chef Bot" },
+      { title: "Links de redirect | CASH BOT" },
       {
         name: "description",
         content: "Crie até 10 links rastreáveis para seus bots com estatísticas de origem e dispositivo.",
       },
-      { property: "og:title", content: "Links de redirect | Chef Bot" },
+      { property: "og:title", content: "Links de redirect | CASH BOT" },
       { property: "og:description", content: "Links rastreáveis com estatísticas de cliques por origem." },
     ],
   }),

@@ -95,7 +95,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Chef Bot — O Mundo é Seu. Robôs de Venda no Telegram" },
+      { title: "CASH BOT — O Mundo é Seu. Robôs de Venda no Telegram" },
       {
         name: "description",
         content:
@@ -103,8 +103,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "Chef Bot — O Mundo é Seu" },
-      { name: "twitter:title", content: "Chef Bot — O Mundo é Seu" },
+      { property: "og:title", content: "CASH BOT — O Mundo é Seu" },
+      { name: "twitter:title", content: "CASH BOT — O Mundo é Seu" },
       { property: "og:description", content: "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio." },
       { name: "twitter:description", content: "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio." },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },

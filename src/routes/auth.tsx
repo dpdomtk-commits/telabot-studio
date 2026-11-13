@@ -14,10 +14,10 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Entrar no Chef Bot" },
-      { name: "description", content: "Acesse sua conta Chef Bot para gerenciar bots, fluxos e vendas." },
-      { property: "og:title", content: "Entrar no Chef Bot" },
-      { property: "og:description", content: "Acesse sua conta Chef Bot para gerenciar bots, fluxos e vendas." },
+      { title: "Entrar no CASH BOT" },
+      { name: "description", content: "Acesse sua conta CASH BOT para gerenciar bots, fluxos e vendas." },
+      { property: "og:title", content: "Entrar no CASH BOT" },
+      { property: "og:description", content: "Acesse sua conta CASH BOT para gerenciar bots, fluxos e vendas." },
     ],
   }),
   component: AuthPage,
@@ -98,10 +98,10 @@ function AuthPage() {
       <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-300">
         <Link to="/" className="mb-8 flex flex-col items-center gap-3">
           <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-cyan-500/40 bg-black shadow-[0_0_25px_rgba(6,182,212,0.4)]">
-            <img src="/chefbot-emblem.jpg" alt="Logo Chef Bot" className="size-full object-cover" />
+            <img src="/cashbot-emblem.jpg" alt="Logo CASH BOT" className="size-full object-cover" />
           </div>
           <span className="font-serif text-2xl font-black tracking-tight text-white flex items-center gap-1">
-            CHEF<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">BOT</span>
+            CASH<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">BOT</span>
           </span>
           <p className="text-xs text-zinc-400">Entre para gerenciar seu império de vendas</p>
         </Link>
@@ -109,10 +109,10 @@ function AuthPage() {
         <div className="rounded-2xl border border-white/10 bg-[#0c0d14]/90 p-6 shadow-2xl backdrop-blur">
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-white/5 mb-6">
-              <TabsTrigger value="signin" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-purple-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
+              <TabsTrigger value="signin" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
                 Entrar
               </TabsTrigger>
-              <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-purple-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
+              <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
                 Cadastrar
               </TabsTrigger>
             </TabsList>
@@ -127,7 +127,7 @@ function AuthPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-red-600"
+                    className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -144,7 +144,7 @@ function AuthPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
                 >
                   {loading ? "Entrando..." : "Acessar Painel"}
                 </Button>
@@ -199,7 +199,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 text-center text-xs text-zinc-500">
-          © {new Date().getFullYear()} Chef Bot — Sistema de Automação Telegram
+          © {new Date().getFullYear()} CASH BOT — Sistema de Automação Telegram
         </div>
       </div>
     </div>

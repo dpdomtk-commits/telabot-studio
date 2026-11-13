@@ -31,13 +31,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/finance")({
   head: () => ({
     meta: [
-      { title: "Financeiro | Chef Bot" },
+      { title: "Financeiro | CASH BOT" },
       {
         name: "description",
         content: "Carteira interna, cobranças PIX, extrato financeiro e saques dos seus bots.",
       },
-      { property: "og:title", content: "Financeiro | Chef Bot" },
-      { property: "og:description", content: "Carteira, extrato e saques da sua gateway nativa Chef Bot." },
+      { property: "og:title", content: "Financeiro | CASH BOT" },
+      { property: "og:description", content: "Carteira, extrato e saques da sua gateway nativa CASH BOT." },
     ],
   }),
   component: FinancePage,
@@ -158,7 +158,7 @@ function FinancePage() {
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-white text-sm">Gateway Interna Chef Bot (PIX Automático)</h3>
+              <h3 className="font-bold text-white text-sm">Gateway Interna CASH BOT (PIX Automático)</h3>
               <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
                 Ativa e Conectada
               </Badge>

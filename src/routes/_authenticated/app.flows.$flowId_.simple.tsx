@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -556,7 +556,7 @@ export function AdvancedFlowEditorPage() {
                               <option value="blue">🔵 Azul Clássico</option>
                               <option value="green">🟢 Verde Destaque</option>
                               <option value="gold">🟡 Dourado / Âmbar</option>
-                              <option value="purple">🟣 Roxo Chef Bot</option>
+                              <option value="purple">🟣 Roxo CASH BOT</option>
                               <option value="red">🔴 Vermelho / Marrom</option>
                             </select>
                           </div>
@@ -1134,7 +1134,7 @@ export function AdvancedFlowEditorPage() {
                       });
                       toast.success(`Sequência de PIX Pendente adicionada (${updated.length}/20)`);
                     }}
-                    className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold text-xs shadow-md shadow-cyan-950/40"
                   >
                     <Plus className="size-3.5 mr-1.5" /> Adicionar Sequência ({config.downsell.pixSequences?.length ?? 0}/20)
                   </Button>
@@ -1500,7 +1500,7 @@ export function AdvancedFlowEditorPage() {
                     });
                     toast.success("Nova etapa de remarketing criada!");
                   }}
-                  className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold text-xs shadow-md shadow-cyan-950/40"
                 >
                   <Plus className="size-4 mr-1.5" /> Adicionar Mensagem de Remarketing
                 </Button>
@@ -1510,7 +1510,7 @@ export function AdvancedFlowEditorPage() {
                 <div key={seq.id} className="space-y-4 rounded-2xl border border-white/10 bg-black/40 p-5 shadow-lg">
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-red-400">#{idx + 1} {seq.title}</span>
+                      <span className="font-bold text-sm text-cyan-400">#{idx + 1} {seq.title}</span>
                       <Switch
                         checked={seq.enabled}
                         onCheckedChange={(checked) => {

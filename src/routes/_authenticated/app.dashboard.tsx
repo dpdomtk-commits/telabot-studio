@@ -34,9 +34,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const Route = createFileRoute("/_authenticated/app/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard | Chef Bot" },
-      { name: "description", content: "Chef Bot — O Mundo É Seu. Métricas, conversões e faturamento em tempo real." },
-      { property: "og:title", content: "Dashboard | Chef Bot" },
+      { title: "Dashboard | CASH BOT" },
+      { name: "description", content: "CASH BOT — O Mundo É Seu. Métricas, conversões e faturamento em tempo real." },
+      { property: "og:title", content: "Dashboard | CASH BOT" },
     ],
   }),
   component: Dashboard,
@@ -141,47 +141,47 @@ export function Dashboard() {
     return pts;
   }, [data?.payments]);
 
-  // Lista de Placas de Premiação Chef Bot (Identidade "The World Is Yours")
+  // Lista de Placas de Premiação CASH BOT (Identidade "The World Is Yours")
   const plaques = [
     {
       id: "10k",
       title: "The World Is Yours",
-      tag: "FAIXA DE FATURAMENTO",
+      tag: "CLUBE 10K · CASH BOT",
       targetCents: 1000000, // 10k
       targetLabel: "R$ 10k",
-      image: "/chefbot-plaque-10k.jpg",
-      color: "from-cyan-900/60 to-purple-950/60 border-cyan-500/40 text-cyan-300",
-      accentGlow: "shadow-[0_0_25px_rgba(6,182,212,0.3)]",
+      image: "/cashbot-emblem.jpg",
+      color: "from-cyan-950/80 to-blue-950/80 border-cyan-500/40 text-cyan-300",
+      accentGlow: "shadow-[0_0_25px_rgba(6,182,212,0.35)]",
     },
     {
       id: "50k",
-      title: "Miami Syndicate",
-      tag: "FAIXA DE FATURAMENTO",
+      title: "Zeppelin Syndicate",
+      tag: "CLUBE 50K · CASH BOT",
       targetCents: 5000000, // 50k
       targetLabel: "R$ 50k",
-      image: "/chefbot-crest.jpg",
-      color: "from-purple-950/60 to-black border-purple-500/40 text-purple-300",
-      accentGlow: "shadow-[0_0_25px_rgba(139,92,246,0.3)]",
+      image: "/cashbot-blimp.jpg",
+      color: "from-blue-950/80 to-slate-950 border-blue-500/40 text-blue-300",
+      accentGlow: "shadow-[0_0_25px_rgba(37,99,235,0.35)]",
     },
     {
       id: "100k",
-      title: "Chef Supreme",
-      tag: "FAIXA DE FATURAMENTO",
+      title: "Empire Builder",
+      tag: "CLUBE 100K · CASH BOT",
       targetCents: 10000000, // 100k
       targetLabel: "R$ 100k",
-      image: "/chefbot-emblem.jpg",
-      color: "from-blue-950/60 to-indigo-950/60 border-blue-500/40 text-blue-300",
-      accentGlow: "shadow-[0_0_25px_rgba(59,130,246,0.3)]",
+      image: "/cashbot-logo.jpg",
+      color: "from-sky-950/80 to-blue-950/80 border-sky-500/40 text-sky-300",
+      accentGlow: "shadow-[0_0_25px_rgba(56,189,248,0.35)]",
     },
     {
       id: "1m",
-      title: "Godfather Club",
-      tag: "FAIXA DE FATURAMENTO",
+      title: "Tony Montana Legend",
+      tag: "CLUBE 1M · O MUNDO É SEU",
       targetCents: 100000000, // 1M
       targetLabel: "R$ 1M",
-      image: "/chefbot-hero.jpg",
-      color: "from-amber-950/50 to-purple-950/60 border-amber-500/40 text-amber-300",
-      accentGlow: "shadow-[0_0_25px_rgba(245,158,11,0.3)]",
+      image: "/cashbot-hero.jpg",
+      color: "from-cyan-950/80 to-black border-cyan-400/50 text-cyan-200",
+      accentGlow: "shadow-[0_0_30px_rgba(6,182,212,0.45)]",
     },
   ];
 
@@ -204,7 +204,7 @@ export function Dashboard() {
         {
           id: "bot-default",
           rank: "#1",
-          name: "Chef Bot Principal",
+          name: "CASH BOT Principal",
           badge: "O MUNDO É SEU",
           avatar: "👑",
           revenue: `R$ ${revenue.toFixed(2)}`,
@@ -432,7 +432,7 @@ export function Dashboard() {
                 <h3 className="font-bold text-white text-base">Seu Desempenho</h3>
               </div>
               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
-                CHEF BOT · FATURAMENTO
+                CASH BOT · FATURAMENTO
               </span>
             </div>
 
@@ -579,13 +579,13 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Column 2: Premiações Chef Bot (The World Is Yours) */}
+        {/* Column 2: Premiações CASH BOT (The World Is Yours) */}
         <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col justify-between h-[400px]">
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
             <div className="flex items-center gap-2">
               <Award className="size-4 text-cyan-400" />
               <div>
-                <h4 className="font-bold text-white text-sm">Premiações Chef Bot</h4>
+                <h4 className="font-bold text-white text-sm">Premiações CASH BOT</h4>
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
                   CONQUISTE NOVAS PLACAS
                 </span>
@@ -607,7 +607,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Placa 3D / Chef Bot Glass Plaque */}
+          {/* Placa 3D / CASH BOT Glass Plaque */}
           <div className="flex flex-col items-center justify-center my-auto py-2">
             <div
               className={`relative w-44 h-48 rounded-2xl border-2 overflow-hidden bg-gradient-to-b ${currentPlaque.color} p-4 flex flex-col items-center justify-between ${currentPlaque.accentGlow}`}

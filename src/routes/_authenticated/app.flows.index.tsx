@@ -48,13 +48,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/flows/")({
   head: () => ({
     meta: [
-      { title: "Fluxos | Chef Bot" },
+      { title: "Fluxos | CASH BOT" },
       {
         name: "description",
         content:
           "Crie fluxos no modo simples por páginas ou no editor visual avançado, com exportação, importação e marketplace.",
       },
-      { property: "og:title", content: "Fluxos | Chef Bot" },
+      { property: "og:title", content: "Fluxos | CASH BOT" },
       { property: "og:description", content: "Fluxos simples e avançados para vendas no Telegram com PIX." },
     ],
   }),

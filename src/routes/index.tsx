@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Chef Bot — O Mundo É Seu. Robôs de Venda no Telegram" },
+      { title: "CASH BOT — O Mundo É Seu. Robôs de Venda no Telegram" },
       {
         name: "description",
         content:
           "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio.",
       },
-      { property: "og:title", content: "Chef Bot — Robôs de Venda no Telegram" },
+      { property: "og:title", content: "CASH BOT — Robôs de Venda no Telegram" },
       {
         property: "og:description",
         content:
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  component: ChefBotLanding,
+  component: CASHBOTLanding,
 });
 
 const features = [
@@ -55,17 +55,17 @@ const features = [
   },
 ];
 
-export function ChefBotLanding() {
+export function CASHBOTLanding() {
   return (
     <div className="min-h-screen bg-[#050508] text-white selection:bg-cyan-500 selection:text-black">
       {/* Top Navbar */}
       <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="size-10 overflow-hidden rounded-xl border border-cyan-500/40 shadow-[0_0_20px_-3px_rgba(6,182,212,0.5)]">
-            <img src="/chefbot-emblem.jpg" alt="Logo Chef Bot" className="size-full object-cover" />
+            <img src="/cashbot-emblem.jpg" alt="Logo CASH BOT" className="size-full object-cover" />
           </div>
           <span className="font-display text-xl font-black tracking-wider text-white">
-            CHEF<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">BOT</span>
+            CASH<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">BOT</span>
           </span>
         </div>
 
@@ -83,7 +83,7 @@ export function ChefBotLanding() {
           <Button
             asChild
             size="sm"
-            className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/30 px-5"
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/30 px-5"
           >
             <Link to="/auth">Começar agora</Link>
           </Button>
@@ -102,7 +102,7 @@ export function ChefBotLanding() {
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] uppercase">
               O Mundo <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500">
                 é seu.
               </span>
             </h1>
@@ -115,7 +115,7 @@ export function ChefBotLanding() {
               <Button
                 asChild
                 size="lg"
-                className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white text-base font-bold rounded-xl shadow-xl shadow-cyan-500/40 px-8 py-6 h-auto"
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white text-base font-bold rounded-xl shadow-xl shadow-cyan-500/40 px-8 py-6 h-auto"
               >
                 <Link to="/auth">Começar meu império</Link>
               </Button>
@@ -155,13 +155,13 @@ export function ChefBotLanding() {
           <div className="lg:col-span-5 relative flex justify-center">
             <div className="relative w-full max-w-md aspect-[4/5] rounded-3xl overflow-hidden border border-cyan-500/30 shadow-[0_0_50px_-10px_rgba(6,182,212,0.4)]">
               <img
-                src="/chefbot-hero.jpg"
-                alt="Chef Bot - The World Is Yours"
+                src="/cashbot-hero.jpg"
+                alt="CASH BOT - The World Is Yours"
                 className="w-full h-full object-cover object-center transform hover:scale-105 transition duration-700"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#050508] via-transparent to-transparent opacity-80" />
               <div className="absolute bottom-6 left-6 right-6 p-4 rounded-2xl bg-black/80 backdrop-blur border border-white/10">
-                <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">CHEF BOT AUTOMATION</p>
+                <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">CASH BOT AUTOMATION</p>
                 <p className="text-sm font-bold text-white">Domine o mercado com bots de alta conversão.</p>
               </div>
             </div>
@@ -173,7 +173,7 @@ export function ChefBotLanding() {
       <section id="recursos" className="mx-auto max-w-7xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
           <h2 className="text-3xl sm:text-4xl font-extrabold uppercase tracking-tight">
-            Construído para quem quer <span className="text-red-500">vender em escala</span>
+            Construído para quem quer <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">vender em escala</span>
           </h2>
           <p className="text-zinc-400 text-sm sm:text-base">
             Elimine atendentes manuais e tenha um funil de conversão rodando 24 horas por dia no Telegram.
@@ -184,9 +184,9 @@ export function ChefBotLanding() {
           {features.map((f) => (
             <div
               key={f.title}
-              className="rounded-2xl border border-white/5 bg-zinc-950/60 p-7 hover:border-red-500/40 hover:bg-zinc-900/40 transition duration-300 space-y-3"
+              className="rounded-2xl border border-white/5 bg-zinc-950/60 p-7 hover:border-cyan-500/40 hover:bg-zinc-900/40 transition duration-300 space-y-3"
             >
-              <div className="size-11 rounded-xl bg-red-950/40 border border-red-500/30 flex items-center justify-center text-red-500">
+              <div className="size-11 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
                 <f.icon className="size-5" />
               </div>
               <h3 className="text-lg font-bold text-white">{f.title}</h3>
@@ -197,27 +197,27 @@ export function ChefBotLanding() {
       </section>
 
       {/* CTA Final */}
-      <section className="border-t border-white/5 bg-gradient-to-t from-red-950/20 to-transparent py-20">
+      <section className="border-t border-white/5 bg-gradient-to-t from-cyan-950/20 to-transparent py-20">
         <div className="mx-auto max-w-4xl px-6 text-center space-y-6">
           <h2 className="text-3xl sm:text-5xl font-black uppercase">
             Pronto para colocar seus bots no piloto automático?
           </h2>
           <p className="text-zinc-400 text-base max-w-xl mx-auto">
-            Crie sua conta agora no Chef Bot e suba seus primeiros fluxos em poucos minutos.
+            Crie sua conta agora no CASH BOT e suba seus primeiros fluxos em poucos minutos.
           </p>
           <Button
             asChild
             size="lg"
-            className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-10 py-6 h-auto shadow-xl shadow-red-600/30 text-lg"
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold rounded-xl px-10 py-6 h-auto shadow-xl shadow-cyan-500/30 text-lg"
           >
-            <Link to="/auth">Criar conta no Chef Bot</Link>
+            <Link to="/auth">Criar conta no CASH BOT</Link>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-500">
-        © {new Date().getFullYear()} Chef Bot — Todos os direitos reservados.
+        © {new Date().getFullYear()} CASH BOT — Todos os direitos reservados.
       </footer>
     </div>
   );

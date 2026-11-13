@@ -9,10 +9,10 @@ import { formatBRL, formatDate, paymentStatusLabels } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/admin")({
   head: () => ({
     meta: [
-      { title: "Admin | Chef Bot" },
+      { title: "Admin | CASH BOT" },
       { name: "description", content: "Painel administrativo: usuários, bots, leads, pagamentos e logs." },
-      { property: "og:title", content: "Admin | Chef Bot" },
-      { property: "og:description", content: "Painel administrativo do Chef Bot." },
+      { property: "og:title", content: "Admin | CASH BOT" },
+      { property: "og:description", content: "Painel administrativo do CASH BOT." },
     ],
   }),
   component: AdminPage,

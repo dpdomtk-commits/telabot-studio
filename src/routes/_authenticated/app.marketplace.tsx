@@ -18,12 +18,12 @@ import { formatDate } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/marketplace")({
   head: () => ({
     meta: [
-      { title: "Marketplace de fluxos | Chef Bot" },
+      { title: "Marketplace de fluxos | CASH BOT" },
       {
         name: "description",
         content: "Instale funis prontos com um clique ou importe fluxos compartilhados pelo código FLOW-XXXXXX.",
       },
-      { property: "og:title", content: "Marketplace de fluxos | Chef Bot" },
+      { property: "og:title", content: "Marketplace de fluxos | CASH BOT" },
       { property: "og:description", content: "Modelos de funis para bots do Telegram, prontos para instalar." },
     ],
   }),
