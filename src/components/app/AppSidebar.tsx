@@ -9,14 +9,12 @@ import {
   Wallet,
   Network,
   Link2,
-
   Settings,
   Images,
   Store,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
-import markAsset from "@/assets/aurumbot-mark.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
@@ -42,7 +40,6 @@ const items = [
   { title: "Financeiro", url: "/app/finance", icon: Wallet },
   { title: "Gateways", url: "/app/gateways", icon: Network },
   { title: "Links", url: "/app/redirects", icon: Link2 },
-
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ] as const;
 
@@ -59,27 +56,36 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 py-4">
-        <span className="flex items-center gap-2.5 truncate font-display text-base font-bold">
-          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface shadow-[0_0_20px_-6px_var(--color-primary-glow)]">
-            <img src={markAsset.url} alt="Logo AURUMBOT" className="size-full object-cover" />
+    <Sidebar collapsible="icon" className="border-r border-white/5 bg-[#0a0a0c]">
+      <SidebarHeader className="px-3 py-4 border-b border-white/5">
+        <Link to="/app/dashboard" className="flex items-center gap-2.5 truncate font-serif text-base font-bold">
+          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-red-500/40 bg-zinc-950 shadow-[0_0_15px_-4px_rgba(217,4,41,0.5)]">
+            <span className="flex items-center gap-0.5 text-red-600 font-black text-sm select-none">
+              <span className="inline-block transform -skew-x-12 h-3.5 w-0.5 bg-red-600 rounded-sm"></span>
+              <span className="inline-block transform -skew-x-12 h-4 w-0.5 bg-red-600 rounded-sm translate-y-[-1px]"></span>
+              <span className="inline-block transform -skew-x-12 h-3 w-0.5 bg-red-600 rounded-sm"></span>
+            </span>
           </span>
-          <span className="truncate">
-            AURUM<span className="text-gradient-neon">BOT</span>
+          <span className="truncate tracking-wider text-white">
+            CASH<span className="text-red-600">BOT</span>
           </span>
-        </span>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Operação</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold">Operação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={path.startsWith(item.url)} tooltip={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={path.startsWith(item.url)}
+                    tooltip={item.title}
+                    className="hover:bg-red-600/10 hover:text-red-400 data-[active=true]:bg-red-600/15 data-[active=true]:text-red-500 data-[active=true]:font-semibold"
+                  >
                     <Link to={item.url}>
-                      <item.icon />
+                      <item.icon className="size-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -91,26 +97,14 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold">Administração</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={path.startsWith("/app/admin")} tooltip="Admin">
                     <Link to="/app/admin">
-                      <ShieldCheck />
-                      <span>Admin</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={path.startsWith("/app/admin-finance")}
-                    tooltip="Financeiro admin"
-                  >
-                    <Link to="/app/admin-finance">
-                      <Wallet />
-                      <span>Financeiro admin</span>
+                      <ShieldCheck className="size-4 text-red-500" />
+                      <span>Painel Admin</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -119,11 +113,12 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter>
+
+      <SidebarFooter className="border-t border-white/5 p-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={signOut} tooltip="Sair">
-              <LogOut />
+            <SidebarMenuButton onClick={signOut} tooltip="Sair da conta" className="text-zinc-400 hover:text-red-400 hover:bg-red-950/20">
+              <LogOut className="size-4" />
               <span>Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
