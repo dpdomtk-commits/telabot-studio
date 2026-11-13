@@ -8,8 +8,8 @@
   },
   "crons": [
     {
-      "path": "/api/public/webhooks/syncpay",
-      "schedule": "* * * * *"
+      "path": "/api/cron/process-downsells",
+      "schedule": "0 3 * * *"
     }
   ]
 }

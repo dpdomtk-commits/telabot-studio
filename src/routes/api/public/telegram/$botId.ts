@@ -187,6 +187,11 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
 
           if (!leadId) return Response.json({ ok: true });
 
+          // Trigger oportunístico em background: processa downsells vencidos sem onerar a resposta
+          import("@/lib/downsell.server").then(({ processScheduledDownsells }) => {
+            processScheduledDownsells();
+          }).catch(() => undefined);
+
           const data = cb?.data ?? "";
           const cbMessageId = cb?.message?.message_id;
 

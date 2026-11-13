@@ -1,0 +1,17 @@
+name: Process Downsells Cron
+
+on:
+  schedule:
+    # Executa periodicamente de forma gratuita pelo GitHub Actions
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-downsells:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar Worker de Downsells
+        run: |
+          curl -s -X POST "https://telabot-studio.vercel.app/api/cron/process-downsells" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" || true

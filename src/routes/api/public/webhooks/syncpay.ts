@@ -105,22 +105,7 @@ export const Route = createFileRoute("/api/public/webhooks/syncpay")({
 
         return Response.json({ ok: true, status: mapped });
       },
-      GET: async () => {
-        try {
-          const { processScheduledDownsells } = await import("@/lib/downsell.server");
-          const stats = await processScheduledDownsells();
-          return Response.json({
-            ok: true,
-            provider: "syncpay",
-            worker: "downsells",
-            timestamp: new Date().toISOString(),
-            stats,
-          });
-        } catch (e: any) {
-          console.warn("[syncpay-get-error]", e);
-          return Response.json({ ok: true, provider: "syncpay", error: e?.message });
-        }
-      },
+      GET: async () => Response.json({ ok: true, provider: "syncpay" }),
     },
   },
 });

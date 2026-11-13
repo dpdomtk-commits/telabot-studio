@@ -310,6 +310,15 @@ export async function processScheduledDownsells(): Promise<{
   const now = new Date();
 
   try {
+    // Failsafe: Libera registros travados em 'processing' há mais de 10 minutos
+    const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+    await supabaseAdmin
+      .from("activity_logs")
+      .update({ action: "pending" })
+      .eq("entity", "scheduled_downsell")
+      .eq("action", "processing")
+      .lt("created_at", tenMinAgo);
+
     // Busca até 50 itens pendentes
     const { data: pendingRows, error } = await supabaseAdmin
       .from("activity_logs")
@@ -330,6 +339,26 @@ export async function processScheduledDownsells(): Promise<{
       const scheduledTime = new Date(item.scheduled_for);
       // Se ainda não chegou o horário agendado, pula
       if (scheduledTime > now) continue;
+
+      // Trava atômica (claim) para garantir concorrência segura e evitar duplicidade de disparos
+      const { data: claimed } = await supabaseAdmin
+        .from("activity_logs")
+        .update({
+          action: "processing",
+          metadata: {
+            ...item,
+            status: "processing",
+            claimed_at: now.toISOString(),
+          },
+        })
+        .eq("id", row.id)
+        .eq("action", "pending")
+        .select("id");
+
+      if (!claimed || claimed.length === 0) {
+        // Outro worker concorrente já capturou este registro
+        continue;
+      }
 
       result.processed++;
 
@@ -486,6 +515,21 @@ export async function processScheduledDownsells(): Promise<{
         }
       } catch (itemErr: any) {
         console.error(`[downsell-item-error] Falha ao processar item ${item.id}:`, itemErr);
+        const attempts = (item.attempts || 0) + 1;
+        const nextAction = attempts >= 3 ? "failed" : "pending";
+        await supabaseAdmin
+          .from("activity_logs")
+          .update({
+            action: nextAction,
+            metadata: {
+              ...item,
+              attempts,
+              status: nextAction,
+              last_error: itemErr?.message || "Erro desconhecido",
+              last_attempt_at: now.toISOString(),
+            },
+          })
+          .eq("id", row.id);
         result.errors++;
       }
     }
