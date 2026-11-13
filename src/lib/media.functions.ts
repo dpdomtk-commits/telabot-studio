@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -7,7 +7,7 @@ export type MediaActionResult = { ok: boolean; message: string; title?: string }
 /** Testa o canal/grupo de cache de mídia via getChat e atualiza o status. */
 export const testMediaCache = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ chatId: z.string().trim().min(2).max(64), botId: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data, context }): Promise<MediaActionResult> => {
@@ -51,7 +51,7 @@ export const testMediaCache = createServerFn({ method: "POST" })
 /** Retorna a miniatura de uma mídia como data URL (o arquivo vive no cache do Telegram). */
 export const getMediaThumbnail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ assetId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ assetId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<{ dataUrl: string | null }> => {
     const { data: asset } = await context.supabase
       .from("media_assets")
@@ -96,3 +96,4 @@ export const getMediaThumbnail = createServerFn({ method: "POST" })
       return { dataUrl: null };
     }
   });
+

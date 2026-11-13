@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -82,7 +82,7 @@ export const testSyncpay = createServerFn({ method: "POST" })
 /** Define qual provedor recebe os pagamentos da plataforma. */
 export const setPlatformProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ provider: z.enum(["internal", "syncpay"]) }).parse(data))
+  .validator((data: unknown) => z.object({ provider: z.enum(["internal", "syncpay"]) }).parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
     if (!(
       await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" })
@@ -106,3 +106,4 @@ export const setPlatformProvider = createServerFn({ method: "POST" })
     await logActivity(context.userId, "syncpay", `provedor da plataforma: ${data.provider}`, undefined, { ok: true });
     return { ok: true, message: `Provedor ativo: ${data.provider === "syncpay" ? "SyncPay" : "Gateway interna"}` };
   });
+

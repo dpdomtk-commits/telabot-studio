@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { compileSimpleConfig, normalizeSimpleConfig } from "@/lib/flow-simple";
@@ -164,7 +164,7 @@ async function writeGraph(
 /** Exporta um fluxo como JSON, sem tokens, chaves PIX ou dados financeiros. */
 export const exportFlow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<ShareResult> => {
     const payload = await buildExport(context.supabase as never, data.flowId, context.userId);
     if (!payload) return { ok: false, message: "Fluxo não encontrado" };
@@ -174,7 +174,7 @@ export const exportFlow = createServerFn({ method: "POST" })
 /** Gera (ou reaproveita) o código público FLOW-XXXXXX de um fluxo. */
 export const shareFlow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<ShareResult> => {
     const { supabase, userId } = context;
     const payload = await buildExport(supabase as never, data.flowId, userId);
@@ -232,7 +232,7 @@ const importSchema = z.object({
 /** Importa um fluxo por código FLOW-XXXXXX, por modelo do marketplace ou por JSON. */
 export const importFlow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => importSchema.parse(data))
+  .validator((data: unknown) => importSchema.parse(data))
   .handler(async ({ data, context }): Promise<ShareResult> => {
     const { supabase, userId } = context;
 
@@ -318,7 +318,7 @@ export const importFlow = createServerFn({ method: "POST" })
 /** Salva a configuração do Modo Simples e recompila o grafo do fluxo. */
 export const saveSimpleFlow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ flowId: z.string().uuid(), config: z.record(z.string(), z.unknown()) }).parse(data),
   )
   .handler(async ({ data, context }): Promise<ShareResult> => {
@@ -371,7 +371,7 @@ export const saveSimpleFlow = createServerFn({ method: "POST" })
 /** Publica um fluxo como modelo do marketplace (aguarda aprovação). */
 export const publishToMarketplace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         flowId: z.string().uuid(),
@@ -413,3 +413,4 @@ export const publishToMarketplace = createServerFn({ method: "POST" })
 
     return { ok: true, message: "Enviado para o marketplace" };
   });
+

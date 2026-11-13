@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -9,7 +9,7 @@ const idSchema = z.object({ flowId: z.string().uuid() });
 /** Duplica um fluxo com todas as etapas, posições do canvas e conexões. */
 export const duplicateFlow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => idSchema.parse(data))
+  .validator((data: unknown) => idSchema.parse(data))
   .handler(async ({ data, context }): Promise<FlowActionResult> => {
     const { supabase, userId } = context;
 
@@ -81,3 +81,4 @@ export const duplicateFlow = createServerFn({ method: "POST" })
 
     return { ok: true, message: "Fluxo duplicado", flowId: copy.id };
   });
+

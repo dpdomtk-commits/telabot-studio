@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -50,7 +50,7 @@ export const getMySyncpay = createServerFn({ method: "GET" })
 /** Salva e valida as credenciais SyncPay do usuário. */
 export const saveMySyncpay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         clientId: z.string().trim().min(6).max(200),
@@ -133,3 +133,4 @@ export const disconnectMySyncpay = createServerFn({ method: "POST" })
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Credenciais removidas" };
   });
+

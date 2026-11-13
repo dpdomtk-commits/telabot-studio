@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -14,7 +14,7 @@ export type ActionResult = { ok: boolean; message: string };
 /** Registra o webhook do Telegram apontando para este projeto. */
 export const enableBotWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => idSchema.parse(data))
+  .validator((data: unknown) => idSchema.parse(data))
   .handler(async ({ data, context }): Promise<ActionResult> => {
     const { setWebhook, publicBaseUrl, notify, logActivity } = await import("@/lib/telegram.server");
 
@@ -42,7 +42,7 @@ export const enableBotWebhook = createServerFn({ method: "POST" })
 /** Remove o webhook e desativa o bot. */
 export const disableBotWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => idSchema.parse(data))
+  .validator((data: unknown) => idSchema.parse(data))
   .handler(async ({ data, context }): Promise<ActionResult> => {
     const { deleteWebhook, notify, logActivity } = await import("@/lib/telegram.server");
 
@@ -66,7 +66,7 @@ export const disableBotWebhook = createServerFn({ method: "POST" })
 /** Atualiza a situação de um pagamento PIX (dono ou admin) e dispara a entrega. */
 export const updatePaymentStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => paymentSchema.parse(data))
+  .validator((data: unknown) => paymentSchema.parse(data))
   .handler(async ({ data, context }): Promise<ActionResult> => {
     const { deliverForPayment, notify, logActivity } = await import("@/lib/telegram.server");
 
@@ -119,3 +119,4 @@ export const updatePaymentStatus = createServerFn({ method: "POST" })
     await logActivity(payment.user_id, "pagamento", `situação alterada para ${data.status}`, payment.id);
     return { ok: true, message: "Situação atualizada" };
   });
+

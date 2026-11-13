@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const schema = z.object({ token: z.string().trim().min(20).max(200) });
@@ -8,7 +8,7 @@ export type TelegramValidation =
   | { ok: false; error: string };
 
 export const validateTelegramToken = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => schema.parse(data))
+  .validator((data: unknown) => schema.parse(data))
   .handler(async ({ data }): Promise<TelegramValidation> => {
     try {
       const res = await fetch(`https://api.telegram.org/bot${data.token}/getMe`);
@@ -30,3 +30,4 @@ export const validateTelegramToken = createServerFn({ method: "POST" })
       return { ok: false, error: "Não foi possível contatar o Telegram" };
     }
   });
+

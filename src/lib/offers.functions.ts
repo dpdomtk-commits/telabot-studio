@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -28,7 +28,7 @@ const offerSchema = z.object({
 /** Ofertas (order bump, upsell e downsell) de um fluxo. */
 export const listOffers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ flowId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<FlowOffer[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
@@ -43,7 +43,7 @@ export const listOffers = createServerFn({ method: "POST" })
 
 export const createOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => offerSchema.parse(data))
+  .validator((data: unknown) => offerSchema.parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -78,7 +78,7 @@ export const createOffer = createServerFn({ method: "POST" })
 
 export const updateOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -116,7 +116,7 @@ export const updateOffer = createServerFn({ method: "POST" })
 
 export const deleteOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
@@ -127,3 +127,4 @@ export const deleteOffer = createServerFn({ method: "POST" })
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Oferta removida" };
   });
+

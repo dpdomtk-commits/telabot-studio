@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -20,7 +20,7 @@ const withdrawalSchema = z.object({
 /** Solicita um saque: desconta a taxa, bloqueia o saldo e aguarda aprovação do administrador. */
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => withdrawalSchema.parse(data))
+  .validator((data: unknown) => withdrawalSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { logActivity, notify } = await import("@/lib/telegram.server");
@@ -62,7 +62,7 @@ const resolveSchema = z.object({
 /** Aprova, paga ou recusa um saque (somente administradores). */
 export const resolveWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => resolveSchema.parse(data))
+  .validator((data: unknown) => resolveSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
@@ -118,7 +118,7 @@ const adjustSchema = z.object({
 /** Ajuste manual de saldo pelo administrador, sempre registrado no extrato. */
 export const adjustWallet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => adjustSchema.parse(data))
+  .validator((data: unknown) => adjustSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
@@ -150,7 +150,7 @@ const blockSchema = z.object({ userId: z.string().uuid(), blocked: z.boolean() }
 /** Bloqueia ou desbloqueia um usuário (somente administradores). */
 export const setUserBlocked = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => blockSchema.parse(data))
+  .validator((data: unknown) => blockSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
@@ -186,7 +186,7 @@ const settingsSchema = z.object({
 /** Atualiza as configurações globais da gateway (taxas e chave PIX de recebimento). */
 export const saveFinanceSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => settingsSchema.parse(data))
+  .validator((data: unknown) => settingsSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
@@ -229,7 +229,7 @@ const cancelSchema = z.object({ paymentId: z.string().uuid() });
 /** Cancela uma cobrança pendente do próprio usuário. */
 export const cancelCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => cancelSchema.parse(data))
+  .validator((data: unknown) => cancelSchema.parse(data))
   .handler(async ({ data, context }): Promise<FinanceResult> => {
     const { error } = await context.supabase
       .from("payments")
@@ -264,3 +264,4 @@ export const getFinanceFees = createServerFn({ method: "GET" })
       min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
     };
   });
+

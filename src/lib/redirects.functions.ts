@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -49,7 +49,7 @@ export const listRedirects = createServerFn({ method: "GET" })
 /** Cria um link (limite de 10 por usuário). */
 export const createRedirect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         name: z.string().trim().min(2).max(80),
@@ -97,7 +97,7 @@ export const createRedirect = createServerFn({ method: "POST" })
 /** Atualiza destino, nome ou status do link. */
 export const updateRedirect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -126,7 +126,7 @@ export const updateRedirect = createServerFn({ method: "POST" })
 
 export const deleteRedirect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("redirect_clicks").delete().eq("link_id", data.id).eq("user_id", context.userId);
@@ -142,7 +142,7 @@ export const deleteRedirect = createServerFn({ method: "POST" })
 /** Estatísticas de cliques por dispositivo, origem e dia. */
 export const redirectStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<RedirectStats> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 7 * 86400000);
@@ -187,3 +187,4 @@ export const redirectStats = createServerFn({ method: "POST" })
       last7,
     };
   });
+
