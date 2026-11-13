@@ -356,8 +356,9 @@ export async function sendWelcomeMedia(
 }
 
 /**
- * Fluxo de boas-vindas do Telegram (/start) com suporte total a mídias em ordem,
- * seleção de idioma (Português / Inglês) e exibição limpa sem repetição de texto.
+ * Fluxo de boas-vindas do Telegram (/start):
+ * A mensagem de boas-vindas é universal e fora do fluxo (todos os bots terão ela).
+ * Envia as mídias cadastradas e em seguida a mensagem universal de apresentação com escolha de idioma.
  */
 export async function handleTelegramStart(params: {
   userId: string;
@@ -367,25 +368,26 @@ export async function handleTelegramStart(params: {
   chatId: number;
 }) {
   const flow = await resolveBotFlow(params.botId);
-  if (!flow) return;
-
   const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
 
-  // Etapa 1 — Apresentação: Enviar as mídias já cadastradas na ordem definida
-  if (cfg.welcome.media && cfg.welcome.media.length > 0) {
+  // Etapa 1 — Mídias cadastradas na ordem definida (ficam fixas no topo do chat)
+  if (cfg.welcome?.media && cfg.welcome.media.length > 0) {
     await sendWelcomeMedia(params.token, params.chatId, cfg.welcome.media, cfg.welcome.mediaMode);
     await new Promise((r) => setTimeout(r, 450));
   }
 
-  // Apresentação e Seleção de Idioma no /start
-  const ptWelcome =
+  // Etapa 2 — Mensagem universal de boas-vindas (com botões de idioma)
+  const universalWelcome =
     "Olá! Seja muito bem-vindo(a)! 👋\n\n" +
     "Estamos felizes em ter você aqui.\n\n" +
-    "Antes de continuar, escolha o idioma que prefere para receber nossas informações:\n" +
-    "<i>Before continuing, please choose your preferred language:</i>";
+    "Antes de continuar, escolha o idioma que prefere para receber nossas informações.\n\n" +
+    "───────────────\n\n" +
+    "Hello! Welcome! 👋\n\n" +
+    "We're happy to have you here.\n\n" +
+    "Before continuing, please choose your preferred language:";
 
-  await sendMessage(params.token, params.chatId, ptWelcome, {
+  await sendMessage(params.token, params.chatId, universalWelcome, {
     inline_keyboard: [
       [
         { text: "🇧🇷 Português", callback_data: "lang:pt" },
@@ -397,6 +399,8 @@ export async function handleTelegramStart(params: {
 
 /**
  * Trata a escolha de idioma pelo lead.
+ * As mensagens de seleção somem (deleteMessage), mantendo apenas as mídias no topo,
+ * e é acrescentado o texto de acordo com o idioma junto com os planos.
  */
 export async function handleLanguageSelect(params: {
   userId: string;
@@ -409,22 +413,21 @@ export async function handleLanguageSelect(params: {
 }) {
   await setLeadPreferences(params.userId, params.leadId, { language: params.language });
 
-  // Remove a mensagem de escolha de idioma para não poluir o chat
+  // 1. Remove a mensagem universal anterior (mantendo apenas as mídias no chat)
   if (params.messageId) {
     await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
   }
 
   const flow = await resolveBotFlow(params.botId);
-  if (!flow) return;
   const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
 
   if (params.language === "pt") {
     await setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
-    // Exibe exclusivamente os planos em BRL via PIX (sem botões de idioma ou outras moedas)
+    // 2. Acrescenta o texto de apresentação em português junto com os botões de planos em BRL
     await sendBrlPlansMenu(params, cfg, true);
   } else {
-    // Apresenta a seleção de moeda internacional exclusiva
+    // Apresenta a seleção de moeda internacional
     await sendCurrencySelectionMenu(params, cfg);
   }
 }
@@ -443,21 +446,23 @@ export async function sendCurrencySelectionMenu(
   cfg: any
 ) {
   const prompt =
-    cfg.multilingual?.currencyPrompts?.en ||
-    "Perfect! 🌎\n\nChoose your preferred currency to view our available plans:";
+    "Hello! Welcome! 👋\n\n" +
+    "Please choose your preferred currency to view our plans:";
 
   await sendMessage(params.token, params.chatId, prompt, {
     inline_keyboard: [
-      [{ text: "🇺🇸 USD — US Dollar", callback_data: "curr:USD" }],
-      [{ text: "🇪🇺 EUR — Euro", callback_data: "curr:EUR" }],
-      [{ text: "🇬🇧 GBP — British Pound", callback_data: "curr:GBP" }],
+      [
+        { text: "💵 USD ($)", callback_data: "curr:USD" },
+        { text: "💶 EUR (€)", callback_data: "curr:EUR" },
+        { text: "💷 GBP (£)", callback_data: "curr:GBP" },
+      ],
     ],
   });
 }
 
 /**
  * Exibe os planos exclusivamente em REAL BRASILEIRO (BRL) via PIX.
- * Oculta completamente opções de idioma ou moedas internacionais na tela principal.
+ * Acrescenta o texto de apresentação em português junto com os planos.
  */
 export async function sendBrlPlansMenu(
   params: {
@@ -482,10 +487,10 @@ export async function sendBrlPlansMenu(
         },
       ];
 
-  const greeting = isFirstGreeting
-    ? cfg.multilingual?.currencyPrompts?.pt ||
-      "Perfeito! 🇧🇷\n\nSelecione um dos nossos planos abaixo e escolha a melhor opção para você."
-    : "Selecione um dos nossos planos disponíveis:";
+  // Texto de apresentação de acordo com a linguagem, junto com os planos
+  const text =
+    cfg.welcome?.message?.trim() ||
+    "Olá! Seja muito bem-vindo(a)! 👋\n\nEscolha um dos nossos planos exclusivos abaixo para ter acesso imediato:";
 
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
@@ -500,12 +505,13 @@ export async function sendBrlPlansMenu(
     inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
   }
 
-  // Apenas planos e PIX! Sem botões de configuração na tela principal.
-  await sendMessage(params.token, params.chatId, greeting, { inline_keyboard });
+  // Uma única mensagem adicionada após as mídias: texto + botões de planos BRL
+  await sendMessage(params.token, params.chatId, text, { inline_keyboard });
 }
 
 /**
  * Trata a escolha de moeda internacional (USD, EUR, GBP).
+ * Apaga a mensagem de escolha de moeda e acrescenta o texto em inglês com os planos.
  */
 export async function handleCurrencySelect(params: {
   userId: string;
@@ -518,23 +524,22 @@ export async function handleCurrencySelect(params: {
 }) {
   await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
 
-  // Remove a mensagem de escolha de moeda para não poluir o chat
+  // Remove a mensagem de escolha de moeda para que apenas as mídias fiquem no topo
   if (params.messageId) {
     await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
   }
 
   const flow = await resolveBotFlow(params.botId);
-  if (!flow) return;
   const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
 
-  // Exibe exclusivamente os planos na moeda internacional selecionada
+  // Acrescenta o texto em inglês junto com os planos convertidos 1:1 na moeda escolhida
   await sendIntlPlansMenu(params, cfg, params.currency, true);
 }
 
 /**
- * Exibe os planos convertidos na moeda internacional escolhida com formatação correta.
- * Não exibe opções de PIX, outras moedas ou idiomas na tela principal.
+ * Exibe os planos convertidos na moeda internacional escolhida (1:1 sem cálculo de câmbio).
+ * Acrescenta o texto em inglês junto com os planos.
  */
 export async function sendIntlPlansMenu(
   params: {
@@ -555,14 +560,14 @@ export async function sendIntlPlansMenu(
         { id: "plan-1", name: "VIP ACCESS", price: 29.9, duration: "Lifetime Access" },
       ];
 
-  const header = isFirstGreeting
-    ? `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nChoose your preferred option below to get instant VIP access:`
-    : `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nSelect a plan to proceed:`;
+  const text =
+    `Hello! Welcome! 👋\n\n` +
+    `Select one of our exclusive VIP plans below in ${currency} to get instant access:`;
 
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
   for (const plan of planItems) {
-    const conv = formatCurrencyPrice(plan.price, currency, cfg.multilingual?.rates);
+    const conv = formatCurrencyPrice(plan.price, currency);
     inline_keyboard.push([
       {
         text: `⭐ ${plan.name} — ${conv.formatted} [ GET ACCESS ]`,
@@ -571,8 +576,8 @@ export async function sendIntlPlansMenu(
     ]);
   }
 
-  // Apenas planos na moeda escolhida! Sem botões de configuração na tela principal.
-  await sendMessage(params.token, params.chatId, header, { inline_keyboard });
+  // Uma única mensagem adicionada após as mídias: texto em inglês + botões de planos convertidos 1:1
+  await sendMessage(params.token, params.chatId, text, { inline_keyboard });
 }
 
 /**
@@ -751,20 +756,8 @@ export async function handlePixPlanPurchase(params: {
     ],
   };
 
-  // 1. Envia a mensagem do PIX e botão de conferir PRIMEIRO (garantia 100% de entrega instantânea)
+  // Envia a mensagem do PIX Copia e Cola e botão de conferir (sem imagem do QR code)
   await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
-
-  // 2. Envia o QR code como foto de forma segura (sem travar se falhar)
-  if (charge.pix_code) {
-    try {
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
-        charge.pix_code
-      )}`;
-      await sendPhoto(params.token, params.chatId, qrUrl, "Escaneie o QR Code para pagar").catch(() => undefined);
-    } catch {
-      // Ignora erro no QR externo, o copia e cola já foi entregue
-    }
-  }
 
   await logActivity(params.userId, "pagamento", "cobrança PIX plano criada", charge.id);
 }

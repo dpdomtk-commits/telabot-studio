@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   Globe,
   DollarSign,
+  Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -1660,17 +1661,40 @@ export function AdvancedFlowEditorPage() {
           {/* ABA REMARKETING */}
           {activeTab === "remarketing" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
+              {/* Banner Informativo: Remarketing Centralizado & Independente */}
+              <div className="rounded-2xl border border-[#1049B8]/40 bg-gradient-to-r from-[#050508] via-[#0B3B99]/20 to-[#1049B8]/30 p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-[#38BDF8] animate-pulse" />
+                    <h3 className="font-bold text-white text-base">
+                      Remarketing Centralizado & Independente
+                    </h3>
+                  </div>
+                  <p className="text-xs text-zinc-300 max-w-xl">
+                    O Remarketing agora é gerenciado fora do fluxo individual. Acesse a Central de Remarketing para criar campanhas globais e selecionar múltiplos fluxos participantes ao mesmo tempo.
+                  </p>
+                </div>
+                <Button
+                  asChild
+                  className="bg-gradient-to-r from-[#1049B8] to-[#38BDF8] hover:from-[#0B3B99] hover:to-[#0284C7] text-white font-bold rounded-xl shadow-lg shadow-[#1049B8]/30 text-xs shrink-0"
+                >
+                  <Link to="/app/remarketing">
+                    <Layers className="size-3.5 mr-1.5" /> Abrir Central de Remarketing
+                  </Link>
+                </Button>
+              </div>
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                    <Clock className="size-5 text-red-500" /> Área Exclusiva de Remarketing
+                    <Clock className="size-5 text-[#38BDF8]" /> Configuração Local deste Fluxo
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Configure mensagens automáticas de recuperação periódicas com mídias, ofertas e copys.
+                    Defina sequências diretas opcionais para este fluxo específico.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Ativar Campanha</span>
+                  <span className="text-xs text-muted-foreground">Ativar Campanha Local</span>
                   <Switch
                     checked={config.remarketing.enabled}
                     onCheckedChange={(checked) =>

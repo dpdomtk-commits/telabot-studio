@@ -382,26 +382,19 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
 export function formatCurrencyPrice(
   amountBrl: number,
   currency: "BRL" | "USD" | "EUR" | "GBP",
-  rates?: { USD?: number; EUR?: number; GBP?: number }
+  _rates?: unknown
 ): { formatted: string; amount: number; symbol: string } {
-  const r = {
-    USD: rates?.USD ?? 0.20,
-    EUR: rates?.EUR ?? 0.18,
-    GBP: rates?.GBP ?? 0.16,
-  };
+  // Conversão 1:1 direta sem cálculo de câmbio (ex: 10 R$ = 10 $ = 10 € = 10 £)
+  const val = Number(amountBrl || 0);
   if (currency === "USD") {
-    const val = Math.max(0.99, Number((amountBrl * r.USD).toFixed(2)));
-    return { formatted: `US$ ${val.toFixed(2)}`, amount: val, symbol: "US$" };
+    return { formatted: `$ ${val.toFixed(2)}`, amount: val, symbol: "$" };
   }
   if (currency === "EUR") {
-    const val = Math.max(0.99, Number((amountBrl * r.EUR).toFixed(2)));
     return { formatted: `€ ${val.toFixed(2)}`, amount: val, symbol: "€" };
   }
   if (currency === "GBP") {
-    const val = Math.max(0.99, Number((amountBrl * r.GBP).toFixed(2)));
     return { formatted: `£ ${val.toFixed(2)}`, amount: val, symbol: "£" };
   }
-  const val = Number(amountBrl || 0);
   return {
     formatted: `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     amount: val,
