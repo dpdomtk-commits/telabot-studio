@@ -34,11 +34,10 @@ const items = [
   { title: "Bots", url: "/app/bots", icon: Bot },
   { title: "Fluxos", url: "/app/flows", icon: GitBranch },
   { title: "Remarketing", url: "/app/remarketing", icon: Clock },
+  { title: "Financeiro", url: "/app/finance", icon: Wallet },
   { title: "Marketplace", url: "/app/marketplace", icon: Store },
   { title: "Leads", url: "/app/leads", icon: Users },
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
-  { title: "Financeiro", url: "/app/finance", icon: Wallet },
-  { title: "Gateways", url: "/app/gateways", icon: Network },
   { title: "Links", url: "/app/redirects", icon: Link2 },
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ] as const;

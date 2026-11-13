@@ -258,7 +258,8 @@ export async function runFlowForLead(params: {
         result = await sendMessage(params.token, params.chatId, str(config, "text") || label, {
           inline_keyboard: [[{ text: label, callback_data: `step:${step.id}` }]],
         });
-        break;
+        await finish("waiting_payment", step.id);
+        return; // Pausa a execução e aguarda o clique do lead no botão
       }
       case "menu": {
         const options = str(config, "options")
@@ -268,7 +269,8 @@ export async function runFlowForLead(params: {
         result = await sendMessage(params.token, params.chatId, str(config, "text") || "Escolha uma opção", {
           inline_keyboard: options.map((o) => [{ text: o, callback_data: `menu:${step.id}:${o.slice(0, 24)}` }]),
         });
-        break;
+        await finish("waiting_payment", step.id);
+        return; // Pausa a execução e aguarda o lead escolher o plano (não gera PIX automático)
       }
       case "question":
         result = await sendMessage(params.token, params.chatId, str(config, "text") || "…");

@@ -144,82 +144,123 @@ function FinancePage() {
   ];
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Financeiro"
-        description="Sua carteira interna: recebimentos PIX, taxas, extrato e saques."
+        description="Sua carteira interna, saldo, recebimentos PIX e solicitação de saques."
       />
 
+      {/* Banner Gateway Nativa Ativa */}
+      <div className="rounded-2xl border border-red-500/30 bg-gradient-to-r from-red-950/40 to-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-red-600/20 text-red-500 border border-red-600/30">
+            <Wallet className="size-5" />
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-white text-sm">Gateway Interna CASH BOT (PIX Automático)</h3>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                Ativa e Conectada
+              </Badge>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Todas as cobranças dos seus bots são geradas e confirmadas automaticamente pela gateway nativa.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Cards de Saldo */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="panel p-5">
+          <div key={c.label} className="panel p-5 border-white/10 bg-[#0e0e11]/80 backdrop-blur">
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">{c.label}</span>
-              <c.icon className="size-4 text-primary" />
+              <span className="text-xs uppercase tracking-wide text-zinc-400">{c.label}</span>
+              <c.icon className="size-4 text-red-500" />
             </div>
             {isLoading ? (
               <Skeleton className="mt-3 h-8 w-24" />
             ) : (
-              <p className="mt-2 font-display text-2xl font-bold">{c.value}</p>
+              <p className="mt-2 font-display text-2xl font-black text-white">{c.value}</p>
             )}
           </div>
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      {/* PEDIR SAQUE VIA PIX NA MESMA TELA */}
+      <div className="rounded-2xl border border-white/10 bg-[#0e0e11]/80 p-6 backdrop-blur shadow-xl">
+        <WithdrawalForm
+          available={wallet?.available_cents ?? 0}
+          feeCents={data?.settings?.withdrawal_fee_cents ?? 500}
+          minCents={data?.settings?.min_withdrawal_cents ?? 1000}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["finance"] });
+            qc.invalidateQueries({ queryKey: ["notifications"] });
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
         {[
           { label: "Total recebido", value: wallet?.total_received_cents ?? 0 },
           { label: "Total sacado", value: wallet?.total_withdrawn_cents ?? 0 },
           { label: "Total de taxas", value: wallet?.total_fees_cents ?? 0 },
         ].map((s) => (
-          <div key={s.label} className="rounded-md border border-border p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
-            <p className="mt-1 font-display text-lg font-bold">{formatBRL(s.value)}</p>
+          <div key={s.label} className="rounded-xl border border-white/5 bg-[#0e0e11]/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-zinc-400">{s.label}</p>
+            <p className="mt-1 font-display text-lg font-bold text-white">{formatBRL(s.value)}</p>
           </div>
         ))}
       </div>
 
-      <div className="panel mt-6 p-5">
-        <p className="text-sm font-medium">Recebimentos dos últimos 30 dias</p>
+      <div className="panel p-5 border-white/10 bg-[#0e0e11]/80 backdrop-blur">
+        <p className="text-sm font-semibold text-white">Recebimentos dos últimos 30 dias</p>
         <div className="mt-4 h-56">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={daily}>
               <defs>
                 <linearGradient id="gFin" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#d90429" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#d90429" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="var(--color-border)" vertical={false} />
-              <XAxis dataKey="day" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="day" stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "var(--color-popover)",
-                  border: "1px solid var(--color-border)",
+                  background: "#18181b",
+                  border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: "8px",
                   fontSize: "12px",
+                  color: "#fff",
                 }}
               />
-              <Area type="monotone" dataKey="valor" stroke="var(--color-chart-1)" fill="url(#gFin)" strokeWidth={2} />
+              <Area type="monotone" dataKey="valor" stroke="#d90429" fill="url(#gFin)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {monthly.map((m) => (
-            <div key={m.key} className="rounded-md border border-border p-3">
-              <p className="text-xs capitalize text-muted-foreground">{m.label}</p>
-              <p className="mt-1 font-display text-base font-bold">{formatBRL(m.total)}</p>
+            <div key={m.key} className="rounded-lg border border-white/5 bg-black/40 p-3">
+              <p className="text-xs capitalize text-zinc-400">{m.label}</p>
+              <p className="mt-1 font-display text-base font-bold text-white">{formatBRL(m.total)}</p>
             </div>
           ))}
         </div>
       </div>
 
       <Tabs defaultValue="charges" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="charges">Cobranças</TabsTrigger>
-          <TabsTrigger value="ledger">Extrato</TabsTrigger>
-          <TabsTrigger value="withdrawals">Saques</TabsTrigger>
+        <TabsList className="bg-zinc-900 border border-white/5">
+          <TabsTrigger value="charges" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+            Cobranças & Vendas
+          </TabsTrigger>
+          <TabsTrigger value="withdrawals" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+            Histórico de Saques PIX
+          </TabsTrigger>
+          <TabsTrigger value="ledger" className="data-[state=active]:bg-red-600 data-[state=active]:text-white">
+            Extrato Detalhado
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="charges" className="mt-4">

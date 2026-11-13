@@ -1,5 +1,3 @@
-import { compileSimpleConfig } from "./flow-simple";
-
 export type FlowMedia = {
   id: string;
   url?: string;
@@ -14,6 +12,7 @@ export type SequenceStep = {
   id: string;
   title: string;
   enabled: boolean;
+  triggerType?: "start" | "pix_pending";
   delayValue: number;
   delayUnit: "seconds" | "minutes" | "hours" | "days";
   targetBots: string[]; // bot IDs ou 'all'
@@ -74,6 +73,11 @@ export type AdvancedFlowConfig = {
   downsell: {
     enabled: boolean;
     deliveryDestination: string;
+    // Área 1: Downsell pós-Start (/start sem gerar PIX) - até 20 sequências
+    startSequences: SequenceStep[];
+    // Área 2: Downsell pós-PIX (PIX Gerado e não pago) - até 20 sequências
+    pixSequences: SequenceStep[];
+    // Legado
     sequences: SequenceStep[];
   };
   orderBump: {
@@ -92,6 +96,9 @@ export type AdvancedFlowConfig = {
   };
   remarketing: {
     enabled: boolean;
+    intervalHours: number; // padrão de 3 em 3 horas
+    targetBotId: string; // bot específico do fluxo
+    targetAudience: "all" | "pix_pending" | "start_abandoned";
     sequences: SequenceStep[];
   };
   payments: {
@@ -143,52 +150,55 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
   upsell: {
     enabled: false,
     deliveryDestination: "",
-    deliveryMessage: "Parabéns! Seu acesso premium foi liberado.",
-    sequences: [
-      {
-        id: "seq-up-1",
-        title: "Sequência 1",
-        enabled: true,
-        delayValue: 0,
-        delayUnit: "seconds",
-        targetBots: ["all"],
-        media: [],
-        mediaMode: "separated",
-        message: "Tenho uma oferta exclusiva e única para você complementar seu acesso!",
-        discountType: "percent",
-        discountValue: 50,
-        plans: [
-          {
-            id: "up-p-1",
-            name: "FAZER VERIFICAÇÃO",
-            duration: "Vitalício",
-            originalPrice: 19.9,
-            discountPrice: 8.99,
-          },
-        ],
-      },
-    ],
+    deliveryMessage: "Obrigado por adquirir o acesso VIP! Aqui está sua entrega.",
+    sequences: [],
   },
   downsell: {
     enabled: false,
     deliveryDestination: "",
-    sequences: [
+    startSequences: [
       {
-        id: "seq-down-1",
-        title: "Sequência 1",
+        id: "seq-down-start-1",
+        title: "Downsell /start #1",
         enabled: true,
-        delayValue: 5,
+        triggerType: "start",
+        delayValue: 15,
         delayUnit: "minutes",
         targetBots: ["all"],
         media: [],
         mediaMode: "separated",
-        message: "Ainda pensando? Preparei um super desconto especial para você não ficar de fora!",
-        discountType: "percent",
-        discountValue: 30,
+        message: "Ainda está por aí? Preparei uma condição exclusiva para você liberar seu acesso agora mesmo!",
+        discountType: "fixed",
+        discountValue: 5,
         plans: [
           {
-            id: "down-p-1",
-            name: "ACESSO PROMOCIONAL",
+            id: "down-start-p1",
+            name: "PROMOÇÃO START",
+            duration: "Vitalício",
+            originalPrice: 12.99,
+            discountPrice: 9.99,
+          },
+        ],
+      },
+    ],
+    pixSequences: [
+      {
+        id: "seq-down-pix-1",
+        title: "Downsell PIX Pendente #1",
+        enabled: true,
+        triggerType: "pix_pending",
+        delayValue: 30,
+        delayUnit: "minutes",
+        targetBots: ["all"],
+        media: [],
+        mediaMode: "separated",
+        message: "Notamos que seu PIX está quase expirando! Para você não perder, reduzi o valor para finalizarmos agora:",
+        discountType: "fixed",
+        discountValue: 5,
+        plans: [
+          {
+            id: "down-pix-p1",
+            name: "PIX COM SUPER DESCONTO",
             duration: "Vitalício",
             originalPrice: 12.99,
             discountPrice: 7.99,
@@ -196,6 +206,7 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
         ],
       },
     ],
+    sequences: [],
   },
   orderBump: {
     initialFlowEnabled: false,
@@ -213,20 +224,31 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
   },
   remarketing: {
     enabled: false,
+    intervalHours: 3, // disparos de 3 em 3 horas
+    targetBotId: "all",
+    targetAudience: "all",
     sequences: [
       {
         id: "seq-rem-1",
-        title: "Recuperação 15 min",
+        title: "Remarketing (3 em 3 horas) #1",
         enabled: true,
-        delayValue: 15,
-        delayUnit: "minutes",
+        delayValue: 3,
+        delayUnit: "hours",
         targetBots: ["all"],
         media: [],
         mediaMode: "separated",
-        message: "Seu PIX foi gerado mas ainda não identificamos o pagamento. Posso te ajudar a finalizar?",
+        message: "Última chamada! Seu acesso VIP está reservado com preço especial exclusivo por tempo limitado.",
         discountType: "none",
         discountValue: 0,
-        plans: [],
+        plans: [
+          {
+            id: "rem-p1",
+            name: "PLANO PROMOCIONAL REMARKETING",
+            duration: "Vitalício",
+            originalPrice: 12.99,
+            discountPrice: 9.99,
+          },
+        ],
       },
     ],
   },
@@ -247,6 +269,25 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
   const base = defaultAdvancedConfig();
   if (!raw || typeof raw !== "object") return base;
   const value = raw as Partial<AdvancedFlowConfig>;
+  
+  const rawDownsell = (value.downsell ?? {}) as Partial<AdvancedFlowConfig["downsell"]>;
+  const startSequences = Array.isArray(rawDownsell.startSequences)
+    ? rawDownsell.startSequences
+    : rawDownsell.sequences?.filter((s) => s.triggerType === "start")?.length
+      ? rawDownsell.sequences.filter((s) => s.triggerType === "start")
+      : base.downsell.startSequences;
+
+  const pixSequences = Array.isArray(rawDownsell.pixSequences)
+    ? rawDownsell.pixSequences
+    : rawDownsell.sequences?.filter((s) => s.triggerType !== "start")?.length
+      ? rawDownsell.sequences.filter((s) => s.triggerType !== "start")
+      : base.downsell.pixSequences;
+
+  const rawRemarketing = (value.remarketing ?? {}) as Partial<AdvancedFlowConfig["remarketing"]>;
+  const remarketingSequences = Array.isArray(rawRemarketing.sequences) && rawRemarketing.sequences.length > 0
+    ? rawRemarketing.sequences
+    : base.remarketing.sequences;
+
   return {
     ...base,
     ...value,
@@ -254,9 +295,148 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
     welcome: { ...base.welcome, ...(value.welcome ?? {}) },
     plans: { ...base.plans, ...(value.plans ?? {}) },
     upsell: { ...base.upsell, ...(value.upsell ?? {}) },
-    downsell: { ...base.downsell, ...(value.downsell ?? {}) },
+    downsell: {
+      ...base.downsell,
+      ...rawDownsell,
+      startSequences,
+      pixSequences,
+      sequences: [...startSequences, ...pixSequences],
+    },
     orderBump: { ...base.orderBump, ...(value.orderBump ?? {}) },
-    remarketing: { ...base.remarketing, ...(value.remarketing ?? {}) },
+    remarketing: {
+      ...base.remarketing,
+      ...rawRemarketing,
+      intervalHours: rawRemarketing.intervalHours ?? 3,
+      sequences: remarketingSequences,
+    },
     payments: { ...base.payments, ...(value.payments ?? {}) },
   };
+}
+
+export type CompiledStep = {
+  key: string;
+  type: string;
+  title: string;
+  config: Record<string, unknown>;
+  position: number;
+  position_x: number;
+  position_y: number;
+};
+
+export type CompiledConnection = {
+  source: string;
+  target: string;
+  sourceHandle: string | null;
+  label: string | null;
+};
+
+export type CompiledFlow = { steps: CompiledStep[]; connections: CompiledConnection[] };
+
+/**
+ * Compila a configuração avançada em nós e conexões do motor Telegram,
+ * garantindo que no /start o menu pause e aguarde o lead clicar no botão do plano
+ * (o PIX NUNCA é gerado automaticamente no start).
+ */
+export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow {
+  const steps: CompiledStep[] = [];
+  const connections: CompiledConnection[] = [];
+  let index = 0;
+
+  const add = (
+    key: string,
+    type: string,
+    title: string,
+    stepConfig: Record<string, unknown>,
+    column = 0,
+  ): string => {
+    steps.push({
+      key,
+      type,
+      title,
+      config: stepConfig,
+      position: index,
+      position_x: 120 + column * 340,
+      position_y: 80 + index * 170,
+    });
+    index += 1;
+    return key;
+  };
+
+  const link = (source: string, target: string, handle: string | null = null, label: string | null = null) =>
+    connections.push({ source, target, sourceHandle: handle, label });
+
+  let previous = add("start", "start", "Início", { trigger: "/start" });
+
+  // 1. Mídias de boas-vindas
+  if (config.welcome.media && config.welcome.media.length > 0) {
+    for (let i = 0; i < config.welcome.media.length; i++) {
+      const m = config.welcome.media[i];
+      const mediaKey = add(`welcome-media-${i + 1}`, m.kind || "image", `Mídia ${i + 1}`, {
+        url: m.url || "",
+        file_id: m.fileId || "",
+        caption: m.caption || "",
+      });
+      link(previous, mediaKey);
+      previous = mediaKey;
+    }
+  }
+
+  // 2. Mensagem de boas-vindas
+  const welcomeKey = add("welcome", "message", "Boas-vindas", {
+    text: config.welcome.message || "Olá! Seja bem-vindo(a).",
+  });
+  link(previous, welcomeKey);
+  previous = welcomeKey;
+
+  // 3. Segunda mensagem (se habilitada)
+  if (config.welcome.hasSecondaryMessage && config.welcome.secondaryMessage) {
+    const secKey = add("welcome-secondary", "message", "Mensagem Secundária", {
+      text: config.welcome.secondaryMessage,
+    });
+    link(previous, secKey);
+    previous = secKey;
+  }
+
+  // 4. Menu de Planos (IMPORTANTE: o menu pausa a execução até o lead clicar!)
+  const planItems = config.plans?.items?.length
+    ? config.plans.items
+    : [{ id: "plan-1", name: "ACESSO COMPLETO", price: 12.99, duration: "Vitalício" }];
+
+  const plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
+    text: "Escolha o seu plano abaixo para prosseguir:",
+    options: planItems.map((p) => p.name).join("\n"),
+  });
+  link(previous, plansMenuKey);
+  previous = plansMenuKey;
+
+  // 5. Para cada plano: cria um nó PIX com valor e nome EXATOS do plano
+  const pixKeys: string[] = [];
+  planItems.forEach((plan, i) => {
+    const pixKey = add(
+      `pix-${plan.id || i}`,
+      "pix",
+      `PIX · ${plan.name}`,
+      {
+        product_name: plan.name,
+        amount: plan.price ?? 0,
+        description: `Plano ${plan.name} (${plan.duration || "Acesso Imediato"})`,
+        expires_minutes: 30,
+        success_message: "Pagamento confirmado com sucesso! Liberando seu acesso...",
+      },
+      1
+    );
+    // Vincula a opção clicada no menu ao nó PIX correto
+    link(plansMenuKey, pixKey, plan.name.slice(0, 24), plan.name);
+    pixKeys.push(pixKey);
+  });
+
+  // 6. Nó de entrega pós-pagamento
+  const deliveryKey = add("delivery", "end", "Entrega do Acesso", {
+    message: config.plans.deliveryFallback || "Seu acesso VIP foi liberado com sucesso!",
+  });
+  for (const pKey of pixKeys) {
+    link(pKey, deliveryKey, "pago", "pago");
+  }
+
+  return { steps, connections };
 }

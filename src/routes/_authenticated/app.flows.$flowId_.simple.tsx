@@ -35,6 +35,7 @@ import { FlowMediaUploader, type FlowMediaItem } from "@/components/app/FlowMedi
 import {
   defaultAdvancedConfig,
   normalizeAdvancedConfig,
+  compileAdvancedConfig,
   type AdvancedFlowConfig,
   type SequenceStep,
 } from "@/lib/flow-advanced";
@@ -103,18 +104,81 @@ export function AdvancedFlowEditorPage() {
     try {
       const selectedBotId = config.bots.linkedBots[0] || flowData?.bot_id;
 
+      // 1. Compila a configuração avançada em grafo de etapas reais do motor Telegram
+      const compiled = compileAdvancedConfig(config);
+
+      // 2. Limpa nós e conexões anteriores para garantir sincronização 100% limpa
+      await supabase.from("flow_connections").delete().eq("flow_id", flowId);
+      await supabase.from("flow_steps").delete().eq("flow_id", flowId);
+
+      // 3. Insere os novos nós compilados no banco de dados
+      const idMap = new Map<string, string>();
+      for (const step of compiled.steps) {
+        const { data: created } = await supabase
+          .from("flow_steps")
+          .insert({
+            flow_id: flowId,
+            user_id: flowData?.user_id,
+            type: step.type,
+            title: step.title,
+            config: step.config,
+            position: step.position,
+            position_x: step.position_x,
+            position_y: step.position_y,
+          })
+          .select("id")
+          .maybeSingle();
+        if (created) idMap.set(step.key, created.id);
+      }
+
+      // 4. Insere as novas conexões vinculando o menu aos nós PIX correspondentes
+      const rows = compiled.connections
+        .map((c) => ({
+          user_id: flowData?.user_id,
+          flow_id: flowId,
+          source_step_id: idMap.get(c.source) ?? null,
+          target_step_id: idMap.get(c.target) ?? null,
+          source_handle: c.sourceHandle ?? null,
+          label: c.label ?? null,
+        }))
+        .filter((c): c is typeof c & { source_step_id: string; target_step_id: string } =>
+          Boolean(c.source_step_id && c.target_step_id),
+        );
+
+      if (rows.length > 0) {
+        await supabase.from("flow_connections").insert(rows);
+      }
+
+      // 5. Salva o fluxo como ATIVO e sincroniza com o bot
       const { error } = await supabase
         .from("flows")
         .update({
           simple_config: config as never,
           mode: "simple",
+          status: "active",
+          is_active: true,
           ...(selectedBotId ? { bot_id: selectedBotId } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq("id", flowId);
 
       if (error) throw error;
-      toast.success("Fluxo salvo com sucesso!");
+
+      // 6. Desativa outros fluxos do mesmo bot para evitar conflito de execução
+      if (selectedBotId) {
+        await supabase
+          .from("flows")
+          .update({ status: "draft", is_active: false })
+          .eq("bot_id", selectedBotId)
+          .neq("id", flowId);
+
+        await supabase
+          .from("bots")
+          .update({ status: "active" })
+          .eq("id", selectedBotId);
+      }
+
+      toast.success("Fluxo salvo e sincronizado com o Telegram com sucesso!");
     } catch (e) {
       console.error("Erro ao salvar fluxo:", e);
       toast.error(e instanceof Error ? e.message : "Erro ao salvar alterações");
@@ -609,20 +673,20 @@ export function AdvancedFlowEditorPage() {
             </div>
           )}
 
-          {/* ABA DOWNSELL */}
+          {/* ABA DOWNSELL - 2 ÁREAS SEPARADAS */}
           {activeTab === "downsell" && (
-            <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
+            <div className="space-y-8 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
               <div className="flex items-center justify-between border-b border-border/60 pb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <TrendingDown className="size-5 text-amber-400" /> Sequências de Downsell
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <TrendingDown className="size-5 text-amber-400" /> Estratégia de Downsell (Até 20 Sequências)
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Recupere vendas com ofertas alternativas caso o lead não compre
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Recupere leads perdidos com ofertas alternativas divididas por momento de abandono.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Ativar Downsell</span>
+                  <span className="text-xs text-muted-foreground">Ativar Downsell Geral</span>
                   <Switch
                     checked={config.downsell.enabled}
                     onCheckedChange={(checked) =>
@@ -632,128 +696,451 @@ export function AdvancedFlowEditorPage() {
                 </div>
               </div>
 
-              {config.downsell.sequences.map((seq) => (
-                <div key={seq.id} className="space-y-5 rounded-xl border border-border bg-surface/50 p-5">
-                  <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                    <span className="font-semibold text-sm text-foreground">{seq.title}</span>
+              {/* ÁREA 1: DOWNSELL DE INÍCIO (/START SEM GERAR PIX) */}
+              <div className="space-y-5 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-5 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
+                  <div>
                     <div className="flex items-center gap-2">
-                      <Label className="text-xs">Disparar após:</Label>
-                      <Input
-                        type="number"
-                        className="w-20 h-8 text-xs"
-                        value={seq.delayValue}
-                        onChange={(e) => {
-                          const updated = config.downsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, delayValue: Number(e.target.value) } : s
-                          );
-                          setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                        }}
-                      />
-                      <span className="text-xs text-muted-foreground">minutos</span>
+                      <span className="flex size-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold">
+                        1
+                      </span>
+                      <h3 className="font-bold text-base text-amber-200">
+                        Área 1: Downsell de Início (/start sem gerar PIX)
+                      </h3>
+                      <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-[10px]">
+                        {config.downsell.startSequences?.length ?? 0}/20
+                      </Badge>
                     </div>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Disparado quando o lead deu /start, visualizou a mensagem e os planos, mas NÃO clicou em gerar PIX.
+                    </p>
                   </div>
 
-                  <FlowMediaUploader
-                    media={seq.media}
-                    mode={seq.mediaMode}
-                    onChange={(items) => {
-                      const updated = config.downsell.sequences.map((s) =>
-                        s.id === seq.id ? { ...s, media: items } : s
-                      );
-                      setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
+                  <Button
+                    size="sm"
+                    disabled={(config.downsell.startSequences?.length ?? 0) >= 20}
+                    onClick={() => {
+                      const current = config.downsell.startSequences ?? [];
+                      if (current.length >= 20) return toast.error("Limite máximo de 20 sequências atingido.");
+                      const newSeq: SequenceStep = {
+                        id: `down-start-${Date.now()}`,
+                        title: `Downsell /start #${current.length + 1}`,
+                        enabled: true,
+                        triggerType: "start",
+                        delayValue: 15 * (current.length + 1),
+                        delayUnit: "minutes",
+                        targetBots: ["all"],
+                        media: [],
+                        mediaMode: "separated",
+                        message: "Ainda está por aí? Preparei uma condição imperdível para você entrar hoje mesmo!",
+                        discountType: "fixed",
+                        discountValue: 5,
+                        plans: [
+                          {
+                            id: `p-start-${Date.now()}`,
+                            name: "PLANO PROMOCIONAL START",
+                            duration: "Vitalício",
+                            originalPrice: 12.99,
+                            discountPrice: 8.99,
+                          },
+                        ],
+                      };
+                      const updated = [...current, newSeq];
+                      setConfig({
+                        ...config,
+                        downsell: {
+                          ...config.downsell,
+                          startSequences: updated,
+                          sequences: [...updated, ...(config.downsell.pixSequences ?? [])],
+                        },
+                      });
+                      toast.success(`Sequência de /start adicionada (${updated.length}/20)`);
                     }}
-                    maxItems={3}
-                  />
-
-                  {/* Seleção de Bots */}
-                  <div className="space-y-2">
-                    <Label className="text-xs">Quais bots enviarão este Downsell?</Label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={seq.targetBots.includes("all") ? "default" : "outline"}
-                        onClick={() => {
-                          const updated = config.downsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, targetBots: ["all"] } : s
-                          );
-                          setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                        }}
-                      >
-                        Todos os bots
-                      </Button>
-                      {userBots.map((b) => (
-                        <Button
-                          key={b.id}
-                          type="button"
-                          size="sm"
-                          variant={seq.targetBots.includes(b.id) ? "secondary" : "outline"}
-                          onClick={() => {
-                            const next = seq.targetBots.includes(b.id)
-                              ? seq.targetBots.filter((id) => id !== b.id)
-                              : [...seq.targetBots.filter((id) => id !== "all"), b.id];
-                            const updated = config.downsell.sequences.map((s) =>
-                              s.id === seq.id ? { ...s, targetBots: next.length ? next : ["all"] } : s
-                            );
-                            setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                          }}
-                        >
-                          {b.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Mensagem de Recuperação *</Label>
-                    <Textarea
-                      rows={4}
-                      value={seq.message}
-                      onChange={(e) => {
-                        const updated = config.downsell.sequences.map((s) =>
-                          s.id === seq.id ? { ...s, message: e.target.value } : s
-                        );
-                        setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                      }}
-                      placeholder="Preparei um valor menor para você aproveitar hoje..."
-                    />
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2 bg-black/30 p-4 rounded-xl border border-border/60">
-                    <div>
-                      <Label className="text-xs">Nome do Plano Reduzido</Label>
-                      <Input
-                        value={seq.plans[0]?.name || ""}
-                        onChange={(e) => {
-                          const currentPlans = [...seq.plans];
-                          if (currentPlans[0]) currentPlans[0].name = e.target.value;
-                          const updated = config.downsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans: currentPlans } : s
-                          );
-                          setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Preço Reduzido (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={seq.plans[0]?.discountPrice || 0}
-                        onChange={(e) => {
-                          const currentPlans = [...seq.plans];
-                          if (currentPlans[0]) currentPlans[0].discountPrice = Number(e.target.value);
-                          const updated = config.downsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans: currentPlans } : s
-                          );
-                          setConfig({ ...config, downsell: { ...config.downsell, sequences: updated } });
-                        }}
-                      />
-                    </div>
-                  </div>
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
+                  >
+                    <Plus className="size-3.5 mr-1.5" /> Adicionar Sequência ({config.downsell.startSequences?.length ?? 0}/20)
+                  </Button>
                 </div>
-              ))}
+
+                {(config.downsell.startSequences ?? []).length === 0 ? (
+                  <p className="text-center py-6 text-zinc-500 text-xs">
+                    Nenhuma sequência de início configurada. Clique em Adicionar Sequência acima.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {(config.downsell.startSequences ?? []).map((seq, index) => (
+                      <div key={seq.id} className="space-y-4 rounded-xl border border-white/10 bg-black/40 p-5">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-amber-300">#{index + 1} {seq.title}</span>
+                            <Switch
+                              checked={seq.enabled}
+                              onCheckedChange={(checked) => {
+                                const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, enabled: checked } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, startSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs text-zinc-400">Disparar após:</Label>
+                              <Input
+                                type="number"
+                                className="w-16 h-8 text-xs bg-zinc-900 border-white/10"
+                                value={seq.delayValue}
+                                onChange={(e) => {
+                                  const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                    s.id === seq.id ? { ...s, delayValue: Number(e.target.value) } : s
+                                  );
+                                  setConfig({
+                                    ...config,
+                                    downsell: { ...config.downsell, startSequences: updated },
+                                  });
+                                }}
+                              />
+                              <select
+                                className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+                                value={seq.delayUnit}
+                                onChange={(e) => {
+                                  const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                    s.id === seq.id ? { ...s, delayUnit: e.target.value as any } : s
+                                  );
+                                  setConfig({
+                                    ...config,
+                                    downsell: { ...config.downsell, startSequences: updated },
+                                  });
+                                }}
+                              >
+                                <option value="minutes">minutos</option>
+                                <option value="hours">horas</option>
+                                <option value="days">dias</option>
+                              </select>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 text-zinc-500 hover:text-red-400"
+                              onClick={() => {
+                                const updated = (config.downsell.startSequences ?? []).filter((s) => s.id !== seq.id);
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, startSequences: updated },
+                                });
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <FlowMediaUploader
+                          media={seq.media}
+                          mode={seq.mediaMode}
+                          onChange={(items) => {
+                            const updated = (config.downsell.startSequences ?? []).map((s) =>
+                              s.id === seq.id ? { ...s, media: items } : s
+                            );
+                            setConfig({
+                              ...config,
+                              downsell: { ...config.downsell, startSequences: updated },
+                            });
+                          }}
+                          maxItems={3}
+                        />
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-zinc-300">Mensagem da Oferta</Label>
+                          <Textarea
+                            rows={3}
+                            value={seq.message}
+                            onChange={(e) => {
+                              const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                s.id === seq.id ? { ...s, message: e.target.value } : s
+                              );
+                              setConfig({
+                                ...config,
+                                downsell: { ...config.downsell, startSequences: updated },
+                              });
+                            }}
+                            className="bg-zinc-900 border-white/10 text-white placeholder:text-zinc-600"
+                            placeholder="Copy persuasiva de downsell..."
+                          />
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 bg-zinc-900/60 p-3 rounded-xl border border-white/5">
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Nome do Plano com Desconto</Label>
+                            <Input
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white"
+                              value={seq.plans[0]?.name || ""}
+                              onChange={(e) => {
+                                const plans = [...seq.plans];
+                                if (plans[0]) plans[0].name = e.target.value;
+                                const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, startSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Preço com Desconto (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white font-bold text-amber-400"
+                              value={seq.plans[0]?.discountPrice || 0}
+                              onChange={(e) => {
+                                const plans = [...seq.plans];
+                                if (plans[0]) plans[0].discountPrice = Number(e.target.value);
+                                const updated = (config.downsell.startSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, startSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ÁREA 2: DOWNSELL DE PIX PENDENTE (PIX GERADO SEM PAGAMENTO) */}
+              <div className="space-y-5 rounded-2xl border border-red-500/30 bg-red-950/10 p-5 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-red-500/20 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-6 items-center justify-center rounded-lg bg-red-500/20 text-red-400 text-xs font-bold">
+                        2
+                      </span>
+                      <h3 className="font-bold text-base text-red-200">
+                        Área 2: Downsell de PIX Pendente (PIX Gerado sem Pagamento)
+                      </h3>
+                      <Badge variant="outline" className="border-red-500/40 text-red-400 text-[10px]">
+                        {config.downsell.pixSequences?.length ?? 0}/20
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Disparado quando o lead escolheu o plano e gerou a chave PIX, mas NÃO efetuou o pagamento.
+                    </p>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    disabled={(config.downsell.pixSequences?.length ?? 0) >= 20}
+                    onClick={() => {
+                      const current = config.downsell.pixSequences ?? [];
+                      if (current.length >= 20) return toast.error("Limite máximo de 20 sequências atingido.");
+                      const newSeq: SequenceStep = {
+                        id: `down-pix-${Date.now()}`,
+                        title: `Downsell PIX Pendente #${current.length + 1}`,
+                        enabled: true,
+                        triggerType: "pix_pending",
+                        delayValue: 30 * (current.length + 1),
+                        delayUnit: "minutes",
+                        targetBots: ["all"],
+                        media: [],
+                        mediaMode: "separated",
+                        message: "Notamos que seu PIX está quase expirando! Para liberar seu acesso agora, reduzi para este valor especial:",
+                        discountType: "fixed",
+                        discountValue: 5,
+                        plans: [
+                          {
+                            id: `p-pix-${Date.now()}`,
+                            name: "PIX COM SUPER DESCONTO",
+                            duration: "Vitalício",
+                            originalPrice: 12.99,
+                            discountPrice: 7.99,
+                          },
+                        ],
+                      };
+                      const updated = [...current, newSeq];
+                      setConfig({
+                        ...config,
+                        downsell: {
+                          ...config.downsell,
+                          pixSequences: updated,
+                          sequences: [...(config.downsell.startSequences ?? []), ...updated],
+                        },
+                      });
+                      toast.success(`Sequência de PIX Pendente adicionada (${updated.length}/20)`);
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
+                  >
+                    <Plus className="size-3.5 mr-1.5" /> Adicionar Sequência ({config.downsell.pixSequences?.length ?? 0}/20)
+                  </Button>
+                </div>
+
+                {(config.downsell.pixSequences ?? []).length === 0 ? (
+                  <p className="text-center py-6 text-zinc-500 text-xs">
+                    Nenhuma sequência de PIX Pendente configurada. Clique em Adicionar Sequência acima.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {(config.downsell.pixSequences ?? []).map((seq, index) => (
+                      <div key={seq.id} className="space-y-4 rounded-xl border border-white/10 bg-black/40 p-5">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-red-300">#{index + 1} {seq.title}</span>
+                            <Switch
+                              checked={seq.enabled}
+                              onCheckedChange={(checked) => {
+                                const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, enabled: checked } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, pixSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs text-zinc-400">Disparar após:</Label>
+                              <Input
+                                type="number"
+                                className="w-16 h-8 text-xs bg-zinc-900 border-white/10"
+                                value={seq.delayValue}
+                                onChange={(e) => {
+                                  const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                    s.id === seq.id ? { ...s, delayValue: Number(e.target.value) } : s
+                                  );
+                                  setConfig({
+                                    ...config,
+                                    downsell: { ...config.downsell, pixSequences: updated },
+                                  });
+                                }}
+                              />
+                              <select
+                                className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+                                value={seq.delayUnit}
+                                onChange={(e) => {
+                                  const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                    s.id === seq.id ? { ...s, delayUnit: e.target.value as any } : s
+                                  );
+                                  setConfig({
+                                    ...config,
+                                    downsell: { ...config.downsell, pixSequences: updated },
+                                  });
+                                }}
+                              >
+                                <option value="minutes">minutos</option>
+                                <option value="hours">horas</option>
+                                <option value="days">dias</option>
+                              </select>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 text-zinc-500 hover:text-red-400"
+                              onClick={() => {
+                                const updated = (config.downsell.pixSequences ?? []).filter((s) => s.id !== seq.id);
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, pixSequences: updated },
+                                });
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <FlowMediaUploader
+                          media={seq.media}
+                          mode={seq.mediaMode}
+                          onChange={(items) => {
+                            const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                              s.id === seq.id ? { ...s, media: items } : s
+                            );
+                            setConfig({
+                              ...config,
+                              downsell: { ...config.downsell, pixSequences: updated },
+                            });
+                          }}
+                          maxItems={3}
+                        />
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-zinc-300">Mensagem de Recuperação do PIX</Label>
+                          <Textarea
+                            rows={3}
+                            value={seq.message}
+                            onChange={(e) => {
+                              const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                s.id === seq.id ? { ...s, message: e.target.value } : s
+                              );
+                              setConfig({
+                                ...config,
+                                downsell: { ...config.downsell, pixSequences: updated },
+                              });
+                            }}
+                            className="bg-zinc-900 border-white/10 text-white placeholder:text-zinc-600"
+                            placeholder="Seu PIX está vencendo..."
+                          />
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 bg-zinc-900/60 p-3 rounded-xl border border-white/5">
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Nome do Plano Promocional</Label>
+                            <Input
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white"
+                              value={seq.plans[0]?.name || ""}
+                              onChange={(e) => {
+                                const plans = [...seq.plans];
+                                if (plans[0]) plans[0].name = e.target.value;
+                                const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, pixSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Preço com Desconto Especial (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white font-bold text-red-400"
+                              value={seq.plans[0]?.discountPrice || 0}
+                              onChange={(e) => {
+                                const plans = [...seq.plans];
+                                if (plans[0]) plans[0].discountPrice = Number(e.target.value);
+                                const updated = (config.downsell.pixSequences ?? []).map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  downsell: { ...config.downsell, pixSequences: updated },
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+          )}
           )}
 
           {/* ABA ORDER BUMP */}
@@ -838,17 +1225,17 @@ export function AdvancedFlowEditorPage() {
           {/* ABA REMARKETING */}
           {activeTab === "remarketing" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
-              <div className="flex items-center justify-between border-b border-border/60 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Clock className="size-5 text-indigo-400" /> Campanhas de Remarketing
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <Clock className="size-5 text-red-500" /> Área Exclusiva de Remarketing
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Envie mensagens automáticas para leads com PIX pendente ou abandonados
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Configure mensagens automáticas de recuperação periódicas com mídias, ofertas e copys.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Ativar Remarketing</span>
+                  <span className="text-xs text-muted-foreground">Ativar Campanha</span>
                   <Switch
                     checked={config.remarketing.enabled}
                     onCheckedChange={(checked) =>
@@ -861,49 +1248,119 @@ export function AdvancedFlowEditorPage() {
                 </div>
               </div>
 
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const newSeq: SequenceStep = {
-                    id: `seq-rem-${Date.now()}`,
-                    title: `Disparo #${config.remarketing.sequences.length + 1}`,
-                    enabled: true,
-                    delayValue: 30,
-                    delayUnit: "minutes",
-                    targetBots: ["all"],
-                    media: [],
-                    mediaMode: "separated",
-                    message: "Olá! Notei que você não concluiu seu acesso. Quer ajuda?",
-                    discountType: "none",
-                    discountValue: 0,
-                    plans: [],
-                  };
-                  setConfig({
-                    ...config,
-                    remarketing: {
-                      ...config.remarketing,
-                      sequences: [...config.remarketing.sequences, newSeq],
-                    },
-                  });
-                }}
-              >
-                <Plus className="size-4 mr-1" /> Adicionar Disparo de Remarketing
-              </Button>
+              {/* Painel de Configurações Gerais do Remarketing */}
+              <div className="grid gap-4 sm:grid-cols-2 bg-black/40 p-5 rounded-2xl border border-white/10">
+                <div className="space-y-2">
+                  <Label className="text-xs text-zinc-300 font-semibold">
+                    Frequência do Disparo Automático
+                  </Label>
+                  <select
+                    className="w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+                    value={config.remarketing.intervalHours ?? 3}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        remarketing: { ...config.remarketing, intervalHours: Number(e.target.value) },
+                      })
+                    }
+                  >
+                    <option value={1}>A cada 1 hora</option>
+                    <option value={2}>A cada 2 horas</option>
+                    <option value={3}>A cada 3 horas (Recomendado)</option>
+                    <option value={6}>A cada 6 horas</option>
+                    <option value={12}>A cada 12 horas</option>
+                    <option value={24}>A cada 24 horas (Diário)</option>
+                  </select>
+                  <p className="text-[11px] text-zinc-500">
+                    O sistema disparará automaticamente no intervalo selecionado para os leads elegíveis.
+                  </p>
+                </div>
 
-              {config.remarketing.sequences.map((seq) => (
-                <div key={seq.id} className="space-y-5 rounded-xl border border-border bg-surface/50 p-5">
-                  <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                    <span className="font-semibold text-sm text-foreground">{seq.title}</span>
+                <div className="space-y-2">
+                  <Label className="text-xs text-zinc-300 font-semibold">
+                    Bot do Fluxo Destinado à Campanha
+                  </Label>
+                  <select
+                    className="w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+                    value={config.remarketing.targetBotId || "all"}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        remarketing: { ...config.remarketing, targetBotId: e.target.value },
+                      })
+                    }
+                  >
+                    <option value="all">Bot Principal do Fluxo</option>
+                    {userBots.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name} (@{b.username || "bot"})
+                      </SelectItem>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-zinc-500">
+                    O bot que executará o disparo do remarketing para os leads.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <h3 className="font-bold text-white text-base">Mensagens & Ofertas de Remarketing</h3>
+                  <p className="text-xs text-zinc-400">
+                    Personalize as copys, mídias enviadas do computador e planos com desconto.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const current = config.remarketing.sequences ?? [];
+                    const newSeq: SequenceStep = {
+                      id: `seq-rem-${Date.now()}`,
+                      title: `Disparo de Remarketing #${current.length + 1}`,
+                      enabled: true,
+                      delayValue: 3,
+                      delayUnit: "hours",
+                      targetBots: ["all"],
+                      media: [],
+                      mediaMode: "separated",
+                      message: "Última chamada! Notamos que você ainda não finalizou seu acesso VIP. Preparei um cupom especial para você:",
+                      discountType: "fixed",
+                      discountValue: 5,
+                      plans: [
+                        {
+                          id: `rem-p-${Date.now()}`,
+                          name: "ACESSO VIP REMARKETING",
+                          duration: "Vitalício",
+                          originalPrice: 12.99,
+                          discountPrice: 8.99,
+                        },
+                      ],
+                    };
+                    setConfig({
+                      ...config,
+                      remarketing: {
+                        ...config.remarketing,
+                        sequences: [...current, newSeq],
+                      },
+                    });
+                    toast.success("Nova etapa de remarketing criada!");
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
+                >
+                  <Plus className="size-4 mr-1.5" /> Adicionar Mensagem de Remarketing
+                </Button>
+              </div>
+
+              {(config.remarketing.sequences ?? []).map((seq, idx) => (
+                <div key={seq.id} className="space-y-4 rounded-2xl border border-white/10 bg-black/40 p-5 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <div className="flex items-center gap-2">
-                      <Label className="text-xs">Enviar após:</Label>
-                      <Input
-                        type="number"
-                        className="w-20 h-8 text-xs"
-                        value={seq.delayValue}
-                        onChange={(e) => {
+                      <span className="font-bold text-sm text-red-400">#{idx + 1} {seq.title}</span>
+                      <Switch
+                        checked={seq.enabled}
+                        onCheckedChange={(checked) => {
                           const updated = config.remarketing.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, delayValue: Number(e.target.value) } : s
+                            s.id === seq.id ? { ...s, enabled: checked } : s
                           );
                           setConfig({
                             ...config,
@@ -911,90 +1368,45 @@ export function AdvancedFlowEditorPage() {
                           });
                         }}
                       />
-                      <select
-                        className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-foreground"
-                        value={seq.delayUnit}
-                        onChange={(e) => {
-                          const updated = config.remarketing.sequences.map((s) =>
-                            s.id === seq.id
-                              ? { ...s, delayUnit: e.target.value as SequenceStep["delayUnit"] }
-                              : s
-                          );
-                          setConfig({
-                            ...config,
-                            remarketing: { ...config.remarketing, sequences: updated },
-                          });
-                        }}
-                      >
-                        <option value="minutes">Minutos</option>
-                        <option value="hours">Horas</option>
-                        <option value="days">Dias</option>
-                      </select>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 text-zinc-500 hover:text-red-400"
+                      onClick={() => {
+                        const updated = config.remarketing.sequences.filter((s) => s.id !== seq.id);
+                        setConfig({
+                          ...config,
+                          remarketing: { ...config.remarketing, sequences: updated },
+                        });
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
 
-                  <FlowMediaUploader
-                    media={seq.media}
-                    mode={seq.mediaMode}
-                    onChange={(items) => {
-                      const updated = config.remarketing.sequences.map((s) =>
-                        s.id === seq.id ? { ...s, media: items } : s
-                      );
-                      setConfig({
-                        ...config,
-                        remarketing: { ...config.remarketing, sequences: updated },
-                      });
-                    }}
-                    maxItems={3}
-                  />
-
-                  {/* Seleção de Bots de Remarketing */}
-                  <div className="space-y-2">
-                    <Label className="text-xs">Quais bots enviarão este Remarketing?</Label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={seq.targetBots.includes("all") ? "default" : "outline"}
-                        onClick={() => {
-                          const updated = config.remarketing.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, targetBots: ["all"] } : s
-                          );
-                          setConfig({
-                            ...config,
-                            remarketing: { ...config.remarketing, sequences: updated },
-                          });
-                        }}
-                      >
-                        Todos os bots
-                      </Button>
-                      {userBots.map((b) => (
-                        <Button
-                          key={b.id}
-                          type="button"
-                          size="sm"
-                          variant={seq.targetBots.includes(b.id) ? "secondary" : "outline"}
-                          onClick={() => {
-                            const next = seq.targetBots.includes(b.id)
-                              ? seq.targetBots.filter((id) => id !== b.id)
-                              : [...seq.targetBots.filter((id) => id !== "all"), b.id];
-                            const updated = config.remarketing.sequences.map((s) =>
-                              s.id === seq.id ? { ...s, targetBots: next.length ? next : ["all"] } : s
-                            );
-                            setConfig({
-                              ...config,
-                              remarketing: { ...config.remarketing, sequences: updated },
-                            });
-                          }}
-                        >
-                          {b.name}
-                        </Button>
-                      ))}
-                    </div>
+                  {/* Upload Direto de Mídias */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-zinc-300">Mídias do Disparo (Fotos/Vídeos do Computador)</Label>
+                    <FlowMediaUploader
+                      media={seq.media}
+                      mode={seq.mediaMode}
+                      onChange={(items) => {
+                        const updated = config.remarketing.sequences.map((s) =>
+                          s.id === seq.id ? { ...s, media: items } : s
+                        );
+                        setConfig({
+                          ...config,
+                          remarketing: { ...config.remarketing, sequences: updated },
+                        });
+                      }}
+                      maxItems={3}
+                    />
                   </div>
 
+                  {/* Copy Persuasiva */}
                   <div className="space-y-2">
-                    <Label className="text-xs">Mensagem do Disparo *</Label>
+                    <Label className="text-xs text-zinc-300 font-semibold">Copy / Mensagem Persuasiva *</Label>
                     <Textarea
                       rows={4}
                       value={seq.message}
@@ -1007,12 +1419,58 @@ export function AdvancedFlowEditorPage() {
                           remarketing: { ...config.remarketing, sequences: updated },
                         });
                       }}
-                      placeholder="Mensagem de persuasão para o lead finalizar..."
+                      className="bg-zinc-900 border-white/10 text-white placeholder:text-zinc-600"
+                      placeholder="Olá! Seu acesso está reservado com preço especial exclusivo..."
                     />
+                  </div>
+
+                  {/* Oferta / Plano de Remarketing */}
+                  <div className="grid gap-3 sm:grid-cols-2 bg-zinc-900/60 p-3.5 rounded-xl border border-white/5">
+                    <div>
+                      <Label className="text-[11px] text-zinc-400">Nome do Plano de Remarketing</Label>
+                      <Input
+                        className="h-8 text-xs bg-black/50 border-white/10 text-white"
+                        value={seq.plans?.[0]?.name || ""}
+                        onChange={(e) => {
+                          const plans = [...(seq.plans ?? [{ id: "p1", name: "", duration: "Vitalício", originalPrice: 0, discountPrice: 0 }])];
+                          if (plans[0]) plans[0].name = e.target.value;
+                          const updated = config.remarketing.sequences.map((s) =>
+                            s.id === seq.id ? { ...s, plans } : s
+                          );
+                          setConfig({
+                            ...config,
+                            remarketing: { ...config.remarketing, sequences: updated },
+                          });
+                        }}
+                        placeholder="EX: PLANO RETOMADA VIP"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-zinc-400">Preço com Desconto (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs bg-black/50 border-white/10 text-white font-bold text-red-400"
+                        value={seq.plans?.[0]?.discountPrice || 0}
+                        onChange={(e) => {
+                          const plans = [...(seq.plans ?? [{ id: "p1", name: "", duration: "Vitalício", originalPrice: 0, discountPrice: 0 }])];
+                          if (plans[0]) plans[0].discountPrice = Number(e.target.value);
+                          const updated = config.remarketing.sequences.map((s) =>
+                            s.id === seq.id ? { ...s, plans } : s
+                          );
+                          setConfig({
+                            ...config,
+                            remarketing: { ...config.remarketing, sequences: updated },
+                          });
+                        }}
+                        placeholder="9.90"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+          )}
           )}
 
           {/* ABA PAGAMENTOS */}
