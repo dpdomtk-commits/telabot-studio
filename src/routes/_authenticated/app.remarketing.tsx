@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -34,12 +34,12 @@ import { normalizeAdvancedConfig } from "@/lib/flow-advanced";
 export const Route = createFileRoute("/_authenticated/app/remarketing")({
   head: () => ({
     meta: [
-      { title: "Remarketing | CASH BOT" },
+      { title: "Remarketing | Chef Bot" },
       {
         name: "description",
         content: "Recupere vendas de leads com PIX pendente ou carrinho abandonado via Telegram.",
       },
-      { property: "og:title", content: "Remarketing | CASH BOT" },
+      { property: "og:title", content: "Remarketing | Chef Bot" },
       { property: "og:description", content: "Campanhas de remarketing automatizadas para seus bots no Telegram." },
     ],
   }),

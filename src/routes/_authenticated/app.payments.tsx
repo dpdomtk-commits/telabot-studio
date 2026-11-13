@@ -18,9 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const Route = createFileRoute("/_authenticated/app/payments")({
   head: () => ({
     meta: [
-      { title: "Pagamentos | CASH BOT" },
+      { title: "Pagamentos | Chef Bot" },
       { name: "description", content: "Acompanhe cobranças PIX, situação e receita gerada pelos seus bots." },
-      { property: "og:title", content: "Pagamentos | CASH BOT" },
+      { property: "og:title", content: "Pagamentos | Chef Bot" },
       { property: "og:description", content: "Acompanhe cobranças PIX e receita gerada pelos seus bots." },
     ],
   }),

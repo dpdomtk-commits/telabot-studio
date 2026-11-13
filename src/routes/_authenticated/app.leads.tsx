@@ -18,9 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const Route = createFileRoute("/_authenticated/app/leads")({
   head: () => ({
     meta: [
-      { title: "Leads | CASH BOT" },
+      { title: "Leads | Chef Bot" },
       { name: "description", content: "Todos os contatos capturados pelos seus bots do Telegram." },
-      { property: "og:title", content: "Leads | CASH BOT" },
+      { property: "og:title", content: "Leads | Chef Bot" },
       { property: "og:description", content: "Todos os contatos capturados pelos seus bots." },
     ],
   }),

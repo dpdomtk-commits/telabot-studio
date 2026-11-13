@@ -20,7 +20,7 @@ export async function getFinanceSettings(): Promise<FinanceSettings> {
     min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
     provider: data?.provider ?? "internal",
     pix_receiver_key: data?.pix_receiver_key ?? null,
-    pix_receiver_name: data?.pix_receiver_name ?? "CASH BOT",
+    pix_receiver_name: data?.pix_receiver_name ?? "Chef Bot",
     pix_receiver_city: data?.pix_receiver_city ?? "SAO PAULO",
   };
 }

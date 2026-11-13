@@ -18,9 +18,9 @@ import { testMediaCache } from "@/lib/media.functions";
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
     meta: [
-      { title: "Configurações | CASH BOT" },
+      { title: "Configurações | Chef Bot" },
       { name: "description", content: "Atualize seu nome, e-mail, foto de perfil e senha de acesso." },
-      { property: "og:title", content: "Configurações | CASH BOT" },
+      { property: "og:title", content: "Configurações | Chef Bot" },
       { property: "og:description", content: "Atualize seu nome, e-mail, foto e senha." },
     ],
   }),

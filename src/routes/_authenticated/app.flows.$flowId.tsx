@@ -36,12 +36,12 @@ import { MediaPicker } from "@/components/app/MediaPicker";
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId")({
   head: () => ({
     meta: [
-      { title: "Editor de fluxo | CASH BOT" },
+      { title: "Editor de fluxo | Chef Bot" },
       {
         name: "description",
         content: "Editor visual de fluxos: arraste nós de mensagem, PIX, assinatura e acesso VIP e conecte a jornada.",
       },
-      { property: "og:title", content: "Editor de fluxo | CASH BOT" },
+      { property: "og:title", content: "Editor de fluxo | Chef Bot" },
       { property: "og:description", content: "Editor visual de fluxos para bots do Telegram." },
     ],
   }),
@@ -293,7 +293,7 @@ function FlowEditorPage() {
                           key={item.type}
                           type="button"
                           draggable
-                          onDragStart={(e) => e.dataTransfer.setData("application/CASH BOT-node", item.type)}
+                          onDragStart={(e) => e.dataTransfer.setData("application/Chef Bot-node", item.type)}
                           onClick={() => addNode(item.type)}
                           className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2 text-left text-sm transition-colors hover:border-primary/60 hover:bg-secondary"
                         >
@@ -324,7 +324,7 @@ function FlowEditorPage() {
             }}
             onDrop={(e) => {
               e.preventDefault();
-              const type = e.dataTransfer.getData("application/CASH BOT-node");
+              const type = e.dataTransfer.getData("application/Chef Bot-node");
               if (type) addNode(type, { x: e.clientX, y: e.clientY });
             }}
             fitView

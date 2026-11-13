@@ -30,13 +30,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/admin-finance")({
   head: () => ({
     meta: [
-      { title: "Financeiro admin | CASH BOT" },
+      { title: "Financeiro admin | Chef Bot" },
       {
         name: "description",
         content: "Gestão da gateway interna: saldos, cobranças, saques e taxas da plataforma.",
       },
-      { property: "og:title", content: "Financeiro admin | CASH BOT" },
-      { property: "og:description", content: "Gestão da gateway interna do CASH BOT." },
+      { property: "og:title", content: "Financeiro admin | Chef Bot" },
+      { property: "og:description", content: "Gestão da gateway interna do Chef Bot." },
     ],
   }),
   component: AdminFinancePage,
@@ -390,7 +390,7 @@ function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => 
     withdrawal: String((settings?.withdrawal_fee_cents ?? 500) / 100),
     min: String((settings?.min_withdrawal_cents ?? 1000) / 100),
     key: settings?.pix_receiver_key ?? "",
-    name: settings?.pix_receiver_name ?? "CASH BOT",
+    name: settings?.pix_receiver_name ?? "Chef Bot",
     city: settings?.pix_receiver_city ?? "SAO PAULO",
   });
 

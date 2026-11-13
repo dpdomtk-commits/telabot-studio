@@ -14,9 +14,9 @@ import type { MediaKind } from "@/lib/media";
 export const Route = createFileRoute("/_authenticated/app/media")({
   head: () => ({
     meta: [
-      { title: "Mídias | CASH BOT" },
+      { title: "Mídias | Chef Bot" },
       { name: "description", content: "Biblioteca de mídias em cache no Telegram: imagens, vídeos, áudios e documentos." },
-      { property: "og:title", content: "Mídias | CASH BOT" },
+      { property: "og:title", content: "Mídias | Chef Bot" },
       { property: "og:description", content: "Envie arquivos e use-os nos fluxos sem depender de URLs externas." },
     ],
   }),

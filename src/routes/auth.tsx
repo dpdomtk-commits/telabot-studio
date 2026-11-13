@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -199,7 +199,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 text-center text-xs text-zinc-500">
-          © {new Date().getFullYear()} CASH BOT — Sistema de Automação Telegram
+          © {new Date().getFullYear()} Chef Bot — Sistema de Automação Telegram
         </div>
       </div>
     </div>

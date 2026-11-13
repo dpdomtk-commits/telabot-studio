@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bot, GitBranch, Users, CreditCard, ShieldCheck, Zap, Crown, Flame, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -203,21 +203,21 @@ export function ChefBotLanding() {
             Pronto para colocar seus bots no piloto automático?
           </h2>
           <p className="text-zinc-400 text-base max-w-xl mx-auto">
-            Crie sua conta agora no CASH BOT e suba seus primeiros fluxos em poucos minutos.
+            Crie sua conta agora no Chef Bot e suba seus primeiros fluxos em poucos minutos.
           </p>
           <Button
             asChild
             size="lg"
             className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-10 py-6 h-auto shadow-xl shadow-red-600/30 text-lg"
           >
-            <Link to="/auth">Criar conta no CASH BOT</Link>
+            <Link to="/auth">Criar conta no Chef Bot</Link>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-500">
-        © {new Date().getFullYear()} CASH BOT — Todos os direitos reservados.
+        © {new Date().getFullYear()} Chef Bot — Todos os direitos reservados.
       </footer>
     </div>
   );
