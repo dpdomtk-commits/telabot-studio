@@ -708,24 +708,46 @@ export function AdvancedFlowEditorPage() {
                   </div>
                 )}
 
-                {/* Live Preview no estilo Telegram */}
-                <div className="pt-2 border-t border-white/5">
-                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                    Prévia da Apresentação no Telegram ({bilingualTab === "pt" ? "Português" : "English"}):
-                  </p>
-                  <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
-                    <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
-                      {bilingualTab === "pt"
-                        ? (config.welcome.messagePt || config.welcome.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP.")
-                        : (config.welcome.messageEn || "Hello! Welcome to our VIP service.")}
+                  {/* Live Preview no estilo Telegram */}
+                  <div className="pt-2 border-t border-white/5">
+                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                      Prévia no Telegram ao selecionar {bilingualTab === "pt" ? "Português 🇧🇷" : "English 🇺🇸"}:
                     </p>
-                    <div className="w-full py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#2072b4] text-white text-center font-bold text-xs shadow cursor-pointer transition">
-                      {bilingualTab === "pt"
-                        ? (config.welcome.ctaPt || "💎 Ver Planos")
-                        : (config.welcome.ctaEn || "💎 View Plans")}
+                    <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
+                      <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
+                        {bilingualTab === "pt"
+                          ? (config.welcome.messagePt || config.welcome.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP! Escolha seu plano abaixo:")
+                          : (config.welcome.messageEn || "Hello! Welcome to our VIP service. Please choose your preferred currency below to view our plans:")}
+                      </p>
+
+                      {bilingualTab === "pt" ? (
+                        /* Em Português: Todos os planos diretamente abaixo da copy */
+                        <div className="space-y-1.5">
+                          {config.plans.items.slice(0, 3).map((p, idx) => (
+                            <div
+                              key={p.id}
+                              className="w-full py-2 rounded-xl bg-[#2481cc] hover:bg-[#2072b4] text-white text-center font-bold text-xs shadow cursor-pointer transition truncate px-2"
+                            >
+                              {p.buttonText?.trim() || `${p.emoji || "💎"} ${p.name} por R$ ${Number(p.price || 0).toFixed(2).replace(".", ",")}`}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* Em Inglês: Moedas Dólar, Euro e Libra abaixo da copy */
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                            💵 USD ($)
+                          </div>
+                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                            💶 EUR (€)
+                          </div>
+                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                            💷 GBP (£)
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
               </div>
             </div>
           )}
