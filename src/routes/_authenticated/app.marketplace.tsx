@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,12 +18,12 @@ import { formatDate } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/marketplace")({
   head: () => ({
     meta: [
-      { title: "Marketplace de fluxos | AURUMBOT" },
+      { title: "Marketplace de fluxos | CASH BOT" },
       {
         name: "description",
         content: "Instale funis prontos com um clique ou importe fluxos compartilhados pelo código FLOW-XXXXXX.",
       },
-      { property: "og:title", content: "Marketplace de fluxos | AURUMBOT" },
+      { property: "og:title", content: "Marketplace de fluxos | CASH BOT" },
       { property: "og:description", content: "Modelos de funis para bots do Telegram, prontos para instalar." },
     ],
   }),
@@ -202,3 +202,4 @@ function MarketplacePage() {
     </div>
   );
 }
+

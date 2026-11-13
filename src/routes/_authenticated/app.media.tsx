@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,9 +14,9 @@ import type { MediaKind } from "@/lib/media";
 export const Route = createFileRoute("/_authenticated/app/media")({
   head: () => ({
     meta: [
-      { title: "Mídias | AURUMBOT" },
+      { title: "Mídias | CASH BOT" },
       { name: "description", content: "Biblioteca de mídias em cache no Telegram: imagens, vídeos, áudios e documentos." },
-      { property: "og:title", content: "Mídias | AURUMBOT" },
+      { property: "og:title", content: "Mídias | CASH BOT" },
       { property: "og:description", content: "Envie arquivos e use-os nos fluxos sem depender de URLs externas." },
     ],
   }),
@@ -85,3 +85,4 @@ function MediaPage() {
     </div>
   );
 }
+

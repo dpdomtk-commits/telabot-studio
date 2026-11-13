@@ -1,4 +1,4 @@
-import { registerProvider, type PaymentProvider } from "./provider";
+﻿import { registerProvider, type PaymentProvider } from "./provider";
 
 /**
  * Integração real com a SyncPay.
@@ -137,9 +137,9 @@ const syncpayProvider: PaymentProvider = {
       description: (input.productName ?? input.description ?? "Pagamento").slice(0, 120),
       webhook_url: syncpayWebhookUrl(),
       client: {
-        name: (input.payerName ?? "Cliente AURUMBOT").slice(0, 60),
+        name: (input.payerName ?? "Cliente CASH BOT").slice(0, 60),
         cpf: onlyDigits(input.payerDocument, "11122233396"),
-        email: input.payerEmail ?? `cobranca-${reference.slice(0, 8)}@aurumbot.app`,
+        email: input.payerEmail ?? `cobranca-${reference.slice(0, 8)}@CASH BOT.app`,
         phone: onlyDigits(input.payerPhone, "11999999999"),
       },
     };
@@ -164,3 +164,4 @@ const syncpayProvider: PaymentProvider = {
 registerProvider(syncpayProvider);
 
 export { syncpayProvider };
+

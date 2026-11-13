@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
@@ -48,13 +48,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/flows/")({
   head: () => ({
     meta: [
-      { title: "Fluxos | AURUMBOT" },
+      { title: "Fluxos | CASH BOT" },
       {
         name: "description",
         content:
           "Crie fluxos no modo simples por páginas ou no editor visual avançado, com exportação, importação e marketplace.",
       },
-      { property: "og:title", content: "Fluxos | AURUMBOT" },
+      { property: "og:title", content: "Fluxos | CASH BOT" },
       { property: "og:description", content: "Fluxos simples e avançados para vendas no Telegram com PIX." },
     ],
   }),
@@ -678,3 +678,4 @@ function FlowsPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, BadgePercent, QrCode, Receipt, ShoppingBag, TimerOff, Users, Wallet } from "lucide-react";
@@ -19,9 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const Route = createFileRoute("/_authenticated/app/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard | AURUMBOT" },
+      { title: "Dashboard | CASH BOT" },
       { name: "description", content: "Acompanhe vendas, conversão, receita e ticket médio em tempo real." },
-      { property: "og:title", content: "Dashboard | AURUMBOT" },
+      { property: "og:title", content: "Dashboard | CASH BOT" },
       { property: "og:description", content: "Vendas, conversão, receita e ticket médio da sua operação." },
     ],
   }),
@@ -312,3 +312,4 @@ function Dashboard() {
     </div>
   );
 }
+

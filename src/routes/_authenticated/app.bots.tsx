@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
@@ -38,9 +38,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const Route = createFileRoute("/_authenticated/app/bots")({
   head: () => ({
     meta: [
-      { title: "Bots | AURUMBOT" },
+      { title: "Bots | CASH BOT" },
       { name: "description", content: "Cadastre, valide e gerencie seus bots do Telegram." },
-      { property: "og:title", content: "Bots | AURUMBOT" },
+      { property: "og:title", content: "Bots | CASH BOT" },
       { property: "og:description", content: "Cadastre, valide e gerencie seus bots do Telegram." },
     ],
   }),
@@ -335,3 +335,4 @@ function BotDialog({
     </Dialog>
   );
 }
+

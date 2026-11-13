@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,9 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const Route = createFileRoute("/_authenticated/app/payments")({
   head: () => ({
     meta: [
-      { title: "Pagamentos | AURUMBOT" },
+      { title: "Pagamentos | CASH BOT" },
       { name: "description", content: "Acompanhe cobranças PIX, situação e receita gerada pelos seus bots." },
-      { property: "og:title", content: "Pagamentos | AURUMBOT" },
+      { property: "og:title", content: "Pagamentos | CASH BOT" },
       { property: "og:description", content: "Acompanhe cobranças PIX e receita gerada pelos seus bots." },
     ],
   }),
@@ -206,3 +206,4 @@ function PaymentsPage() {
     </div>
   );
 }
+

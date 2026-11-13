@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,9 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const Route = createFileRoute("/_authenticated/app/leads")({
   head: () => ({
     meta: [
-      { title: "Leads | AURUMBOT" },
+      { title: "Leads | CASH BOT" },
       { name: "description", content: "Todos os contatos capturados pelos seus bots do Telegram." },
-      { property: "og:title", content: "Leads | AURUMBOT" },
+      { property: "og:title", content: "Leads | CASH BOT" },
       { property: "og:description", content: "Todos os contatos capturados pelos seus bots." },
     ],
   }),
@@ -179,3 +179,4 @@ function LeadsPage() {
     </div>
   );
 }
+

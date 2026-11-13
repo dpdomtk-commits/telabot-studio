@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -23,12 +23,12 @@ import { formatBRL } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/offers")({
   head: () => ({
     meta: [
-      { title: "Ofertas do fluxo | AURUMBOT" },
+      { title: "Ofertas do fluxo | CASH BOT" },
       {
         name: "description",
         content: "Configure order bump, upsell e downsell independentes para cada fluxo de vendas.",
       },
-      { property: "og:title", content: "Ofertas do fluxo | AURUMBOT" },
+      { property: "og:title", content: "Ofertas do fluxo | CASH BOT" },
       { property: "og:description", content: "Order bump, upsell e downsell por fluxo." },
     ],
   }),
@@ -236,3 +236,4 @@ function OffersPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,13 +30,13 @@ import { formatBRL, formatDate } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/gateways")({
   head: () => ({
     meta: [
-      { title: "Gateways | AURUMBOT" },
+      { title: "Gateways | CASH BOT" },
       {
         name: "description",
         content:
           "Conecte múltiplos provedores de pagamento, defina prioridade, fallback, split e roteamento por fluxo.",
       },
-      { property: "og:title", content: "Gateways | AURUMBOT" },
+      { property: "og:title", content: "Gateways | CASH BOT" },
       {
         property: "og:description",
         content: "Múltiplos provedores PIX com fallback inteligente, split e estatísticas por gateway.",
@@ -108,7 +108,7 @@ const emptyForm = {
   name: "",
   provider: "internal" as Provider,
   pix_key: "",
-  receiver_name: "AURUMBOT",
+  receiver_name: "CASH BOT",
   receiver_city: "SAO PAULO",
   min_amount: "",
   max_amount: "",
@@ -174,7 +174,7 @@ function GatewaysPage() {
         name: form.name.trim(),
         provider: form.provider,
         pix_key: form.pix_key.trim() || null,
-        receiver_name: form.receiver_name.trim() || "AURUMBOT",
+        receiver_name: form.receiver_name.trim() || "CASH BOT",
         receiver_city: form.receiver_city.trim() || "SAO PAULO",
         min_amount_cents: toCents(form.min_amount),
         max_amount_cents: toCents(form.max_amount) || null,
@@ -683,3 +683,4 @@ function SplitDialog({
     </Dialog>
   );
 }
+

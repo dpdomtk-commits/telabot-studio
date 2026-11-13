@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
@@ -9,10 +9,10 @@ import { formatBRL, formatDate, paymentStatusLabels } from "@/lib/format";
 export const Route = createFileRoute("/_authenticated/app/admin")({
   head: () => ({
     meta: [
-      { title: "Admin | AURUMBOT" },
+      { title: "Admin | CASH BOT" },
       { name: "description", content: "Painel administrativo: usuários, bots, leads, pagamentos e logs." },
-      { property: "og:title", content: "Admin | AURUMBOT" },
-      { property: "og:description", content: "Painel administrativo do AURUMBOT." },
+      { property: "og:title", content: "Admin | CASH BOT" },
+      { property: "og:description", content: "Painel administrativo do CASH BOT." },
     ],
   }),
   component: AdminPage,
@@ -119,3 +119,4 @@ function AdminPage() {
     </div>
   );
 }
+

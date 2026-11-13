@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -18,9 +18,9 @@ import { testMediaCache } from "@/lib/media.functions";
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
     meta: [
-      { title: "Configurações | AURUMBOT" },
+      { title: "Configurações | CASH BOT" },
       { name: "description", content: "Atualize seu nome, e-mail, foto de perfil e senha de acesso." },
-      { property: "og:title", content: "Configurações | AURUMBOT" },
+      { property: "og:title", content: "Configurações | CASH BOT" },
       { property: "og:description", content: "Atualize seu nome, e-mail, foto e senha." },
     ],
   }),
@@ -289,3 +289,4 @@ function MediaCacheCard() {
     </form>
   );
 }
+

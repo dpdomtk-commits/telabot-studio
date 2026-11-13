@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -31,12 +31,12 @@ import {
 export const Route = createFileRoute("/_authenticated/app/finance")({
   head: () => ({
     meta: [
-      { title: "Financeiro | AURUMBOT" },
+      { title: "Financeiro | CASH BOT" },
       {
         name: "description",
         content: "Carteira interna, cobranças PIX, extrato financeiro e saques dos seus bots.",
       },
-      { property: "og:title", content: "Financeiro | AURUMBOT" },
+      { property: "og:title", content: "Financeiro | CASH BOT" },
       { property: "og:description", content: "Carteira, extrato e saques da sua gateway interna." },
     ],
   }),
@@ -567,3 +567,4 @@ function WithdrawalForm({
     </div>
   );
 }
+

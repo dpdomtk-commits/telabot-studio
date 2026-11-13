@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+﻿import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type FinanceSettings = {
   charge_fixed_fee_cents: number;
@@ -20,7 +20,7 @@ export async function getFinanceSettings(): Promise<FinanceSettings> {
     min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
     provider: data?.provider ?? "internal",
     pix_receiver_key: data?.pix_receiver_key ?? null,
-    pix_receiver_name: data?.pix_receiver_name ?? "AURUMBOT",
+    pix_receiver_name: data?.pix_receiver_name ?? "CASH BOT",
     pix_receiver_city: data?.pix_receiver_city ?? "SAO PAULO",
   };
 }
@@ -208,3 +208,4 @@ export async function approvePayment(paymentId: string, ip?: string | null) {
   await deliverForPayment(payment.id);
   return { ok: true, message: "Pagamento confirmado", duplicate: false } as const;
 }
+

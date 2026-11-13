@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,13 +30,13 @@ import {
 export const Route = createFileRoute("/_authenticated/app/admin-finance")({
   head: () => ({
     meta: [
-      { title: "Financeiro admin | AURUMBOT" },
+      { title: "Financeiro admin | CASH BOT" },
       {
         name: "description",
         content: "Gestão da gateway interna: saldos, cobranças, saques e taxas da plataforma.",
       },
-      { property: "og:title", content: "Financeiro admin | AURUMBOT" },
-      { property: "og:description", content: "Gestão da gateway interna do AURUMBOT." },
+      { property: "og:title", content: "Financeiro admin | CASH BOT" },
+      { property: "og:description", content: "Gestão da gateway interna do CASH BOT." },
     ],
   }),
   component: AdminFinancePage,
@@ -390,7 +390,7 @@ function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => 
     withdrawal: String((settings?.withdrawal_fee_cents ?? 500) / 100),
     min: String((settings?.min_withdrawal_cents ?? 1000) / 100),
     key: settings?.pix_receiver_key ?? "",
-    name: settings?.pix_receiver_name ?? "AURUMBOT",
+    name: settings?.pix_receiver_name ?? "CASH BOT",
     city: settings?.pix_receiver_city ?? "SAO PAULO",
   });
 
@@ -459,3 +459,4 @@ function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => 
     </div>
   );
 }
+
