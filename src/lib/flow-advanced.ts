@@ -595,6 +595,8 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
   }
 
   // 2 e 3. Mensagem de Boas-vindas e Menu de Planos (SEM REPETIÇÃO DE TEXTO!)
+  let plansMenuKey = "";
+
   if (config.welcome.hasSecondaryMessage && config.welcome.secondaryMessage) {
     // Caso com 2 mensagens distintas:
     // Envia primeiro a mensagem principal de boas-vindas:
@@ -605,7 +607,7 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
     previous = welcomeKey;
 
     // Envia a segunda mensagem contendo os botões de planos anexados:
-    const plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
+    plansMenuKey = add("plans-menu", "menu", "Escolha do Plano", {
       text: config.welcome.secondaryMessage,
       options: planOptions.join("\n"),
       buttons: buttonsConfig,
@@ -615,7 +617,7 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
   } else {
     // Caso padrão (apenas 1 mensagem):
     // A mensagem de boas-vindas já carrega os botões de planos DIRETAMENTE — NUNCA REPETE!
-    const plansMenuKey = add("plans-menu", "menu", "Boas-vindas e Planos", {
+    plansMenuKey = add("plans-menu", "menu", "Boas-vindas e Planos", {
       text: config.welcome.message || "Olá! Seja bem-vindo(a). Escolha seu plano abaixo:",
       options: planOptions.join("\n"),
       buttons: buttonsConfig,
