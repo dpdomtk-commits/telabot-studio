@@ -610,33 +610,6 @@ export async function sendBrlPlansMenu(
   await sendMessage(params.token, params.chatId, text, { inline_keyboard });
 }
 
-/**
- * Trata a escolha de moeda internacional (USD, EUR, GBP).
- * Apaga a mensagem de escolha de moeda e acrescenta o texto em inglês com os planos.
- */
-export async function handleCurrencySelect(params: {
-  userId: string;
-  botId: string;
-  token: string;
-  leadId: string;
-  chatId: number;
-  messageId?: number;
-  currency: "USD" | "EUR" | "GBP";
-}) {
-  await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
-
-  // Remove a mensagem de escolha de moeda para que apenas as mídias fiquem no topo
-  if (params.messageId) {
-    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
-  }
-
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-
-  // Acrescenta o texto em inglês junto com os planos convertidos 1:1 na moeda escolhida
-  await sendIntlPlansMenu(params, cfg, params.currency, true);
-}
 
 /**
  * Exibe os planos convertidos na moeda internacional escolhida (1:1 sem cálculo de câmbio).
