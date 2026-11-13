@@ -114,6 +114,28 @@ export type AdvancedFlowConfig = {
     messageBeforePixCode: boolean;
     messageBeforePixCodeText: string;
   };
+  multilingual: {
+    enabled: boolean;
+    defaultLanguage: "pt" | "en";
+    welcomeMessages: {
+      pt: string;
+      en: string;
+    };
+    currencyPrompts: {
+      pt: string;
+      en: string;
+    };
+    rates: {
+      USD: number;
+      EUR: number;
+      GBP: number;
+    };
+    currenciesEnabled: {
+      USD: boolean;
+      EUR: boolean;
+      GBP: boolean;
+    };
+  };
 };
 
 export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
@@ -265,6 +287,28 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
     messageBeforePixCode: true,
     messageBeforePixCodeText: "Copie o código abaixo:",
   },
+  multilingual: {
+    enabled: true,
+    defaultLanguage: "pt",
+    welcomeMessages: {
+      pt: "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o idioma que prefere para receber nossas informações.",
+      en: "Hello! Welcome! 👋\n\nWe're happy to have you here.\n\nBefore continuing, please choose your preferred language.",
+    },
+    currencyPrompts: {
+      pt: "Perfeito! 🇧🇷\n\nSelecione um dos nossos planos abaixo e escolha a melhor opção para você.",
+      en: "Perfect! 🌎\n\nChoose your preferred currency to view our available plans.",
+    },
+    rates: {
+      USD: 0.20,
+      EUR: 0.18,
+      GBP: 0.16,
+    },
+    currenciesEnabled: {
+      USD: true,
+      EUR: true,
+      GBP: true,
+    },
+  },
 });
 
 export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
@@ -312,6 +356,56 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
       sequences: remarketingSequences,
     },
     payments: { ...base.payments, ...(value.payments ?? {}) },
+    multilingual: {
+      ...base.multilingual,
+      ...(value.multilingual ?? {}),
+      welcomeMessages: {
+        ...base.multilingual.welcomeMessages,
+        ...(value.multilingual?.welcomeMessages ?? {}),
+      },
+      currencyPrompts: {
+        ...base.multilingual.currencyPrompts,
+        ...(value.multilingual?.currencyPrompts ?? {}),
+      },
+      rates: {
+        ...base.multilingual.rates,
+        ...(value.multilingual?.rates ?? {}),
+      },
+      currenciesEnabled: {
+        ...base.multilingual.currenciesEnabled,
+        ...(value.multilingual?.currenciesEnabled ?? {}),
+      },
+    },
+  };
+}
+
+export function formatCurrencyPrice(
+  amountBrl: number,
+  currency: "BRL" | "USD" | "EUR" | "GBP",
+  rates?: { USD?: number; EUR?: number; GBP?: number }
+): { formatted: string; amount: number; symbol: string } {
+  const r = {
+    USD: rates?.USD ?? 0.20,
+    EUR: rates?.EUR ?? 0.18,
+    GBP: rates?.GBP ?? 0.16,
+  };
+  if (currency === "USD") {
+    const val = Math.max(0.99, Number((amountBrl * r.USD).toFixed(2)));
+    return { formatted: `US$ ${val.toFixed(2)}`, amount: val, symbol: "US$" };
+  }
+  if (currency === "EUR") {
+    const val = Math.max(0.99, Number((amountBrl * r.EUR).toFixed(2)));
+    return { formatted: `€ ${val.toFixed(2)}`, amount: val, symbol: "€" };
+  }
+  if (currency === "GBP") {
+    const val = Math.max(0.99, Number((amountBrl * r.GBP).toFixed(2)));
+    return { formatted: `£ ${val.toFixed(2)}`, amount: val, symbol: "£" };
+  }
+  const val = Number(amountBrl || 0);
+  return {
+    formatted: `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    amount: val,
+    symbol: "R$",
   };
 }
 

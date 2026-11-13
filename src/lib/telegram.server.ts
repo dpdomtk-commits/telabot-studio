@@ -244,6 +244,478 @@ async function resolveBotFlow(botId: string): Promise<{ id: string; simple_confi
   return withSteps ? { id: (withSteps as { id: string }).id, simple_config: (withSteps as any).simple_config } : null;
 }
 
+export type LeadPreferences = {
+  language?: "pt" | "en";
+  currency?: "BRL" | "USD" | "EUR" | "GBP";
+  selectedPlanId?: string;
+  country?: string;
+};
+
+export async function getLeadPreferences(leadId: string): Promise<LeadPreferences> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("activity_logs")
+      .select("metadata")
+      .eq("entity", "lead_preference")
+      .eq("entity_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return (data?.metadata as LeadPreferences) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export async function setLeadPreferences(
+  userId: string,
+  leadId: string,
+  prefs: Partial<LeadPreferences>
+) {
+  try {
+    const current = await getLeadPreferences(leadId);
+    const updated = { ...current, ...prefs };
+    await supabaseAdmin.from("activity_logs").insert({
+      user_id: userId,
+      entity: "lead_preference",
+      action: "update_preferences",
+      entity_id: leadId,
+      metadata: updated as Record<string, unknown>,
+    });
+    return updated;
+  } catch (e) {
+    console.warn("Falha ao salvar preferência do lead:", e);
+    return prefs;
+  }
+}
+
+/**
+ * Envia as mídias configuradas na etapa de apresentação do bot (/start).
+ */
+export async function sendWelcomeMedia(
+  token: string,
+  chatId: number,
+  welcomeMedia: Array<{ fileId?: string; url?: string; kind?: "image" | "video" | "audio"; caption?: string }>,
+  mediaMode: "separated" | "grouped" = "separated"
+) {
+  if (!welcomeMedia || welcomeMedia.length === 0) return;
+
+  if (mediaMode === "grouped" && welcomeMedia.length > 1) {
+    const mediaList = welcomeMedia.map((m) => ({
+      type: (m.kind === "video" ? "video" : "photo") as "photo" | "video",
+      url: m.fileId || m.url || "",
+      caption: m.caption || "",
+    }));
+    await sendMediaGroup(token, chatId, mediaList);
+    return;
+  }
+
+  for (const m of welcomeMedia) {
+    const target = m.fileId && !m.fileId.startsWith("local_") ? m.fileId : m.url;
+    if (target) {
+      if (m.kind === "video") {
+        await sendVideo(token, chatId, target, m.caption);
+      } else {
+        await sendPhoto(token, chatId, target, m.caption);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+  }
+}
+
+/**
+ * Fluxo de boas-vindas do Telegram (/start) com suporte total a mídias em ordem,
+ * seleção de idioma (Português / Inglês) e exibição limpa sem repetição de texto.
+ */
+export async function handleTelegramStart(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+}) {
+  const flow = await resolveBotFlow(params.botId);
+  if (!flow) return;
+
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+
+  // Etapa 1 — Apresentação: Enviar as mídias já cadastradas na ordem definida
+  if (cfg.welcome.media && cfg.welcome.media.length > 0) {
+    await sendWelcomeMedia(params.token, params.chatId, cfg.welcome.media, cfg.welcome.mediaMode);
+    await new Promise((r) => setTimeout(r, 400));
+  }
+
+  const prefs = await getLeadPreferences(params.leadId);
+
+  // Se o fluxo multilíngue está ativado:
+  if (cfg.multilingual?.enabled) {
+    // Se o usuário já escolheu o idioma anteriormente, não solicita novamente
+    if (prefs.language === "pt") {
+      await sendBrlPlansMenu(params, cfg, false);
+      return;
+    }
+    if (prefs.language === "en") {
+      if (prefs.currency && prefs.currency !== "BRL") {
+        await sendIntlPlansMenu(params, cfg, prefs.currency, false);
+        return;
+      }
+      await sendCurrencySelectionMenu(params, cfg);
+      return;
+    }
+
+    // Se ainda não escolheu, envia a mensagem de apresentação com botões de idioma
+    const ptWelcome =
+      cfg.multilingual.welcomeMessages?.pt ||
+      "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o idioma que prefere para receber nossas informações.";
+
+    await sendMessage(params.token, params.chatId, ptWelcome, {
+      inline_keyboard: [
+        [
+          { text: "🇧🇷 Português", callback_data: "lang:pt" },
+          { text: "🇺🇸 English", callback_data: "lang:en" },
+        ],
+      ],
+    });
+    return;
+  }
+
+  // Se o fluxo multilíngue estiver desativado, roda o grafo padrão
+  await runFlowForLead(params);
+}
+
+/**
+ * Trata a escolha de idioma pelo lead.
+ */
+export async function handleLanguageSelect(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  language: "pt" | "en";
+}) {
+  await setLeadPreferences(params.userId, params.leadId, { language: params.language });
+
+  const flow = await resolveBotFlow(params.botId);
+  if (!flow) return;
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+
+  if (params.language === "pt") {
+    await setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
+    await sendBrlPlansMenu(params, cfg, true);
+  } else {
+    await sendCurrencySelectionMenu(params, cfg);
+  }
+}
+
+/**
+ * Menu de seleção de moeda internacional (USD, EUR, GBP).
+ */
+export async function sendCurrencySelectionMenu(
+  params: {
+    userId: string;
+    botId: string;
+    token: string;
+    leadId: string;
+    chatId: number;
+  },
+  cfg: any
+) {
+  const prompt =
+    cfg.multilingual?.currencyPrompts?.en ||
+    "Perfect! 🌎\n\nChoose your preferred currency to view our available plans.";
+
+  await sendMessage(params.token, params.chatId, prompt, {
+    inline_keyboard: [
+      [{ text: "🇺🇸 USD — US Dollar", callback_data: "curr:USD" }],
+      [{ text: "🇪🇺 EUR — Euro", callback_data: "curr:EUR" }],
+      [{ text: "🇬🇧 GBP — British Pound", callback_data: "curr:GBP" }],
+      [{ text: "🌐 Change Language", callback_data: "nav:lang" }],
+    ],
+  });
+}
+
+/**
+ * Exibe os planos exclusivamente em REAL BRASILEIRO (BRL) via PIX.
+ */
+export async function sendBrlPlansMenu(
+  params: {
+    userId: string;
+    botId: string;
+    token: string;
+    leadId: string;
+    chatId: number;
+  },
+  cfg: any,
+  isFirstGreeting = true
+) {
+  const planItems = cfg.plans?.items?.length
+    ? cfg.plans.items
+    : [
+        {
+          id: "plan-1",
+          name: "VITALÍCIO",
+          price: 9.23,
+          duration: "Vitalício",
+          buttonColor: "blue",
+        },
+      ];
+
+  const greeting = isFirstGreeting
+    ? cfg.multilingual?.currencyPrompts?.pt ||
+      "Perfeito! 🇧🇷\n\nSelecione um dos nossos planos abaixo e escolha a melhor opção para você."
+    : "Selecione um dos nossos planos disponíveis:";
+
+  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const plan of planItems) {
+    const priceStr = Number(plan.price || 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const emoji = plan.emoji ? `${plan.emoji} ` : "";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
+    inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
+  }
+
+  // Botão de Pagamentos Mundiais (conforme layout solicitado)
+  inline_keyboard.push([
+    { text: "PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺 ↗", callback_data: "nav:curr" },
+  ]);
+
+  // Botão de alterar idioma
+  inline_keyboard.push([{ text: "🌐 Alterar Idioma", callback_data: "nav:lang" }]);
+
+  await sendMessage(params.token, params.chatId, greeting, { inline_keyboard });
+}
+
+/**
+ * Trata a escolha de moeda internacional (USD, EUR, GBP).
+ */
+export async function handleCurrencySelect(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  currency: "USD" | "EUR" | "GBP";
+}) {
+  await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
+
+  const flow = await resolveBotFlow(params.botId);
+  if (!flow) return;
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow.simple_config as any);
+
+  await sendIntlPlansMenu(params, cfg, params.currency, true);
+}
+
+/**
+ * Exibe os planos convertidos na moeda internacional escolhida com formatação correta.
+ */
+export async function sendIntlPlansMenu(
+  params: {
+    userId: string;
+    botId: string;
+    token: string;
+    leadId: string;
+    chatId: number;
+  },
+  cfg: any,
+  currency: "USD" | "EUR" | "GBP",
+  isFirstGreeting = true
+) {
+  const { formatCurrencyPrice } = await import("@/lib/flow-advanced");
+  const planItems = cfg.plans?.items?.length
+    ? cfg.plans.items
+    : [
+        { id: "plan-1", name: "VIP ACCESS", price: 29.9, duration: "Lifetime Access" },
+      ];
+
+  const header = `⭐ <b>AVAILABLE PLANS (${currency})</b>\n\nChoose the best option for you below:`;
+
+  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const plan of planItems) {
+    const conv = formatCurrencyPrice(plan.price, currency, cfg.multilingual?.rates);
+    inline_keyboard.push([
+      {
+        text: `⭐ ${plan.name} — ${conv.formatted} [ ADQUIRIR PLANO ]`,
+        callback_data: `intl_plan:${plan.id}:${currency}`,
+      },
+    ]);
+  }
+
+  inline_keyboard.push([
+    { text: "💱 Change Currency", callback_data: "nav:curr" },
+    { text: "🌐 Change Language", callback_data: "nav:lang" },
+  ]);
+
+  await sendMessage(params.token, params.chatId, header, { inline_keyboard });
+}
+
+/**
+ * Preparação para Stripe: registra o plano e a moeda escolhida pelo cliente internacional.
+ */
+export async function handleInternationalPlanPurchase(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  planId: string;
+  currency: "USD" | "EUR" | "GBP";
+}) {
+  await setLeadPreferences(params.userId, params.leadId, {
+    selectedPlanId: params.planId,
+    currency: params.currency,
+  });
+
+  await supabaseAdmin
+    .from("leads")
+    .update({ status: "engaged" })
+    .eq("id", params.leadId);
+
+  const flow = await resolveBotFlow(params.botId);
+  const { normalizeAdvancedConfig, formatCurrencyPrice } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+
+  const plan =
+    cfg.plans?.items?.find((p: any) => p.id === params.planId) ||
+    cfg.plans?.items?.[0] || {
+      name: "VIP Plan",
+      price: 29.9,
+      duration: "Lifetime Access",
+    };
+
+  const conv = formatCurrencyPrice(plan.price, params.currency, cfg.multilingual?.rates);
+
+  const lines = [
+    `⭐ <b>${plan.name.toUpperCase()}</b>`,
+    "",
+    `• Duration: <b>${plan.duration || "Lifetime Access"}</b>`,
+    `• Amount: <b>${conv.formatted}</b>`,
+    "",
+    "🔒 <b>Secure International Checkout (Stripe)</b>",
+    "",
+    "Your purchase intent has been recorded in our system.",
+    "International card checkout powered by Stripe is currently being configured.",
+    "",
+    "For immediate activation or manual payment assistance, please contact our support team below:",
+  ];
+
+  const support = cfg.bots?.supportUsername ? cfg.bots.supportUsername.replace("@", "") : "";
+  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  if (support) {
+    inline_keyboard.push([{ text: "💬 Contact Support", url: `https://t.me/${support}` }]);
+  }
+  inline_keyboard.push([
+    { text: "↩️ Back to Plans", callback_data: "nav:plans" },
+    { text: "🌐 Change Language", callback_data: "nav:lang" },
+  ]);
+
+  await sendMessage(params.token, params.chatId, lines.join("\n"), { inline_keyboard });
+}
+
+/**
+ * Gera e envia a cobrança PIX imediata de um plano selecionado.
+ */
+export async function handlePixPlanPurchase(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  planId: string;
+}) {
+  await setLeadPreferences(params.userId, params.leadId, {
+    selectedPlanId: params.planId,
+    currency: "BRL",
+  });
+
+  const flow = await resolveBotFlow(params.botId);
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+
+  const plan =
+    cfg.plans?.items?.find((p: any) => p.id === params.planId) ||
+    cfg.plans?.items?.[0] || {
+      id: params.planId,
+      name: "Acesso VIP",
+      price: 9.23,
+      duration: "Vitalício",
+    };
+
+  const amountCents = Math.round(Number(plan.price || 0) * 100);
+
+  const { createPixCharge } = await import("@/lib/finance.server");
+  let charge: { id: string; pix_code?: string | null };
+
+  try {
+    charge = await createPixCharge({
+      userId: params.userId,
+      botId: params.botId,
+      leadId: params.leadId,
+      amountCents,
+      description: `Plano ${plan.name} (${plan.duration || "Acesso Imediato"})`,
+      productName: plan.name,
+      successMessage:
+        cfg.plans?.deliveryFallback ||
+        "Pagamento confirmado com sucesso! Liberando seu acesso VIP...",
+      expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
+      idempotencyKey: `plan:${plan.id}:lead:${params.leadId}`,
+      flowId: flow?.id || null,
+    });
+  } catch (error) {
+    console.error("[pix-plan-error]", error);
+    await sendMessage(
+      params.token,
+      params.chatId,
+      "Não conseguimos gerar o PIX agora. Tente novamente em instantes."
+    );
+    return;
+  }
+
+  const priceFormatted = (amountCents / 100).toFixed(2).replace(".", ",");
+  const lines = [
+    `⭐ <b>${plan.name}</b>`,
+    `Valor: <b>R$ ${priceFormatted}</b>`,
+  ];
+  if (charge.pix_code) {
+    lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
+  }
+  lines.push("", "Assim que o PIX for confirmado, o acesso é liberado automaticamente aqui.");
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: "✅ Já realizei o pagamento", callback_data: `check_payment:${charge.id}` }],
+      [{ text: "↩️ Voltar aos Planos", callback_data: "nav:plans" }],
+    ],
+  };
+
+  // 1. Envia a mensagem do PIX e botão de conferir PRIMEIRO (garantia 100% de entrega instantânea)
+  await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
+
+  // 2. Envia o QR code como foto de forma segura (sem travar se falhar)
+  if (charge.pix_code) {
+    try {
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
+        charge.pix_code
+      )}`;
+      await sendPhoto(params.token, params.chatId, qrUrl, "Escaneie o QR Code para pagar").catch(() => undefined);
+    } catch {
+      // Ignora erro no QR externo, o copia e cola já foi entregue
+    }
+  }
+
+  await logActivity(params.userId, "pagamento", "cobrança PIX plano criada", charge.id);
+}
+
 /**
  * Executa o fluxo ativo de um bot para um lead percorrendo o grafo visual
  * (nós + conexões). Para nos nós de cobrança (aguardando pagamento),
@@ -663,14 +1135,6 @@ async function sendCharge(
   if (input.expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${input.expiresMinutes} minutos.`);
   lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
 
-  // QR Code do PIX enviado como imagem, além do copia e cola.
-  if (charge.pix_code) {
-    const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
-      charge.pix_code,
-    )}`;
-    await sendPhoto(params.token, params.chatId, qr, "Escaneie o QR Code para pagar");
-  }
-
   const replyMarkup = {
     inline_keyboard: [
       [
@@ -680,6 +1144,18 @@ async function sendCharge(
   };
 
   const result = await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
+
+  // QR Code do PIX enviado como imagem de apoio (sem bloquear ou derrubar o envio do copia e cola)
+  if (charge.pix_code) {
+    try {
+      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
+        charge.pix_code,
+      )}`;
+      await sendPhoto(params.token, params.chatId, qr, "Escaneie o QR Code para pagar").catch(() => undefined);
+    } catch {
+      // Ignora erro no QR externo
+    }
+  }
   // Order bump: ofertas complementares logo após o PIX principal.
   if (result.ok) {
     await sendFlowOffers({
@@ -728,14 +1204,19 @@ export async function deliverForPayment(paymentId: string) {
   const deliverySteps = (steps ?? []) as unknown as StepRow[];
 
   if (deliverySteps.length === 0) {
-    await notify(
-      payment.user_id,
-      "warning",
-      "Pagamento aprovado sem entrega configurada",
-      "Adicione uma etapa de entrega no fluxo ativo deste bot.",
-      "payment",
-      payment.id,
-    );
+    const fallbackMessage =
+      (flow?.simple_config as any)?.plans?.deliveryFallback ||
+      (flow?.simple_config as any)?.upsell?.deliveryMessage ||
+      "Seu acesso VIP foi liberado com sucesso!";
+
+    if (bot?.token && lead?.telegram_id) {
+      await sendMessage(
+        bot.token,
+        Number(lead.telegram_id),
+        `✅ ${payment.success_message ?? "Pagamento confirmado!"}\n\n${fallbackMessage}`,
+      );
+      await logActivity(payment.user_id, "entrega", "produto entregue (fallback)", payment.id);
+    }
     return;
   }
 

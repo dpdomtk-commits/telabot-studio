@@ -22,6 +22,8 @@ import {
   Share2,
   Eye,
   CheckCircle2,
+  Globe,
+  DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,7 @@ import {
   defaultAdvancedConfig,
   normalizeAdvancedConfig,
   compileAdvancedConfig,
+  formatCurrencyPrice,
   type AdvancedFlowConfig,
   type SequenceStep,
 } from "@/lib/flow-advanced";
@@ -54,6 +57,7 @@ const NAV_SECTIONS = [
   { id: "bots", label: "Bots", icon: Bot, category: "ESTRUTURA" },
   { id: "welcome", label: "Boas-vindas", icon: MessageSquare, category: "ESTRUTURA" },
   { id: "plans", label: "Planos", icon: CreditCard, category: "ESTRUTURA" },
+  { id: "multilingual", label: "Idiomas & Moedas", icon: Globe, category: "INTERNACIONAL" },
   { id: "upsell", label: "Upsell", icon: TrendingUp, category: "CONVERSÃO" },
   { id: "downsell", label: "Downsell", icon: TrendingDown, category: "CONVERSÃO" },
   { id: "orderBump", label: "Order Bump", icon: ShoppingBag, category: "CONVERSÃO" },
@@ -252,11 +256,11 @@ export function AdvancedFlowEditorPage() {
                     onClick={() => setActiveTab(sec.id)}
                     className={`flex items-center gap-3 w-full rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
                       active
-                        ? "bg-pink-500/15 text-pink-400 border border-pink-500/30 shadow-sm"
+                        ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
                         : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                     }`}
                   >
-                    <Icon className={`size-4.5 ${active ? "text-pink-400" : "text-muted-foreground"}`} />
+                    <Icon className={`size-4.5 ${active ? "text-primary" : "text-muted-foreground"}`} />
                     <span>{sec.label}</span>
                   </button>
                 );
@@ -680,7 +684,283 @@ export function AdvancedFlowEditorPage() {
             </div>
           )}
 
-          {/* ABA UPSELL */}
+          {/* ABA IDIOMAS & MOEDAS INTERNACIONAIS */}
+          {activeTab === "multilingual" && (
+            <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    <Globe className="size-5 text-primary" /> Fluxo Multilíngue & Moedas Internacionais
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Atenda clientes brasileiros e internacionais com seleção de idioma, moedas (USD, EUR, GBP) e conversão automática.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {config.multilingual?.enabled ? "Ativado" : "Desativado"}
+                  </span>
+                  <Switch
+                    checked={config.multilingual?.enabled ?? true}
+                    onCheckedChange={(checked) =>
+                      setConfig({
+                        ...config,
+                        multilingual: {
+                          ...(config.multilingual || defaultAdvancedConfig().multilingual),
+                          enabled: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Status do Fluxo e Funcionamento */}
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-xs text-foreground/90 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-primary">
+                  <CheckCircle2 className="size-4" /> Como funciona o Fluxo no Telegram:
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li><strong className="text-foreground">Etapa 1:</strong> Envia as mídias configuradas no bot em ordem e apresenta a escolha de idioma.</li>
+                  <li><strong className="text-foreground">Português 🇧🇷:</strong> Exibe os planos exclusivamente em Real (BRL) e gera PIX instantâneo.</li>
+                  <li><strong className="text-foreground">English 🇺🇸:</strong> Solicita a escolha entre USD, EUR e GBP, convertendo os planos conforme as taxas abaixo.</li>
+                  <li><strong className="text-foreground">Persistência:</strong> A escolha do lead é salva e preservada nas próximas interações.</li>
+                </ul>
+              </div>
+
+              {/* Taxas de Câmbio Manuais */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <DollarSign className="size-4 text-primary" /> Taxas de Câmbio Manuais (Referência: BRL)
+                  </h3>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    Sem dependência de APIs externas
+                  </Badge>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {/* USD */}
+                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5">
+                        🇺🇸 USD (Dólar)
+                      </span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        1 USD ≈ R$ {(1 / (config.multilingual?.rates?.USD || 0.20)).toFixed(2)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → USD</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={config.multilingual?.rates?.USD ?? 0.20}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0.20;
+                          setConfig({
+                            ...config,
+                            multilingual: {
+                              ...config.multilingual,
+                              rates: { ...config.multilingual.rates, USD: val },
+                            },
+                          });
+                        }}
+                        className="mt-1 font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.20 = US$ 5.98</p>
+                    </div>
+                  </div>
+
+                  {/* EUR */}
+                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5">
+                        🇪🇺 EUR (Euro)
+                      </span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        1 EUR ≈ R$ {(1 / (config.multilingual?.rates?.EUR || 0.18)).toFixed(2)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → EUR</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={config.multilingual?.rates?.EUR ?? 0.18}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0.18;
+                          setConfig({
+                            ...config,
+                            multilingual: {
+                              ...config.multilingual,
+                              rates: { ...config.multilingual.rates, EUR: val },
+                            },
+                          });
+                        }}
+                        className="mt-1 font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.18 = € 5.38</p>
+                    </div>
+                  </div>
+
+                  {/* GBP */}
+                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5">
+                        🇬🇧 GBP (Libra)
+                      </span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        1 GBP ≈ R$ {(1 / (config.multilingual?.rates?.GBP || 0.16)).toFixed(2)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → GBP</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={config.multilingual?.rates?.GBP ?? 0.16}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0.16;
+                          setConfig({
+                            ...config,
+                            multilingual: {
+                              ...config.multilingual,
+                              rates: { ...config.multilingual.rates, GBP: val },
+                            },
+                          });
+                        }}
+                        className="mt-1 font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.16 = £ 4.78</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabela de Preços Convertidos em Tempo Real */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Simulação dos Preços Convertidos dos Planos Atuais
+                </h3>
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-surface border-b border-border text-muted-foreground">
+                      <tr>
+                        <th className="p-3 font-medium">Plano Cadastrado</th>
+                        <th className="p-3 font-medium">🇧🇷 BRL (Real)</th>
+                        <th className="p-3 font-medium">🇺🇸 USD (Dólar)</th>
+                        <th className="p-3 font-medium">🇪🇺 EUR (Euro)</th>
+                        <th className="p-3 font-medium">🇬🇧 GBP (Libra)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60 bg-surface/30">
+                      {config.plans.items.map((plan) => {
+                        const usd = formatCurrencyPrice(plan.price, "USD", config.multilingual?.rates);
+                        const eur = formatCurrencyPrice(plan.price, "EUR", config.multilingual?.rates);
+                        const gbp = formatCurrencyPrice(plan.price, "GBP", config.multilingual?.rates);
+                        return (
+                          <tr key={plan.id} className="hover:bg-surface-hover/50">
+                            <td className="p-3 font-semibold text-foreground flex items-center gap-1.5">
+                              <span>{plan.emoji || "⭐"}</span> {plan.name}
+                            </td>
+                            <td className="p-3 font-mono text-emerald-400">
+                              R$ {Number(plan.price || 0).toFixed(2).replace(".", ",")}
+                            </td>
+                            <td className="p-3 font-mono text-sky-400">{usd.formatted}</td>
+                            <td className="p-3 font-mono text-blue-400">{eur.formatted}</td>
+                            <td className="p-3 font-mono text-indigo-400">{gbp.formatted}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Textos de Apresentação e Boas-Vindas */}
+              <div className="space-y-4 pt-2">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Textos de Apresentação e Mensagens
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Mensagem de Boas-vindas (Português 🇧🇷)</Label>
+                    <Textarea
+                      rows={4}
+                      value={config.multilingual?.welcomeMessages?.pt ?? ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          multilingual: {
+                            ...config.multilingual,
+                            welcomeMessages: {
+                              ...config.multilingual.welcomeMessages,
+                              pt: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      placeholder="Texto apresentado aos leads ao iniciar o bot..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Mensagem de Boas-vindas (English 🇺🇸)</Label>
+                    <Textarea
+                      rows={4}
+                      value={config.multilingual?.welcomeMessages?.en ?? ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          multilingual: {
+                            ...config.multilingual,
+                            welcomeMessages: {
+                              ...config.multilingual.welcomeMessages,
+                              en: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      placeholder="Welcome greeting in English..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Mensagem de Escolha de Moeda (English 🇺🇸)</Label>
+                  <Textarea
+                    rows={2}
+                    value={config.multilingual?.currencyPrompts?.en ?? ""}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        multilingual: {
+                          ...config.multilingual,
+                          currencyPrompts: {
+                            ...config.multilingual.currencyPrompts,
+                            en: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    placeholder="Currency selection prompt..."
+                  />
+                </div>
+              </div>
+
+              {/* Informação sobre Stripe */}
+              <div className="rounded-xl border border-border bg-surface/50 p-4 text-xs space-y-1.5">
+                <p className="font-semibold text-foreground flex items-center gap-1.5">
+                  🔒 Arquitetura Preparada para Stripe (Checkout Internacional)
+                </p>
+                <p className="text-muted-foreground">
+                  Os leads internacionais que selecionarem USD, EUR ou GBP terão seu plano, moeda e intenção de compra associados e registrados. Os pagamentos via PIX continuarão funcionando normalmente para o público brasileiro.
+                </p>
+              </div>
+            </div>
+          )}
           {activeTab === "upsell" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
               <div className="flex items-center justify-between border-b border-border/60 pb-4">
