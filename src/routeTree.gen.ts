@@ -33,6 +33,8 @@ import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/me
 import { Route as ApiPublicRSlugRouteImport } from './routes/api/public/r/$slug'
 import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/telegram/$botId'
 import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/public/webhooks/syncpay'
+import { Route as ApiCronProcessDownsellsRouteImport } from './routes/api/cron/process-downsells'
+import { Route as ApiPublicCronDownsellsRouteImport } from './routes/api/public/cron/downsells'
 import { Route as AuthenticatedAppFlowsFlowIdOffersRouteImport } from './routes/_authenticated/app.flows.$flowId_.offers'
 import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
@@ -166,6 +168,18 @@ const ApiPublicWebhooksSyncpayRoute =
     path: '/api/public/webhooks/syncpay',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCronProcessDownsellsRoute =
+  ApiCronProcessDownsellsRouteImport.update({
+    id: '/api/cron/process-downsells',
+    path: '/api/cron/process-downsells',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCronDownsellsRoute =
+  ApiPublicCronDownsellsRouteImport.update({
+    id: '/api/public/cron/downsells',
+    path: '/api/public/cron/downsells',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAppFlowsFlowIdOffersRoute =
   AuthenticatedAppFlowsFlowIdOffersRouteImport.update({
     id: '/flows/$flowId_/offers',
@@ -202,6 +216,8 @@ export interface FileRoutesByFullPath {
   '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
+  '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
+  '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -228,6 +244,8 @@ export interface FileRoutesByTo {
   '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
+  '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
+  '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -257,6 +275,8 @@ export interface FileRoutesById {
   '/api/public/r/$slug': typeof ApiPublicRSlugRoute
   '/api/public/telegram/$botId': typeof ApiPublicTelegramBotIdRoute
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
+  '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
+  '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/_authenticated/app/flows/$flowId_/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -522,6 +542,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksSyncpayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/process-downsells': {
+      id: '/api/cron/process-downsells'
+      path: '/api/cron/process-downsells'
+      fullPath: '/api/cron/process-downsells'
+      preLoaderRoute: typeof ApiCronProcessDownsellsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/cron/downsells': {
+      id: '/api/public/cron/downsells'
+      path: '/api/public/cron/downsells'
+      fullPath: '/api/public/cron/downsells'
+      preLoaderRoute: typeof ApiPublicCronDownsellsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/flows/$flowId_/offers': {
       id: '/_authenticated/app/flows/$flowId_/offers'
       path: '/flows/$flowId/offers'
@@ -605,6 +639,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRSlugRoute: ApiPublicRSlugRoute,
   ApiPublicTelegramBotIdRoute: ApiPublicTelegramBotIdRoute,
   ApiPublicWebhooksSyncpayRoute: ApiPublicWebhooksSyncpayRoute,
+  ApiCronProcessDownsellsRoute: ApiCronProcessDownsellsRoute,
+  ApiPublicCronDownsellsRoute: ApiPublicCronDownsellsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
