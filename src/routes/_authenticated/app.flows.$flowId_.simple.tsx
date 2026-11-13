@@ -114,11 +114,11 @@ export function AdvancedFlowEditorPage() {
       // 3. Insere os novos nós compilados no banco de dados
       const idMap = new Map<string, string>();
       for (const step of compiled.steps) {
-        const { data: created } = await supabase
-          .from("flow_steps")
+        const { data: created } = await (supabase
+          .from("flow_steps") as any)
           .insert({
             flow_id: flowId,
-            user_id: flowData?.user_id,
+            user_id: flowData?.user_id || "",
             type: step.type,
             title: step.title,
             config: step.config,
@@ -134,7 +134,7 @@ export function AdvancedFlowEditorPage() {
       // 4. Insere as novas conexões vinculando o menu aos nós PIX correspondentes
       const rows = compiled.connections
         .map((c) => ({
-          user_id: flowData?.user_id,
+          user_id: flowData?.user_id || "",
           flow_id: flowId,
           source_step_id: idMap.get(c.source) ?? null,
           target_step_id: idMap.get(c.target) ?? null,
@@ -146,7 +146,7 @@ export function AdvancedFlowEditorPage() {
         );
 
       if (rows.length > 0) {
-        await supabase.from("flow_connections").insert(rows);
+        await (supabase.from("flow_connections") as any).insert(rows);
       }
 
       // 5. Salva o fluxo como ATIVO e sincroniza com o bot
@@ -1141,7 +1141,6 @@ export function AdvancedFlowEditorPage() {
               </div>
             </div>
           )}
-          )}
 
           {/* ABA ORDER BUMP */}
           {activeTab === "orderBump" && (
@@ -1470,7 +1469,6 @@ export function AdvancedFlowEditorPage() {
                 </div>
               ))}
             </div>
-          )}
           )}
 
           {/* ABA PAGAMENTOS */}
