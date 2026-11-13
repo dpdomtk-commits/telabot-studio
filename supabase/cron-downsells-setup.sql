@@ -15,14 +15,13 @@ SELECT cron.unschedule('process-downsells-worker') WHERE EXISTS (
   SELECT 1 FROM cron.job WHERE jobname = 'process-downsells-worker'
 );
 
--- Agenda o disparo a cada 1 minuto via requisição HTTP ao worker da Vercel
+-- Agenda o disparo a cada 1 minuto via requisição HTTP ao worker
 SELECT cron.schedule(
   'process-downsells-worker',
   '* * * * *',
   $$
-  SELECT net.http_post(
-    url := 'https://telabot-studio.vercel.app/api/cron/process-downsells',
-    headers := '{"Content-Type": "application/json"}'::jsonb
+  SELECT net.http_get(
+    url := 'https://telabot-studio.vercel.app/api/public/webhooks/syncpay'
   );
   $$
 );

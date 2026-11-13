@@ -105,7 +105,22 @@ export const Route = createFileRoute("/api/public/webhooks/syncpay")({
 
         return Response.json({ ok: true, status: mapped });
       },
-      GET: async () => Response.json({ ok: true, provider: "syncpay" }),
+      GET: async () => {
+        try {
+          const { processScheduledDownsells } = await import("@/lib/downsell.server");
+          const stats = await processScheduledDownsells();
+          return Response.json({
+            ok: true,
+            provider: "syncpay",
+            cron: "executed",
+            timestamp: new Date().toISOString(),
+            stats,
+          });
+        } catch (e: any) {
+          console.warn("[syncpay-cron-error]", e);
+          return Response.json({ ok: true, provider: "syncpay", error: e?.message });
+        }
+      },
     },
   },
 });

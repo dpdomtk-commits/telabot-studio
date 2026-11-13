@@ -2,7 +2,7 @@ name: Process Downsells Cron
 
 on:
   schedule:
-    # Executa periodicamente de forma gratuita pelo GitHub Actions
+    # Executa a cada 5 minutos gratuitamente pelo GitHub Actions
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
@@ -12,6 +12,5 @@ jobs:
     steps:
       - name: Disparar Worker de Downsells
         run: |
-          curl -s -X POST "https://telabot-studio.vercel.app/api/cron/process-downsells" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          curl -s -X GET "https://telabot-studio.vercel.app/api/public/webhooks/syncpay" \
             -H "Content-Type: application/json" || true
