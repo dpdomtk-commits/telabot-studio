@@ -2,18 +2,36 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const API = "https://api.telegram.org";
 
-export type TelegramSendResult = { ok: boolean; error?: string };
+export type TelegramSendResult = { ok: boolean; error?: string; result?: any };
+
+// Cache em memória de file_id do Telegram para evitar downloads/uploads repetidos
+export const telegramFileIdCache = new Map<string, string>();
+
+// Cache em memória de fluxo e configurações ativas do bot (TTL de 60 segundos com invalidação sob demanda)
+interface BotConfigCacheEntry {
+  flow: any;
+  cfg: any;
+  expiresAt: number;
+}
+export const botConfigCache = new Map<string, BotConfigCacheEntry>();
+
+export function invalidateBotCache(botId: string) {
+  botConfigCache.delete(botId);
+}
 
 async function callTelegram(token: string, method: string, body: unknown): Promise<TelegramSendResult> {
   try {
     const res = await fetch(`${API}/bot${token}/${method}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        Connection: "keep-alive",
+      },
       body: JSON.stringify(body),
     });
-    const json = (await res.json()) as { ok: boolean; description?: string };
+    const json = (await res.json()) as { ok: boolean; description?: string; result?: any };
     if (!json.ok) return { ok: false, error: json.description ?? "Erro do Telegram" };
-    return { ok: true };
+    return { ok: true, result: json.result };
   } catch {
     return { ok: false, error: "Falha de rede ao contatar o Telegram" };
   }
@@ -51,53 +69,109 @@ export function editMessageText(
   });
 }
 
-export async function sendPhoto(token: string, chatId: number, url: string, caption?: string) {
-  if (url && url.startsWith("data:")) {
-    const commaIndex = url.indexOf(",");
+export async function sendPhoto(
+  token: string,
+  chatId: number,
+  urlOrFileId: string,
+  caption?: string,
+  replyMarkup?: unknown
+) {
+  const cachedFileId = telegramFileIdCache.get(urlOrFileId) || urlOrFileId;
+
+  if (cachedFileId && cachedFileId.startsWith("data:")) {
+    const commaIndex = cachedFileId.indexOf(",");
     if (commaIndex > -1) {
-      const header = url.slice(5, commaIndex);
-      const base64Data = url.slice(commaIndex + 1).replace(/\s/g, "");
+      const header = cachedFileId.slice(5, commaIndex);
+      const base64Data = cachedFileId.slice(commaIndex + 1).replace(/\s/g, "");
       const mime = header.split(";")[0] || "image/jpeg";
       const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
       if (caption) form.append("caption", caption);
+      if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
       const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
       const blob = new Blob([buffer], { type: mime });
       form.append("photo", blob, `photo.${ext}`);
 
       const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
         method: "POST",
+        headers: { Connection: "keep-alive" },
         body: form,
       });
-      return (await res.json()) as TelegramSendResult;
+      const data = (await res.json()) as { ok: boolean; result?: any };
+      if (data.ok && data.result?.photo?.length) {
+        const fileId = data.result.photo[data.result.photo.length - 1].file_id;
+        telegramFileIdCache.set(urlOrFileId, fileId);
+      }
+      return data as TelegramSendResult;
     }
   }
-  return callTelegram(token, "sendPhoto", { chat_id: chatId, photo: url, caption: caption || undefined });
+
+  const result = await callTelegram(token, "sendPhoto", {
+    chat_id: chatId,
+    photo: cachedFileId,
+    caption: caption || undefined,
+    parse_mode: caption ? "HTML" : undefined,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+
+  if (result.ok && result.result?.photo?.length) {
+    const fileId = result.result.photo[result.result.photo.length - 1].file_id;
+    telegramFileIdCache.set(urlOrFileId, fileId);
+  }
+
+  return result;
 }
 
-export async function sendVideo(token: string, chatId: number, url: string, caption?: string) {
-  if (url && url.startsWith("data:")) {
-    const commaIndex = url.indexOf(",");
+export async function sendVideo(
+  token: string,
+  chatId: number,
+  urlOrFileId: string,
+  caption?: string,
+  replyMarkup?: unknown
+) {
+  const cachedFileId = telegramFileIdCache.get(urlOrFileId) || urlOrFileId;
+
+  if (cachedFileId && cachedFileId.startsWith("data:")) {
+    const commaIndex = cachedFileId.indexOf(",");
     if (commaIndex > -1) {
-      const header = url.slice(5, commaIndex);
-      const base64Data = url.slice(commaIndex + 1).replace(/\s/g, "");
+      const header = cachedFileId.slice(5, commaIndex);
+      const base64Data = cachedFileId.slice(commaIndex + 1).replace(/\s/g, "");
       const mime = header.split(";")[0] || "video/mp4";
       const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
       if (caption) form.append("caption", caption);
+      if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
       const blob = new Blob([buffer], { type: mime });
       form.append("video", blob, "video.mp4");
 
       const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
         method: "POST",
+        headers: { Connection: "keep-alive" },
         body: form,
       });
-      return (await res.json()) as TelegramSendResult;
+      const data = (await res.json()) as { ok: boolean; result?: any };
+      if (data.ok && data.result?.video?.file_id) {
+        telegramFileIdCache.set(urlOrFileId, data.result.video.file_id);
+      }
+      return data as TelegramSendResult;
     }
   }
-  return callTelegram(token, "sendVideo", { chat_id: chatId, video: url, caption: caption || undefined });
+
+  const result = await callTelegram(token, "sendVideo", {
+    chat_id: chatId,
+    video: cachedFileId,
+    caption: caption || undefined,
+    parse_mode: caption ? "HTML" : undefined,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+
+  if (result.ok && result.result?.video?.file_id) {
+    telegramFileIdCache.set(urlOrFileId, result.result.video.file_id);
+  }
+
+  return result;
 }
 
 export async function sendMediaGroup(
@@ -356,9 +430,10 @@ export async function sendWelcomeMedia(
 }
 
 /**
- * Fluxo de boas-vindas do Telegram (/start):
- * A mensagem de boas-vindas é universal e fora do fluxo (todos os bots terão ela).
- * Envia as mídias cadastradas e em seguida a mensagem universal de apresentação com escolha de idioma.
+ * Fluxo de boas-vindas do Telegram (/start) ultra-otimizado (sub-segundo):
+ * - Resolução instantânea via cache em memória (LRU com TTL de 60s)
+ * - Cache de file_id para zero upload/download no Telegram
+ * - Disparo unificado (Foto/Vídeo + Copy + Botões de Idioma em 1 única requisição HTTP)
  */
 export async function handleTelegramStart(params: {
   userId: string;
@@ -367,33 +442,52 @@ export async function handleTelegramStart(params: {
   leadId: string;
   chatId: number;
 }) {
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-
-  // Etapa 1 — Mídias cadastradas na ordem definida (ficam fixas no topo do chat)
-  if (cfg.welcome?.media && cfg.welcome.media.length > 0) {
-    await sendWelcomeMedia(params.token, params.chatId, cfg.welcome.media, cfg.welcome.mediaMode);
-    await new Promise((r) => setTimeout(r, 450));
+  const now = Date.now();
+  let cached = botConfigCache.get(params.botId);
+  if (!cached || cached.expiresAt < now) {
+    const flow = await resolveBotFlow(params.botId);
+    const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+    const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+    cached = { flow, cfg, expiresAt: now + 60000 };
+    botConfigCache.set(params.botId, cached);
   }
+  const cfg = cached.cfg;
 
-  // Etapa 2 — Mensagem universal de boas-vindas (com botões de idioma)
-  const universalWelcome =
-    (cfg.gate?.welcomeMessagePt || "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o idioma que prefere para receber nossas informações.") +
-    "\n\n───────────────\n\n" +
-    (cfg.gate?.welcomeMessageEn || "Hello! Welcome! 👋\n\nWe're happy to have you here.\n\nBefore continuing, please choose your preferred language:");
+  const welcomeText =
+    cfg.welcome?.startMessage?.trim() ||
+    cfg.gate?.welcomeMessagePt?.trim() ||
+    "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o seu idioma de preferência abaixo / Before continuing, please choose your preferred language below:";
 
-  const ptBtnLabel = cfg.gate?.langButtonPt || "🇧🇷 Português";
-  const enBtnLabel = cfg.gate?.langButtonEn || "🇺🇸 English";
-
-  await sendMessage(params.token, params.chatId, universalWelcome, {
+  const languageMarkup = {
     inline_keyboard: [
       [
-        { text: ptBtnLabel, callback_data: "lang:pt" },
-        { text: enBtnLabel, callback_data: "lang:en" },
+        { text: "🇧🇷 Português", callback_data: "lang:pt" },
+        { text: "🇺🇸 English", callback_data: "lang:en" },
       ],
     ],
-  });
+  };
+
+  const mediaList = (cfg.welcome?.media ?? []).filter((m: any) => Boolean(m.url || m.fileId));
+
+  // Otimização Máxima: Se houver apenas 1 mídia, unifica Mídia + Copy + Botões em 1 ÚNICA chamada HTTP ao Telegram
+  if (mediaList.length === 1) {
+    const m = mediaList[0];
+    const target = (m.url && !m.url.startsWith("local_")) ? m.url : (m.fileId && !m.fileId.startsWith("local_")) ? m.fileId : (m.url || m.fileId);
+    if (m.kind === "video") {
+      await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup);
+    } else {
+      await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
+    }
+    return;
+  }
+
+  // Se houver múltiplas mídias, envia o grupo de mídias rapidamente e a mensagem de texto com os botões logo após
+  if (mediaList.length > 1) {
+    await sendWelcomeMedia(params.token, params.chatId, mediaList, cfg.welcome?.mediaMode);
+  }
+
+  // Disparo do texto e botões
+  await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
 }
 
 /**
@@ -810,7 +904,36 @@ export async function handlePixPlanPurchase(params: {
   // Envia a mensagem do PIX Copia e Cola e botão de conferir (sem imagem do QR code)
   await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
 
-  await logActivity(params.userId, "pagamento", "cobrança PIX plano criada", charge.id);
+  // Busca o nome do lead para salvar explicitamente no log de atividades
+  let leadName = "Lead";
+  try {
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("name,telegram_username,first_name,last_name")
+      .eq("id", params.leadId)
+      .maybeSingle();
+    if (lead) {
+      leadName =
+        lead.name ||
+        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+    }
+  } catch {
+    // fallback
+  }
+
+  await logActivity(
+    params.userId,
+    "pagamento",
+    `PIX gerado por ${leadName} - ${plan.name} (R$ ${priceFormatted})`,
+    charge.id,
+    {
+      lead_name: leadName,
+      lead_id: params.leadId,
+      plan_name: plan.name,
+      amount_cents: amountCents,
+    }
+  );
 }
 
 /**

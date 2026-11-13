@@ -14,6 +14,17 @@ function isDuplicateUpdate(updateId?: number): boolean {
   return false;
 }
 
+// Cache em memória do bot para evitar consultas repetidas ao banco a cada update
+interface BotCacheItem {
+  id: string;
+  user_id: string;
+  token: string;
+  status: string;
+  webhook_secret: string | null;
+  expiresAt: number;
+}
+const botDbCache = new Map<string, BotCacheItem>();
+
 export const Route = createFileRoute("/api/public/telegram/$botId")({
   server: {
     handlers: {
@@ -39,13 +50,20 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             sendMessage,
           } = await import("@/lib/telegram.server");
 
-          const { data: bot } = await supabaseAdmin
-            .from("bots")
-            .select("id,user_id,token,status,webhook_secret")
-            .eq("id", params.botId)
-            .maybeSingle();
+          // 1. Resolução ultrarrápida do bot via cache em memória (60s TTL)
+          const now = Date.now();
+          let bot = botDbCache.get(params.botId);
+          if (!bot || bot.expiresAt < now) {
+            const { data: dbBot } = await supabaseAdmin
+              .from("bots")
+              .select("id,user_id,token,status,webhook_secret")
+              .eq("id", params.botId)
+              .maybeSingle();
 
-          if (!bot) return new Response("Not found", { status: 404 });
+            if (!dbBot) return new Response("Not found", { status: 404 });
+            bot = { ...dbBot, expiresAt: now + 60000 };
+            botDbCache.set(params.botId, bot);
+          }
 
           const secret = request.headers.get("x-telegram-bot-api-secret-token") ?? "";
           if (secret !== bot.webhook_secret) return new Response("Unauthorized", { status: 401 });
@@ -61,7 +79,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             callback_query?: {
               id?: string;
               data?: string;
-              message?: { chat?: { id?: number } };
+              message?: { chat?: { id?: number }; message_id?: number };
               from?: { id?: number; username?: string; first_name?: string };
             };
           };
@@ -76,15 +94,61 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           const chatId = update.message?.chat?.id ?? cb?.message?.chat?.id;
           if (!from?.id || !chatId) return Response.json({ ok: true, ignored: true });
 
-          // Encerra o "loading" do botão imediatamente
+          // Encerra o "loading" do botão imediatamente (sem aguardar)
           if (cb?.id) {
-            await fetch(`https://api.telegram.org/bot${bot.token}/answerCallbackQuery`, {
+            fetch(`https://api.telegram.org/bot${bot.token}/answerCallbackQuery`, {
               method: "POST",
-              headers: { "content-type": "application/json" },
+              headers: { "content-type": "application/json", Connection: "keep-alive" },
               body: JSON.stringify({ callback_query_id: cb.id }),
             }).catch(() => undefined);
           }
 
+          const msgText = (update.message?.text ?? "").trim();
+
+          // PRIORIDADE MÁXIMA NÃO-BLOQUEANTE: Mensagem /start
+          // Dispara a apresentação/mídias imediatamente em menos de 1 segundo
+          // enquanto o upsert do lead roda em background
+          if (msgText.startsWith("/start")) {
+            // Upsert assíncrono em background sem atrasar a resposta
+            const leadUpsertPromise = (async () => {
+              try {
+                const { data: existing } = await supabaseAdmin
+                  .from("leads")
+                  .select("id")
+                  .eq("bot_id", bot.id)
+                  .eq("telegram_id", from.id)
+                  .maybeSingle();
+
+                if (!existing) {
+                  await supabaseAdmin.from("leads").insert({
+                    user_id: bot.user_id,
+                    bot_id: bot.id,
+                    telegram_id: from.id,
+                    telegram_username: from.username ?? null,
+                    name: from.first_name ?? null,
+                    status: "new",
+                  });
+                }
+              } catch (e) {
+                console.warn("[start-lead-upsert-bg]", e);
+              }
+            })();
+
+            // Disparo imediato do /start
+            await handleTelegramStart({
+              userId: bot.user_id,
+              botId: bot.id,
+              token: bot.token,
+              leadId: `lead-${from.id}`,
+              chatId,
+            });
+
+            // Aguarda o upsert terminar se necessário sem bloquear retorno
+            leadUpsertPromise.catch(() => undefined);
+            return Response.json({ ok: true });
+          }
+
+          // Para callbacks ou outras mensagens, garante leadId no banco
           const { data: existing } = await supabaseAdmin
             .from("leads")
             .select("id,status")
@@ -108,7 +172,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               .maybeSingle();
             leadId = created?.id ?? null;
           } else if (existing?.status === "new") {
-            await supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", leadId);
+            supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", leadId).then(() => undefined);
           }
 
           if (!leadId) return Response.json({ ok: true });
@@ -261,19 +325,6 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               leadId,
               chatId,
               offerId: data.slice(6),
-            });
-            return Response.json({ ok: true });
-          }
-
-          // 8. Mensagem /start: inicia fluxo com mídias e apresentação
-          const msgText = (update.message?.text ?? "").trim();
-          if (msgText.startsWith("/start")) {
-            await handleTelegramStart({
-              userId: bot.user_id,
-              botId: bot.id,
-              token: bot.token,
-              leadId,
-              chatId,
             });
             return Response.json({ ok: true });
           }

@@ -154,6 +154,49 @@ export async function createPixCharge(input: CreateChargeInput) {
     })
     .eq("id", charge.id);
 
+  // Registro no log com o NOME DO LEAD QUE GEROU O PIX
+  let leadName = input.payerName || "Lead";
+  if (input.leadId) {
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("name,telegram_username,first_name,last_name")
+      .eq("id", input.leadId)
+      .maybeSingle();
+    if (lead) {
+      leadName =
+        lead.name ||
+        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+    }
+  }
+
+  const { logActivity, notify } = await import("@/lib/telegram.server");
+  const amountFormatted = (input.amountCents / 100).toFixed(2).replace(".", ",");
+  const desc = input.description || input.productName || "Plano";
+
+  await logActivity(
+    input.userId,
+    "pagamento",
+    `PIX gerado por ${leadName} - R$ ${amountFormatted} (${desc})`,
+    charge.id,
+    {
+      lead_name: leadName,
+      lead_id: input.leadId,
+      amount_cents: input.amountCents,
+      description: desc,
+      status: "pending",
+    }
+  );
+
+  await notify(
+    input.userId,
+    "info",
+    `⏳ Venda Gerada por ${leadName}!`,
+    `Novo pedido de R$ ${amountFormatted} aguardando pagamento por ${leadName} (${desc}).`,
+    "payment",
+    charge.id,
+  );
+
   return { ...charge, pix_code: result.pixCode || null };
 }
 
@@ -181,7 +224,7 @@ export async function creditPayment(paymentId: string, ip?: string | null) {
 export async function approvePayment(paymentId: string, ip?: string | null) {
   const { data: payment } = await supabaseAdmin
     .from("payments")
-    .select("id,user_id,status,amount_cents,description,product_name")
+    .select("id,user_id,status,amount_cents,description,product_name,lead_id")
     .eq("id", paymentId)
     .maybeSingle();
   if (!payment) return { ok: false, message: "Pagamento não encontrado" } as const;
@@ -193,15 +236,46 @@ export async function approvePayment(paymentId: string, ip?: string | null) {
   const { applyGatewaySplits } = await import("@/lib/payments/gateways.server");
   await applyGatewaySplits(payment.id);
 
+  // Busca o NOME DO LEAD QUE PAGOU
+  let leadName = "Lead";
+  if (payment.lead_id) {
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("name,telegram_username,first_name,last_name")
+      .eq("id", payment.lead_id)
+      .maybeSingle();
+    if (lead) {
+      leadName =
+        lead.name ||
+        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+    }
+  }
+
   const { deliverForPayment, notify, logActivity } = await import("@/lib/telegram.server");
-  await logActivity(payment.user_id, "pagamento", "pagamento aprovado", payment.id, { ip: ip ?? null });
+  const amountFormatted = (payment.amount_cents / 100).toFixed(2).replace(".", ",");
+  const productLabel = payment.product_name ?? payment.description ?? "Plano";
+
+  await logActivity(
+    payment.user_id,
+    "pagamento",
+    `PIX aprovado e pago por ${leadName} - R$ ${amountFormatted} (${productLabel})`,
+    payment.id,
+    {
+      ip: ip ?? null,
+      lead_name: leadName,
+      lead_id: payment.lead_id,
+      amount_cents: payment.amount_cents,
+      product: productLabel,
+      status: "approved",
+    }
+  );
+
   await notify(
     payment.user_id,
     "success",
-    "Pagamento recebido",
-    `${payment.product_name ?? payment.description ?? "Cobrança"} · R$ ${(payment.amount_cents / 100)
-      .toFixed(2)
-      .replace(".", ",")} creditado na carteira`,
+    `💸 Venda Aprovada de ${leadName}!`,
+    `Você recebeu R$ ${amountFormatted} de ${leadName} no CASHBOT! (${productLabel})`,
     "payment",
     payment.id,
   );

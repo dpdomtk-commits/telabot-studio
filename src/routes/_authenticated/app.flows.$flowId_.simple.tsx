@@ -56,8 +56,8 @@ export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple"
 
 const NAV_SECTIONS = [
   { id: "bots", label: "Bots", icon: Bot, category: "ESTRUTURA" },
-  { id: "gate", label: "Gate de Entrada", icon: Sparkles, category: "ESTRUTURA" },
-  { id: "welcome", label: "Apresentação & Copy", icon: MessageSquare, category: "ESTRUTURA" },
+  { id: "gate", label: "Boas-vindas (/start)", icon: Sparkles, category: "ESTRUTURA" },
+  { id: "welcome", label: "Copy Principal (Bilíngue)", icon: MessageSquare, category: "ESTRUTURA" },
   { id: "plans", label: "Planos", icon: CreditCard, category: "ESTRUTURA" },
   { id: "upsell", label: "Upsell", icon: TrendingUp, category: "CONVERSÃO" },
   { id: "downsell", label: "Downsell", icon: TrendingDown, category: "CONVERSÃO" },
@@ -355,169 +355,25 @@ export function AdvancedFlowEditorPage() {
             </div>
           )}
 
-          {/* ABA GATE DE ENTRADA (Configurações Iniciais Desacopladas do Fluxo) */}
+          {/* ABA BLOCO INICIAL — BOAS-VINDAS (/start) */}
           {activeTab === "gate" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                    <Sparkles className="size-5 text-[#38BDF8]" /> Configurações Iniciais (Gate de Entrada)
+                    <Sparkles className="size-5 text-[#38BDF8]" /> Bloco Inicial — Boas-vindas (/start)
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Executado automaticamente no /start antes dos blocos do fluxo principal. Define as variáveis globais <code>selected_language</code> e <code>selected_currency</code>.
+                    Disparado automaticamente quando o lead envia /start. Envia as mídias e a copy única vinculada aos botões de idioma.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Gate Ativo</span>
-                  <Switch
-                    checked={config.gate?.enabled ?? true}
-                    onCheckedChange={(checked) =>
-                      setConfig({
-                        ...config,
-                        gate: { ...(config.gate || defaultAdvancedConfig().gate), enabled: checked },
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Card 1: Mensagens de Entrada no Start */}
-              <div className="p-5 rounded-2xl border border-white/10 bg-[#09090E]/90 space-y-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-white">
-                  <span className="flex size-6 items-center justify-center rounded-lg bg-[#1049B8]/30 text-[#60A5FA] text-xs">
-                    1
-                  </span>
-                  Passo 1 — Boas-vindas no /start e Seleção de Idioma
-                </div>
-                <p className="text-xs text-zinc-400">
-                  Enviado logo após as mídias iniciais do bot. Apresenta o texto de recepção e os botões de idioma.
-                </p>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-zinc-300">Texto de Boas-vindas (Português 🇧🇷)</Label>
-                    <Textarea
-                      rows={4}
-                      value={config.gate?.welcomeMessagePt || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          gate: { ...(config.gate || defaultAdvancedConfig().gate), welcomeMessagePt: e.target.value },
-                        })
-                      }
-                      className="bg-black/50 border-white/10 text-white text-xs"
-                      placeholder="Olá! Seja muito bem-vindo(a)..."
-                    />
-                    <div>
-                      <Label className="text-[11px] text-zinc-400">Rótulo do Botão PT</Label>
-                      <Input
-                        value={config.gate?.langButtonPt || "🇧🇷 Português"}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            gate: { ...(config.gate || defaultAdvancedConfig().gate), langButtonPt: e.target.value },
-                          })
-                        }
-                        className="bg-black/50 border-white/10 text-white text-xs h-8 mt-1"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-zinc-300">Welcome Text (English 🇺🇸)</Label>
-                    <Textarea
-                      rows={4}
-                      value={config.gate?.welcomeMessageEn || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          gate: { ...(config.gate || defaultAdvancedConfig().gate), welcomeMessageEn: e.target.value },
-                        })
-                      }
-                      className="bg-black/50 border-white/10 text-white text-xs"
-                      placeholder="Hello! Welcome!..."
-                    />
-                    <div>
-                      <Label className="text-[11px] text-zinc-400">EN Button Label</Label>
-                      <Input
-                        value={config.gate?.langButtonEn || "🇺🇸 English"}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            gate: { ...(config.gate || defaultAdvancedConfig().gate), langButtonEn: e.target.value },
-                          })
-                        }
-                        className="bg-black/50 border-white/10 text-white text-xs h-8 mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Pergunta de Moeda */}
-              <div className="p-5 rounded-2xl border border-white/10 bg-[#09090E]/90 space-y-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-white">
-                  <span className="flex size-6 items-center justify-center rounded-lg bg-[#1049B8]/30 text-[#60A5FA] text-xs">
-                    2
-                  </span>
-                  Passo 2 — Pergunta de Moeda para Pagamento
-                </div>
-                <p className="text-xs text-zinc-400">
-                  Ao escolher o idioma, a mensagem anterior é apagada e o bot pergunta a moeda desejada.
-                </p>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-zinc-300">Pergunta de Moeda (Português 🇧🇷)</Label>
-                    <Textarea
-                      rows={3}
-                      value={config.gate?.currencyPromptPt || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          gate: { ...(config.gate || defaultAdvancedConfig().gate), currencyPromptPt: e.target.value },
-                        })
-                      }
-                      className="bg-black/50 border-white/10 text-white text-xs"
-                    />
-                    <p className="text-[11px] text-zinc-500">Exibirá os botões: [ 🇧🇷 Real (R$) ] e [ 🇺🇸 Dólar ($) ]</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-zinc-300">Currency Prompt (English 🇺🇸)</Label>
-                    <Textarea
-                      rows={3}
-                      value={config.gate?.currencyPromptEn || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          gate: { ...(config.gate || defaultAdvancedConfig().gate), currencyPromptEn: e.target.value },
-                        })
-                      }
-                      className="bg-black/50 border-white/10 text-white text-xs"
-                    />
-                    <p className="text-[11px] text-zinc-500">Exibirá os botões: [ 💵 USD ], [ 💶 EUR ], [ 💷 GBP ], [ 🇧🇷 BRL ]</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ABA APRESENTAÇÃO & COPY (Inputs Bilíngues Dinâmicos + Botão CTA "Ver Planos") */}
-          {activeTab === "welcome" && (
-            <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
-              <div className="border-b border-border/60 pb-4">
-                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <MessageSquare className="size-5 text-primary" /> Apresentação & Mensagem Bilíngue
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Mídias iniciais e espaço único de mensagem com alternador Português/Inglês e botão de CTA abaixo.
-                </p>
               </div>
 
               {/* Upload de mídias direto do PC */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-zinc-300">Mídias de Apresentação (Enviadas no início do chat)</Label>
+                <Label className="text-xs font-semibold text-zinc-300">
+                  Mídias Iniciais do Start (Fotos / Vídeos)
+                </Label>
                 <FlowMediaUploader
                   media={config.welcome.media}
                   mode={config.welcome.mediaMode}
@@ -531,15 +387,114 @@ export function AdvancedFlowEditorPage() {
                 />
               </div>
 
-              {/* Alternador Rápido de Idioma da Apresentação */}
+              {/* Bloco Inicial — Boas-vindas (Copy Única, não bilíngue) */}
+              <div className="p-5 rounded-2xl border border-white/10 bg-[#09090E]/90 space-y-4">
+                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <div>
+                    <h3 className="font-bold text-white text-sm">
+                      Mensagem de Boas-vindas (Copy Única) *
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Campo dedicado e único (não bilíngue). Vinculado automaticamente aos botões de seleção de idioma.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-zinc-500 font-mono">
+                    {(config.welcome.startMessage || config.gate?.welcomeMessagePt || "").length}/4000
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Textarea
+                    rows={5}
+                    value={
+                      config.welcome.startMessage ||
+                      config.gate?.welcomeMessagePt ||
+                      "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o seu idioma de preferência abaixo / Before continuing, please choose your preferred language below:"
+                    }
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        welcome: {
+                          ...config.welcome,
+                          startMessage: e.target.value,
+                        },
+                        gate: {
+                          ...(config.gate || defaultAdvancedConfig().gate),
+                          welcomeMessagePt: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="Olá! Seja muito bem-vindo(a)! Antes de continuar, escolha o seu idioma..."
+                    className="bg-black/50 border-white/10 text-white text-xs leading-relaxed focus:border-[#38BDF8]"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {["{nome}", "{bot_name}", "{saudacao}"].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const current = config.welcome.startMessage || config.gate?.welcomeMessagePt || "";
+                          const updated = current + " " + tag;
+                          setConfig({
+                            ...config,
+                            welcome: { ...config.welcome, startMessage: updated },
+                            gate: { ...(config.gate || defaultAdvancedConfig().gate), welcomeMessagePt: updated },
+                          });
+                        }}
+                        className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] font-mono text-zinc-300 hover:bg-white/10 border border-white/10"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Preview no estilo Telegram */}
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                    Prévia do /start no Telegram (Copy Única + Botões de Idioma):
+                  </p>
+                  <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
+                    <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
+                      {config.welcome.startMessage ||
+                        config.gate?.welcomeMessagePt ||
+                        "Olá! Seja muito bem-vindo(a)! 👋\n\nAntes de continuar, escolha o seu idioma / Please choose your language:"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                        🇧🇷 Português
+                      </div>
+                      <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                        🇺🇸 English
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA BLOCOS PRINCIPAIS DO FLUXO (Inputs Bilíngues) */}
+          {activeTab === "welcome" && (
+            <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
+              <div className="border-b border-border/60 pb-4">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <MessageSquare className="size-5 text-primary" /> Copy Principal do Bot (Inputs Bilíngues)
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mensagem exibida imediatamente após o lead selecionar o idioma (a mensagem de boas-vindas anterior é apagada).
+                </p>
+              </div>
+
+              {/* Alternador Rápido de Idioma da Copy Principal */}
               <div className="rounded-2xl border border-white/10 bg-[#09090E]/90 p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
                   <div>
                     <h3 className="font-bold text-white text-sm">
-                      Copy da Apresentação & Botão de Ver Planos
+                      Copy Principal por Idioma
                     </h3>
                     <p className="text-xs text-zinc-400">
-                      Configure a mensagem e o rótulo do botão CTA para cada idioma.
+                      Configure a copy para cada bifurcação do fluxo.
                     </p>
                   </div>
 
@@ -572,10 +527,14 @@ export function AdvancedFlowEditorPage() {
                 {bilingualTab === "pt" ? (
                   /* Painel PT-BR */
                   <div className="space-y-4">
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/15 p-3 text-xs text-emerald-300">
+                      ✓ <strong>Fluxo Português:</strong> Ao clicar em Português, a mensagem de boas-vindas é apagada e esta copy é exibida junto com todos os <strong>Planos de Pagamento diretos em PIX (BRL)</strong>, sem etapa intermediária de moeda.
+                    </div>
+
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs text-zinc-300 font-semibold">
-                          Texto da Mensagem (Português) *
+                          Copy Principal (Português) *
                         </Label>
                         <span className="text-[11px] text-zinc-500 font-mono">
                           {(config.welcome.messagePt || config.welcome.message).length}/4000
@@ -594,7 +553,7 @@ export function AdvancedFlowEditorPage() {
                             },
                           })
                         }
-                        placeholder="Olá! Seja bem-vindo(a). Toque abaixo para ver nossos planos exclusivos:"
+                        placeholder="Olá! Seja muito bem-vindo(a) ao nosso atendimento VIP! Escolha seu plano exclusivo abaixo:"
                         className="bg-black/50 border-white/10 text-white text-xs leading-relaxed focus:border-[#38BDF8]"
                       />
                       <div className="flex flex-wrap gap-1.5 pt-1">
@@ -619,34 +578,18 @@ export function AdvancedFlowEditorPage() {
                         ))}
                       </div>
                     </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-zinc-300 font-semibold">
-                        Rótulo do Botão de CTA (Português)
-                      </Label>
-                      <Input
-                        value={config.welcome.ctaPt || "💎 Ver Planos"}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            welcome: { ...config.welcome, ctaPt: e.target.value },
-                          })
-                        }
-                        placeholder="💎 Ver Planos"
-                        className="bg-black/50 border-white/10 text-white text-xs h-9"
-                      />
-                      <p className="text-[11px] text-zinc-500">
-                        Ao clicar neste botão, o lead visualiza imediatamente os planos e valores em Real (BRL) via PIX.
-                      </p>
-                    </div>
                   </div>
                 ) : (
                   /* Painel EN-US */
                   <div className="space-y-4">
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-950/15 p-3 text-xs text-blue-300">
+                      ✓ <strong>Fluxo Inglês:</strong> Ao clicar em English, a mensagem de boas-vindas é apagada e esta copy é exibida junto com as opções de moeda: <strong>Dólar (USD)</strong>, <strong>Euro (EUR)</strong> e <strong>Libra (GBP)</strong>. Após o lead selecionar a moeda, os planos são exibidos.
+                    </div>
+
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs text-zinc-300 font-semibold">
-                          Presentation Message (English) *
+                          Main Copy (English) *
                         </Label>
                         <span className="text-[11px] text-zinc-500 font-mono">
                           {(config.welcome.messageEn || "").length}/4000
@@ -661,7 +604,7 @@ export function AdvancedFlowEditorPage() {
                             welcome: { ...config.welcome, messageEn: e.target.value },
                           })
                         }
-                        placeholder="Hello! Welcome to our VIP service. Tap the button below to view our exclusive plans:"
+                        placeholder="Hello! Welcome to our VIP service. Please choose your preferred currency below to view our plans:"
                         className="bg-black/50 border-white/10 text-white text-xs leading-relaxed focus:border-[#38BDF8]"
                       />
                       <div className="flex flex-wrap gap-1.5 pt-1">
@@ -685,69 +628,49 @@ export function AdvancedFlowEditorPage() {
                         ))}
                       </div>
                     </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-zinc-300 font-semibold">
-                        CTA Button Label (English)
-                      </Label>
-                      <Input
-                        value={config.welcome.ctaEn || "💎 View Plans"}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            welcome: { ...config.welcome, ctaEn: e.target.value },
-                          })
-                        }
-                        placeholder="💎 View Plans"
-                        className="bg-black/50 border-white/10 text-white text-xs h-9"
-                      />
-                      <p className="text-[11px] text-zinc-500">
-                        Upon clicking, the lead views the plans converted 1:1 in the chosen currency (USD, EUR, GBP).
-                      </p>
-                    </div>
                   </div>
                 )}
 
-                  {/* Live Preview no estilo Telegram */}
-                  <div className="pt-2 border-t border-white/5">
-                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                      Prévia no Telegram ao selecionar {bilingualTab === "pt" ? "Português 🇧🇷" : "English 🇺🇸"}:
+                {/* Live Preview no estilo Telegram */}
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                    Prévia da Mensagem Principal no Telegram ({bilingualTab === "pt" ? "Português 🇧🇷" : "English 🇺🇸"}):
+                  </p>
+                  <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
+                    <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
+                      {bilingualTab === "pt"
+                        ? (config.welcome.messagePt || config.welcome.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP! Escolha seu plano exclusivo abaixo:")
+                        : (config.welcome.messageEn || "Hello! Welcome to our VIP service. Please choose your preferred currency below to view our plans:")}
                     </p>
-                    <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
-                      <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
-                        {bilingualTab === "pt"
-                          ? (config.welcome.messagePt || config.welcome.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP! Escolha seu plano abaixo:")
-                          : (config.welcome.messageEn || "Hello! Welcome to our VIP service. Please choose your preferred currency below to view our plans:")}
-                      </p>
 
-                      {bilingualTab === "pt" ? (
-                        /* Em Português: Todos os planos diretamente abaixo da copy */
-                        <div className="space-y-1.5">
-                          {config.plans.items.slice(0, 3).map((p, idx) => (
-                            <div
-                              key={p.id}
-                              className="w-full py-2 rounded-xl bg-[#2481cc] hover:bg-[#2072b4] text-white text-center font-bold text-xs shadow cursor-pointer transition truncate px-2"
-                            >
-                              {p.buttonText?.trim() || `${p.emoji || "💎"} ${p.name} por R$ ${Number(p.price || 0).toFixed(2).replace(".", ",")}`}
-                            </div>
-                          ))}
+                    {bilingualTab === "pt" ? (
+                      /* Em Português: Todos os planos diretamente abaixo da copy */
+                      <div className="space-y-1.5">
+                        {config.plans.items.slice(0, 3).map((p) => (
+                          <div
+                            key={p.id}
+                            className="w-full py-2 rounded-xl bg-[#2481cc] hover:bg-[#2072b4] text-white text-center font-bold text-xs shadow cursor-pointer transition truncate px-2"
+                          >
+                            {p.buttonText?.trim() || `${p.emoji || "💎"} ${p.name} por R$ ${Number(p.price || 0).toFixed(2).replace(".", ",")}`}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* Em Inglês: Moedas Dólar, Euro e Libra abaixo da copy */
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                          💵 USD ($)
                         </div>
-                      ) : (
-                        /* Em Inglês: Moedas Dólar, Euro e Libra abaixo da copy */
-                        <div className="grid grid-cols-3 gap-1.5">
-                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
-                            💵 USD ($)
-                          </div>
-                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
-                            💶 EUR (€)
-                          </div>
-                          <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
-                            💷 GBP (£)
-                          </div>
+                        <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                          💶 EUR (€)
                         </div>
-                      )}
-                    </div>
+                        <div className="py-2 rounded-xl bg-[#2481cc] text-white text-center font-bold text-xs shadow cursor-pointer">
+                          💷 GBP (£)
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
               </div>
             </div>
           )}

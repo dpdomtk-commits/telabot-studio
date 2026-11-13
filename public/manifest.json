@@ -1,0 +1,25 @@
+{
+  "name": "CASHBOT",
+  "short_name": "CASHBOT",
+  "description": "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. The World Is Yours.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0B3B99",
+  "background_color": "#0B3B99",
+  "icons": [
+    {
+      "src": "/cashbot-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/cashbot-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

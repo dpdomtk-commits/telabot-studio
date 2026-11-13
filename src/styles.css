@@ -13,6 +13,7 @@
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-pixel: "Silkscreen", "Press Start 2P", monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -168,6 +169,10 @@
   .font-display {
     font-family: var(--font-display);
     letter-spacing: -0.025em;
+  }
+
+  .font-pixel {
+    font-family: "Silkscreen", "Press Start 2P", "JetBrains Mono", monospace;
   }
 
   ::selection {

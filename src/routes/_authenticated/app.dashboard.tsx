@@ -19,6 +19,7 @@ import {
   Bot,
   Sparkles,
   User,
+  Globe,
 } from "lucide-react";
 import {
   Area,
@@ -31,6 +32,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getGlobalRanking } from "@/lib/ranking.functions";
 
 export const Route = createFileRoute("/_authenticated/app/dashboard")({
   head: () => ({
@@ -44,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/app/dashboard")({
 });
 
 export function Dashboard() {
-  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState<"proprio" | "concurso" | "liga">("proprio");
+  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState<"proprio" | "concurso">("concurso");
   const [period, setPeriod] = useState<"hoje" | "ontem" | "7d" | "30d" | "total">("hoje");
   const [activePlaqueIndex, setActivePlaqueIndex] = useState(0);
 
@@ -56,7 +58,7 @@ export function Dashboard() {
       const [payments, leads, allLogs, bots] = await Promise.all([
         supabase
           .from("payments")
-          .select("id,bot_id,amount_cents,net_cents,status,created_at,product_name,description")
+          .select("id,bot_id,lead_id,amount_cents,net_cents,status,created_at,product_name,description,leads(name,telegram_username)")
           .order("created_at", { ascending: false })
           .limit(500),
         supabase
@@ -82,6 +84,14 @@ export function Dashboard() {
         bots: bots.data ?? [],
       };
     },
+  });
+
+  // Ranking Global da Plataforma (Consolidando todos os usuários da CASHBOT sem filtros restritivos)
+  const { data: globalRankingData } = useQuery({
+    queryKey: ["global-ranking"],
+    queryFn: () => getGlobalRanking(),
+    staleTime: 30000,
+    refetchInterval: 60000,
   });
 
   // Filtro dinâmico por período
@@ -222,6 +232,7 @@ export function Dashboard() {
           badge: "O MUNDO É SEU",
           avatar: "👑",
           revenue: `R$ ${revenue.toFixed(2)}`,
+          isCurrentUser: true,
         },
       ];
     }
@@ -237,52 +248,15 @@ export function Dashboard() {
         badge: botRev >= 1000 ? "MEGALODON" : botRev > 0 ? "PRODUCER" : "ATIVO",
         avatar: idx === 0 ? "🦈" : idx === 1 ? "💎" : "⚡",
         revenue: `R$ ${botRev.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        isCurrentUser: true,
       };
     });
   }, [data?.bots, data?.payments, revenue]);
 
-  const networkTopPlayers = [
-    {
-      id: "net-1",
-      rank: "#1",
-      name: "Chef Tony · @tony.montana",
-      badge: "THE WORLD IS YOURS",
-      avatar: "👑",
-      revenue: "R$ 2.6M",
-    },
-    {
-      id: "net-2",
-      rank: "#2",
-      name: "Miami Empire · @scarface.vip",
-      badge: "ABYSSAL PREDATOR",
-      avatar: "🌊",
-      revenue: "R$ 989.6k",
-    },
-    {
-      id: "net-3",
-      rank: "#3",
-      name: "Chef Hot · @chef.targsa",
-      badge: "ABYSSAL PREDATOR",
-      avatar: "⚡",
-      revenue: "R$ 675.6k",
-    },
-    {
-      id: "net-4",
-      rank: "#4",
-      name: "Syndicate Bot · @patrick.hot",
-      badge: "ABYSSAL PREDATOR",
-      avatar: "🎯",
-      revenue: "R$ 672.0k",
-    },
-    {
-      id: "net-5",
-      rank: "#5",
-      name: "Godfather · @arthur.chef",
-      badge: "CORAL GUARDIAN",
-      avatar: "🔥",
-      revenue: "R$ 412.3k",
-    },
-  ];
+  // Ranking Global Real da Plataforma consolidando todos os vendedores
+  const networkTopPlayers = useMemo(() => {
+    return globalRankingData?.ranking ?? [];
+  }, [globalRankingData]);
 
   const displayedRanking = activeLeaderboardTab === "proprio" ? ownBotsRanking : networkTopPlayers;
 
@@ -534,20 +508,32 @@ export function Dashboard() {
                 <p>Nenhuma atividade registrada no período.</p>
               </div>
             ) : (
-              // Junta e ordena eventos de pagamentos e leads
+              // Junta e ordena eventos de pagamentos e leads exibindo explicitamente O NOME DO LEAD
               [
-                ...filteredPayments.map((p) => ({
-                  id: `pay-${p.id}`,
-                  type: p.status === "approved" ? "pago" : "gerado",
-                  title: p.status === "approved" ? "PIX Pago (Aprovado)" : "PIX Gerado (Aguardando)",
-                  subtitle: `${p.product_name || "Plano"} · R$ ${((p.amount_cents ?? 0) / 100).toFixed(2)}`,
-                  date: p.created_at,
-                })),
+                ...filteredPayments.map((p) => {
+                  const leadObj = (p as any).leads;
+                  const leadName =
+                    leadObj?.name ||
+                    (leadObj?.telegram_username ? `@${leadObj.telegram_username}` : null) ||
+                    (data?.leads ?? []).find((l) => l.id === (p as any).lead_id)?.name ||
+                    ((data?.leads ?? []).find((l) => l.id === (p as any).lead_id)?.telegram_username ? `@${(data?.leads ?? []).find((l) => l.id === (p as any).lead_id)?.telegram_username}` : null) ||
+                    "Lead";
+
+                  const isPaid = p.status === "approved";
+                  return {
+                    id: `pay-${p.id}`,
+                    type: isPaid ? "pago" : "gerado",
+                    title: isPaid ? `💸 PIX Pago por ${leadName}` : `⏳ PIX Gerado por ${leadName}`,
+                    leadName,
+                    subtitle: `${p.product_name || p.description || "Plano"} · R$ ${(((p.amount_cents ?? 0) / 100).toFixed(2)).replace(".", ",")}`,
+                    date: p.created_at,
+                  };
+                }),
                 ...filteredLeads.map((l) => ({
                   id: `lead-${l.id}`,
                   type: "start",
-                  title: "Novo Lead (/start)",
-                  subtitle: l.name || l.telegram_username ? `@${l.telegram_username || l.name}` : "Cliente iniciou bot",
+                  title: `Novo Lead: ${l.name || (l.telegram_username ? `@${l.telegram_username}` : "Iniciou o bot")}`,
+                  subtitle: l.telegram_username ? `@${l.telegram_username}` : "Iniciou via /start",
                   date: l.created_at,
                 })),
               ]
@@ -731,68 +717,114 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Column 3: Top 5 Players (Integrado com Informações Próprias dos Bots) */}
+        {/* Column 3: Top Players / Ranking Global CASHBOT */}
         <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col h-[400px]">
           <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-2">
             <div className="flex items-center gap-2">
-              <Trophy className="size-4 text-cyan-400" />
+              <Trophy className="size-4 text-[#38BDF8]" />
               <div>
-                <h4 className="font-bold text-white text-sm">Top 5 Players</h4>
+                <h4 className="font-bold text-white text-sm">Top Players & Ranking</h4>
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
-                  RANKING & FATURAMENTO
+                  FATURAMENTO GLOBAL CASHBOT
                 </span>
               </div>
             </div>
           </div>
 
+          {/* Destaque com a posição do usuário logado no ranking global */}
+          <div className="rounded-xl border border-[#38BDF8]/30 bg-[#0A34B2]/20 p-2 px-3 mb-2.5 flex items-center justify-between text-xs">
+            <span className="text-zinc-300 font-medium">Sua posição no ranking geral:</span>
+            <span className="font-mono text-[11px] font-black text-[#38BDF8] bg-black/60 px-2 py-0.5 rounded border border-[#38BDF8]/40">
+              #{globalRankingData?.currentUserRank ?? 1} de {globalRankingData?.totalSellers ?? 1}
+            </span>
+          </div>
+
           {/* Abas */}
           <div className="grid grid-cols-2 gap-1 bg-white/5 p-1 rounded-xl mb-3">
+            <button
+              onClick={() => setActiveLeaderboardTab("concurso")}
+              className={`py-1 text-center text-xs font-semibold rounded-lg transition ${
+                activeLeaderboardTab === "concurso"
+                  ? "bg-gradient-to-r from-[#0A34B2]/50 to-[#38BDF8]/30 text-[#38BDF8] border border-[#38BDF8]/40 font-bold"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Rede Geral (Global)
+            </button>
             <button
               onClick={() => setActiveLeaderboardTab("proprio")}
               className={`py-1 text-center text-xs font-semibold rounded-lg transition ${
                 activeLeaderboardTab === "proprio"
-                  ? "bg-gradient-to-r from-cyan-500/30 to-blue-600/30 text-cyan-300 border border-cyan-500/40 font-bold"
+                  ? "bg-gradient-to-r from-[#0A34B2]/50 to-[#38BDF8]/30 text-[#38BDF8] border border-[#38BDF8]/40 font-bold"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
               Seus Bots
             </button>
-            <button
-              onClick={() => setActiveLeaderboardTab("concurso")}
-              className={`py-1 text-center text-xs font-semibold rounded-lg transition ${
-                activeLeaderboardTab === "concurso"
-                  ? "bg-gradient-to-r from-cyan-500/30 to-blue-600/30 text-cyan-300 border border-cyan-500/40 font-bold"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Rede Geral
-            </button>
           </div>
 
           {/* Lista de Ranking */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-            {displayedRanking.map((player) => (
-              <div
-                key={player.id}
-                className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5 flex items-center justify-between hover:bg-white/[0.04] transition"
-              >
-                <div className="flex items-center gap-2.5 truncate max-w-[200px]">
-                  <span className="size-7 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-xs shrink-0">
-                    {player.avatar}
-                  </span>
-                  <div className="truncate">
-                    <p className="text-xs font-bold text-white truncate">{player.name}</p>
-                    <span className="text-[9px] uppercase font-bold text-cyan-400/90">{player.badge}</span>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className="inline-block rounded-md px-2 py-0.5 text-xs font-black bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
-                    {player.revenue}
-                  </span>
-                </div>
+            {displayedRanking.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-500 text-xs">
+                <Trophy className="size-6 mb-2 opacity-30 text-[#38BDF8]" />
+                <p>Nenhum dado de faturamento ainda.</p>
               </div>
-            ))}
+            ) : (
+              displayedRanking.map((player) => {
+                const isTop1 = player.rank === "#1";
+                const isTop2 = player.rank === "#2";
+                const isTop3 = player.rank === "#3";
+
+                return (
+                  <div
+                    key={player.id}
+                    className={`rounded-xl border p-2.5 flex items-center justify-between transition ${
+                      player.isCurrentUser
+                        ? "border-[#38BDF8]/60 bg-[#0A34B2]/25 shadow-[0_0_15px_rgba(56,189,248,0.2)] ring-1 ring-[#38BDF8]/40"
+                        : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate max-w-[200px]">
+                      {/* Badge de Posição (#1, #2, #3, ...) */}
+                      <span
+                        className={`size-6 rounded-md border flex items-center justify-center text-[10px] font-black shrink-0 ${
+                          isTop1
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
+                            : isTop2
+                            ? "bg-slate-300/20 text-slate-200 border-slate-300/50"
+                            : isTop3
+                            ? "bg-amber-700/20 text-amber-400 border-amber-700/50"
+                            : "bg-zinc-900 text-zinc-400 border-white/10"
+                        }`}
+                      >
+                        {player.rank}
+                      </span>
+
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>{player.name}</span>
+                          {player.isCurrentUser && (
+                            <span className="text-[9px] bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40 rounded px-1 py-0.2 font-extrabold uppercase">
+                              Você
+                            </span>
+                          )}
+                        </p>
+                        <span className="text-[9px] uppercase font-bold text-[#38BDF8]/90">
+                          {player.badge}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="inline-block rounded-md px-2 py-0.5 text-xs font-black bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/30">
+                        {player.revenue}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

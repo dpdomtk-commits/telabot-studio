@@ -54,6 +54,7 @@ export type AdvancedFlowConfig = {
     };
   };
   welcome: {
+    startMessage: string;
     message: string;
     messagePt: string;
     ctaPt: string;
@@ -181,7 +182,9 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
     },
   },
   welcome: {
-    message: "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nToque abaixo para ver os planos disponíveis:",
+    startMessage:
+      "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o seu idioma de preferência abaixo / Before continuing, please choose your preferred language below:",
+    message: "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nEscolha seu plano exclusivo abaixo para ter acesso imediato:",
     messagePt: "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nToque no botão abaixo para ver nossos planos exclusivos:",
     ctaPt: "💎 Ver Planos",
     messageEn: "Hello! Welcome to our VIP service.\nTap the button below to view our exclusive plans:",
@@ -392,6 +395,7 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
     welcome: {
       ...base.welcome,
       ...rawWelcome,
+      startMessage: rawWelcome.startMessage ?? base.welcome.startMessage,
       message: welcomeMessage,
       messagePt: rawWelcome.messagePt || welcomeMessage || base.welcome.messagePt,
       ctaPt: rawWelcome.ctaPt || base.welcome.ctaPt,
