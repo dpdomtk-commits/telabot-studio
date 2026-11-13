@@ -167,17 +167,44 @@ export async function createChargeWithFallback(args: {
   const started = Date.now();
   try {
     const result = await getProvider(args.fallbackProvider).createPixCharge(args.input, args.fallbackConfig);
+    if (!result.pixCode) throw new Error("Fallback provider não retornou código PIX");
     await logAttempt({
       userId: args.userId,
       gatewayId: null,
       paymentId: args.input.chargeId,
-      provider: "internal",
+      provider: result.provider || "internal",
       success: true,
       amountCents: args.input.amountCents,
       latencyMs: Date.now() - started,
     });
-    return { gatewayId: null, provider: result.provider, externalId: result.externalId, pixCode: result.pixCode };
+    return { gatewayId: null, provider: result.provider || "internal", externalId: result.externalId, pixCode: result.pixCode };
   } catch (error) {
+    // Se o provedor configurado falhou e não era internal, aciona o internal imediatamente como garantia
+    if (args.fallbackProvider !== "internal") {
+      try {
+        const internalResult = await getProvider("internal").createPixCharge(args.input, args.fallbackConfig);
+        if (internalResult?.pixCode) {
+          await logAttempt({
+            userId: args.userId,
+            gatewayId: null,
+            paymentId: args.input.chargeId,
+            provider: "internal",
+            success: true,
+            amountCents: args.input.amountCents,
+            latencyMs: Date.now() - started,
+          });
+          return {
+            gatewayId: null,
+            provider: "internal",
+            externalId: internalResult.externalId,
+            pixCode: internalResult.pixCode,
+          };
+        }
+      } catch (internalErr) {
+        console.error("Falha no fallback internal:", internalErr);
+      }
+    }
+
     const message = error instanceof Error ? error.message : "Falha ao gerar código PIX";
     await logAttempt({
       userId: args.userId,
