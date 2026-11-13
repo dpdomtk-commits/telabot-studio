@@ -144,13 +144,13 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             });
 
             // Gatilho 1: Agenda o downsell automático de /start em background
-            import("@/lib/downsell.server").then(({ scheduleStartDownsells }) => {
+            import("@/lib/downsell.server").then(({ scheduleStartDownsells, processScheduledDownsells }) => {
               scheduleStartDownsells({
                 userId: bot.user_id,
                 botId: bot.id,
                 leadId: `lead-${from.id}`,
                 chatId,
-              });
+              }).then(() => processScheduledDownsells());
             }).catch((e) => console.warn("[downsell-start-schedule-bg]", e));
 
             // Aguarda o upsert terminar se necessário sem bloquear retorno

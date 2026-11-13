@@ -98,9 +98,31 @@ export const Route = createFileRoute("/api/public/webhooks/syncpay")({
           .eq("event_id", parsed.data.id)
           .eq("event_type", eventType);
 
+        // Processa downsells agendados em background
+        import("@/lib/downsell.server").then(({ processScheduledDownsells }) => {
+          processScheduledDownsells();
+        }).catch(() => undefined);
+
         return Response.json({ ok: true, status: mapped });
       },
-      GET: async () => Response.json({ ok: true, provider: "syncpay" }),
+      GET: async ({ request }) => {
+        const url = new URL(request.url);
+        if (
+          url.searchParams.get("cron") === "downsells" ||
+          url.searchParams.get("action") === "downsells"
+        ) {
+          const { processScheduledDownsells } = await import("@/lib/downsell.server");
+          const stats = await processScheduledDownsells();
+          return Response.json({
+            ok: true,
+            provider: "syncpay",
+            action: "downsells",
+            timestamp: new Date().toISOString(),
+            stats,
+          });
+        }
+        return Response.json({ ok: true, provider: "syncpay" });
+      },
     },
   },
 });
