@@ -211,7 +211,7 @@ export function FlowMediaUploader({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Sparkles className="size-3 text-pink-500" />
+                <Sparkles className="size-3 text-cyan-400" />
                 Mídia Dinâmica
               </button>
             </div>

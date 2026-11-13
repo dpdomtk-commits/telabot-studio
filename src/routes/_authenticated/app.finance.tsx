@@ -151,7 +151,7 @@ function FinancePage() {
       />
 
       {/* Banner Gateway Nativa Ativa */}
-      <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+      <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-blue-950/30 to-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
             <Wallet className="size-5" />

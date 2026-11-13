@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * AURUMBOT design system — dark premium, roxo neon → rosa neon.
- * Todos os valores de cor em oklch. Nunca usar cores fixas nos componentes.
+ * CASH BOT design system — dark obsidian, azul cobalto (#1049B8 / #0B3B99) e ciano elétrico (#38BDF8 / #60A5FA).
+ * Estética Scarface / "O Mundo É Seu".
  */
 
 @theme inline {
@@ -74,73 +74,72 @@
 :root {
   --radius: 0.875rem;
 
-  /* #050505 */
-  --background: oklch(0.115 0 0);
-  --foreground: oklch(1 0 0);
-  /* #0F0F16 */
-  --surface: oklch(0.172 0.014 285);
-  --surface-foreground: oklch(1 0 0);
-  /* #0B0B0F */
-  --card: oklch(0.152 0.009 285);
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.172 0.014 285);
-  --popover-foreground: oklch(1 0 0);
+  /* Obsidian Black #050508 */
+  --background: #050508;
+  --foreground: #f8fafc;
+  /* Deep Surface #09090E */
+  --surface: #09090e;
+  --surface-foreground: #f8fafc;
+  /* Card #0D0E14 */
+  --card: #0d0e14;
+  --card-foreground: #f8fafc;
+  --popover: #09090e;
+  --popover-foreground: #f8fafc;
 
-  /* #8B5CF6 / #A855F7 / #EC4899 */
-  --primary: oklch(0.606 0.219 292.7);
-  --primary-foreground: oklch(1 0 0);
-  --primary-glow: oklch(0.627 0.233 303.9);
-  --accent-pink: oklch(0.656 0.212 354.3);
+  /* Ciano Elétrico #38BDF8 / Azul Cobalto #1049B8 / #60A5FA */
+  --primary: #38bdf8;
+  --primary-foreground: #050508;
+  --primary-glow: #1049b8;
+  --accent-pink: #60a5fa;
 
-  /* #12121A */
-  --secondary: oklch(0.186 0.016 284.7);
-  --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.186 0.016 284.7);
-  /* #9CA3AF */
-  --muted-foreground: oklch(0.714 0.019 261.3);
-  --accent: oklch(0.238 0.027 284.2);
-  --accent-foreground: oklch(1 0 0);
+  /* Neutros Escuros Grafite */
+  --secondary: #11121a;
+  --secondary-foreground: #f8fafc;
+  --muted: #11121a;
+  --muted-foreground: #94a3b8;
+  --accent: #171824;
+  --accent-foreground: #f8fafc;
 
-  --destructive: oklch(0.62 0.21 22);
-  --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.74 0.17 158);
-  --success-foreground: oklch(0.16 0.02 158);
-  --warning: oklch(0.8 0.15 78);
-  --warning-foreground: oklch(0.18 0.03 78);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #10b981;
+  --success-foreground: #050508;
+  --warning: #f59e0b;
+  --warning-foreground: #050508;
 
-  /* #1D1D2B */
-  --border: oklch(0.238 0.027 284.2);
-  --input: oklch(0.238 0.027 284.2);
-  --ring: oklch(0.627 0.233 303.9);
+  /* Bordas sutis grafite/translúcido */
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #38bdf8;
 
-  --chart-1: oklch(0.606 0.219 292.7);
-  --chart-2: oklch(0.656 0.212 354.3);
-  --chart-3: oklch(0.7 0.16 240);
-  --chart-4: oklch(0.74 0.17 158);
-  --chart-5: oklch(0.8 0.15 78);
+  --chart-1: #38bdf8;
+  --chart-2: #1049b8;
+  --chart-3: #60a5fa;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
 
-  --sidebar: oklch(0.135 0.008 285);
-  --sidebar-foreground: oklch(0.82 0.015 275);
-  --sidebar-primary: oklch(0.627 0.233 303.9);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.186 0.016 284.7);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.238 0.027 284.2);
-  --sidebar-ring: oklch(0.627 0.233 303.9);
+  --sidebar: #050508;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #38bdf8;
+  --sidebar-primary-foreground: #050508;
+  --sidebar-accent: #11121a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: #38bdf8;
 
   --gradient-neon: linear-gradient(
     118deg,
-    oklch(0.606 0.219 292.7),
-    oklch(0.627 0.233 303.9) 48%,
-    oklch(0.656 0.212 354.3)
+    #38bdf8,
+    #2563eb 52%,
+    #1049b8
   );
-  --glow-violet: 0 0 0 1px oklch(0.627 0.233 303.9 / 0.22), 0 22px 60px -26px oklch(0.627 0.233 303.9 / 0.65);
+  --glow-violet: 0 0 0 1px rgba(56, 189, 248, 0.22), 0 20px 50px -25px rgba(16, 73, 184, 0.45);
   --glow-violet-strong:
-    0 0 0 1px oklch(0.627 0.233 303.9 / 0.4), 0 10px 26px -10px oklch(0.606 0.219 292.7 / 0.7),
-    0 24px 70px -30px oklch(0.656 0.212 354.3 / 0.6);
+    0 0 0 1px rgba(56, 189, 248, 0.4), 0 10px 26px -10px rgba(56, 189, 248, 0.5),
+    0 24px 60px -25px rgba(16, 73, 184, 0.5);
   --shadow-panel:
-    0 1px 0 0 oklch(1 0 0 / 0.05) inset, 0 26px 60px -38px oklch(0 0 0 / 0.95),
-    0 0 0 1px oklch(0.627 0.233 303.9 / 0.05);
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 26px 60px -38px rgba(0, 0, 0, 0.95),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .dark {
@@ -300,14 +299,10 @@
   &::before {
     content: "";
     position: absolute;
-    inset: -20%;
+    inset: 0;
     z-index: -1;
-    background:
-      radial-gradient(38% 40% at 22% 18%, oklch(0.606 0.219 292.7 / 0.3), transparent 70%),
-      radial-gradient(34% 36% at 78% 26%, oklch(0.656 0.212 354.3 / 0.22), transparent 70%),
-      radial-gradient(46% 44% at 52% 86%, oklch(0.627 0.233 303.9 / 0.2), transparent 72%);
-    filter: blur(30px);
-    animation: var(--animate-aurora);
+    background: radial-gradient(75% 50% at 50% 0%, rgba(16, 73, 184, 0.08), transparent 75%);
+    pointer-events: none;
   }
 }
 

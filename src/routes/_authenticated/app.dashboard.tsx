@@ -18,6 +18,7 @@ import {
   Clock,
   Bot,
   Sparkles,
+  User,
 } from "lucide-react";
 import {
   Area,
@@ -307,7 +308,7 @@ export function Dashboard() {
               onClick={() => setPeriod(item.id as any)}
               className={`px-3 py-1.5 rounded-lg transition-all ${
                 period === item.id
-                  ? "bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm"
+                  ? "bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
@@ -345,11 +346,11 @@ export function Dashboard() {
           {/* Card 2: Taxa de Conversão */}
           <div className="rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col justify-between items-center text-center">
             <div className="flex items-center gap-2 text-zinc-400 text-xs font-semibold self-start">
-              <TrendingUp className="size-4 text-purple-400" />
+              <TrendingUp className="size-4 text-cyan-400" />
               <span>Taxa de Conversão</span>
             </div>
 
-            {/* Circular Gauge / Donut Neon Cyan & Purple */}
+            {/* Circular Gauge / Donut Neon Cyan & Blue */}
             <div className="relative my-2 flex items-center justify-center size-24">
               <svg className="size-24 transform -rotate-90">
                 <circle
@@ -364,7 +365,7 @@ export function Dashboard() {
                   cx="48"
                   cy="48"
                   r="38"
-                  stroke="#00d2ff"
+                  stroke="#38bdf8"
                   strokeWidth="8"
                   strokeDasharray={2 * Math.PI * 38}
                   strokeDashoffset={2 * Math.PI * 38 * (1 - Math.min(1, Number(conversionRate) / 100))}
@@ -402,17 +403,17 @@ export function Dashboard() {
             <div className="flex items-end gap-1.5 h-6 pt-1">
               <div className="w-full bg-cyan-950/60 rounded-t h-2"></div>
               <div className="w-full bg-cyan-900/60 rounded-t h-3"></div>
-              <div className="w-full bg-purple-950/60 rounded-t h-2.5"></div>
-              <div className="w-full bg-purple-900/70 rounded-t h-4"></div>
-              <div className="w-full bg-purple-600/80 rounded-t h-5"></div>
-              <div className="w-full bg-cyan-400 rounded-t h-6 shadow-[0_0_10px_#00d2ff]"></div>
+              <div className="w-full bg-blue-950/60 rounded-t h-2.5"></div>
+              <div className="w-full bg-blue-900/70 rounded-t h-4"></div>
+              <div className="w-full bg-blue-600/80 rounded-t h-5"></div>
+              <div className="w-full bg-cyan-400 rounded-t h-6 shadow-[0_0_10px_#38bdf8]"></div>
             </div>
           </div>
 
           {/* Card 4: Ticket Médio */}
           <div className="rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col justify-between">
             <div className="flex items-center gap-2 text-zinc-400 text-xs font-semibold">
-              <Ticket className="size-4 text-purple-400" />
+              <Ticket className="size-4 text-cyan-400" />
               <span>Ticket Médio</span>
             </div>
 
@@ -424,7 +425,7 @@ export function Dashboard() {
             <div>
               <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-cyan-400 to-purple-500 h-full rounded-full shadow-[0_0_8px_#00d2ff]"
+                  className="bg-gradient-to-r from-cyan-400 to-blue-600 h-full rounded-full shadow-[0_0_8px_#38bdf8]"
                   style={{ width: `${Math.min(100, Math.max(15, approvedCount * 20))}%` }}
                 ></div>
               </div>
@@ -436,7 +437,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Right Section: Large Spline Chart (7 cols) em Azul e Roxo Neon */}
+        {/* Right Section: Large Spline Chart (7 cols) em Azul Cobalto e Ciano */}
         <div className="lg:col-span-7 rounded-2xl border border-white/10 bg-[#09090e] p-6 shadow-xl flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
             <div>
@@ -450,7 +451,7 @@ export function Dashboard() {
             </div>
 
             <div className="flex items-center gap-2 text-xs">
-              <span className="size-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#00d2ff]"></span>
+              <span className="size-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#38bdf8]"></span>
               <span className="text-zinc-300 font-medium">Receita</span>
             </div>
           </div>
@@ -460,9 +461,9 @@ export function Dashboard() {
               <AreaChart data={chartPoints}>
                 <defs>
                   <linearGradient id="neonChefGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00d2ff" stopOpacity={0.4} />
-                    <stop offset="60%" stopColor="#8b5cf6" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4} />
+                    <stop offset="60%" stopColor="#1049b8" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#1049b8" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -486,12 +487,12 @@ export function Dashboard() {
                 <Area
                   type="monotone"
                   dataKey="receita"
-                  stroke="#00d2ff"
+                  stroke="#38bdf8"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#neonChefGradient)"
                   dot={{ r: 0 }}
-                  activeDot={{ r: 5, fill: "#00d2ff", stroke: "#8b5cf6", strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: "#38bdf8", stroke: "#1049b8", strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -513,12 +514,15 @@ export function Dashboard() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-[10px]">
+            <div className="flex items-center gap-2.5 text-[10px]">
               <span className="flex items-center gap-1 text-emerald-400 font-semibold">
                 <span className="size-2 rounded-full bg-emerald-500"></span> Pago
               </span>
               <span className="flex items-center gap-1 text-amber-400 font-semibold">
                 <span className="size-2 rounded-full bg-amber-500"></span> Gerado
+              </span>
+              <span className="flex items-center gap-1 text-zinc-400 font-semibold">
+                <span className="size-2 rounded-full bg-zinc-500"></span> Start
               </span>
             </div>
           </div>
@@ -541,7 +545,7 @@ export function Dashboard() {
                 })),
                 ...filteredLeads.map((l) => ({
                   id: `lead-${l.id}`,
-                  type: "gerado",
+                  type: "start",
                   title: "Novo Lead (/start)",
                   subtitle: l.name || l.telegram_username ? `@${l.telegram_username || l.name}` : "Cliente iniciou bot",
                   date: l.created_at,
@@ -551,13 +555,17 @@ export function Dashboard() {
                 .slice(0, 15)
                 .map((item) => {
                   const isPaid = item.type === "pago";
+                  const isGenerated = item.type === "gerado";
+
                   return (
                     <div
                       key={item.id}
                       className={`rounded-xl border p-3 flex items-center justify-between transition ${
                         isPaid
                           ? "border-emerald-500/30 bg-emerald-950/15 hover:bg-emerald-950/25"
-                          : "border-amber-500/30 bg-amber-950/15 hover:bg-amber-950/25"
+                          : isGenerated
+                          ? "border-amber-500/30 bg-amber-950/15 hover:bg-amber-950/25"
+                          : "border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900/80"
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -565,15 +573,27 @@ export function Dashboard() {
                           className={`flex size-7 items-center justify-center rounded-lg border text-xs ${
                             isPaid
                               ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
-                              : "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                              : isGenerated
+                              ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                              : "bg-zinc-800 text-zinc-400 border-zinc-700/60"
                           }`}
                         >
-                          {isPaid ? <CheckCircle2 className="size-3.5" /> : <Zap className="size-3.5" />}
+                          {isPaid ? (
+                            <CheckCircle2 className="size-3.5" />
+                          ) : isGenerated ? (
+                            <Zap className="size-3.5" />
+                          ) : (
+                            <User className="size-3.5" />
+                          )}
                         </span>
                         <div>
                           <p
                             className={`text-xs font-bold ${
-                              isPaid ? "text-emerald-300" : "text-amber-300"
+                              isPaid
+                                ? "text-emerald-300"
+                                : isGenerated
+                                ? "text-amber-300"
+                                : "text-zinc-300 font-medium"
                             }`}
                           >
                             {item.title}
@@ -715,7 +735,7 @@ export function Dashboard() {
         <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-[#09090e] p-5 shadow-xl flex flex-col h-[400px]">
           <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-2">
             <div className="flex items-center gap-2">
-              <Trophy className="size-4 text-purple-400" />
+              <Trophy className="size-4 text-cyan-400" />
               <div>
                 <h4 className="font-bold text-white text-sm">Top 5 Players</h4>
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
@@ -731,7 +751,7 @@ export function Dashboard() {
               onClick={() => setActiveLeaderboardTab("proprio")}
               className={`py-1 text-center text-xs font-semibold rounded-lg transition ${
                 activeLeaderboardTab === "proprio"
-                  ? "bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-cyan-300 border border-cyan-500/40 font-bold"
+                  ? "bg-gradient-to-r from-cyan-500/30 to-blue-600/30 text-cyan-300 border border-cyan-500/40 font-bold"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
@@ -741,7 +761,7 @@ export function Dashboard() {
               onClick={() => setActiveLeaderboardTab("concurso")}
               className={`py-1 text-center text-xs font-semibold rounded-lg transition ${
                 activeLeaderboardTab === "concurso"
-                  ? "bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-cyan-300 border border-cyan-500/40 font-bold"
+                  ? "bg-gradient-to-r from-cyan-500/30 to-blue-600/30 text-cyan-300 border border-cyan-500/40 font-bold"
                   : "text-zinc-400 hover:text-white"
               }`}
             >

@@ -173,7 +173,20 @@ function PaymentsPage() {
                   <TableCell className="uppercase">{p.method}</TableCell>
                   <TableCell>{formatBRL(p.amount_cents)}</TableCell>
                   <TableCell>
-                    <Badge variant={badgeVariant[p.status]}>{paymentStatusLabels[p.status]}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        p.status === "approved"
+                          ? "border-emerald-500/30 bg-emerald-950/25 text-emerald-400 font-semibold"
+                          : p.status === "pending"
+                          ? "border-amber-500/30 bg-amber-950/25 text-amber-400 font-semibold"
+                          : p.status === "failed"
+                          ? "border-rose-500/30 bg-rose-950/25 text-rose-400 font-semibold"
+                          : "border-zinc-700 bg-zinc-900/60 text-zinc-400 font-medium"
+                      }
+                    >
+                      {paymentStatusLabels[p.status]}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.created_at)}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(p.paid_at)}</TableCell>

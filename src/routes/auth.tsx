@@ -92,7 +92,7 @@ function AuthPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050508] px-4 py-12 text-white selection:bg-cyan-500 selection:text-black">
-      {/* Background glow estilo Scarface Cyan & Purple */}
+      {/* Background glow estilo Scarface Cyan & Cobalt */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_20%,rgba(6,182,212,0.18),transparent_70%)]" />
 
       <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-300">
@@ -189,7 +189,7 @@ function AuthPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
                 >
                   {loading ? "Criando conta..." : "Criar Minha Conta"}
                 </Button>

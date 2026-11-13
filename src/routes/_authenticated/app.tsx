@@ -31,12 +31,12 @@ function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
+      <div className="flex min-h-screen w-full bg-[#050508] text-white">
         <AppSidebar isAdmin={!!isAdmin} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border px-4">
+        <div className="flex min-w-0 flex-1 flex-col bg-[#050508]">
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-white/5 bg-[#08080A]/90 backdrop-blur-md px-4">
             <SidebarTrigger />
-            <span className="text-sm text-muted-foreground">Painel</span>
+            <span className="text-sm font-medium text-zinc-400">Painel</span>
             <div className="ml-auto">
               <NotificationBell />
             </div>

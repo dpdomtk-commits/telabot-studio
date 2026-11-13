@@ -167,7 +167,18 @@ function LeadsPage() {
                   </TableCell>
                   <TableCell>{lead.bots?.name ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{statusLabels[lead.status] ?? lead.status}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        lead.status === "converted"
+                          ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-400 font-medium"
+                          : lead.status === "engaged"
+                          ? "border-cyan-500/30 bg-cyan-950/20 text-cyan-300 font-medium"
+                          : "border-zinc-800 bg-zinc-900/70 text-zinc-400 font-medium"
+                      }
+                    >
+                      {statusLabels[lead.status] ?? lead.status}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
                 </TableRow>

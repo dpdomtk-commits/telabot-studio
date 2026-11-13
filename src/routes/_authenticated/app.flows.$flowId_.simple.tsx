@@ -210,7 +210,7 @@ export function AdvancedFlowEditorPage() {
               <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
                 {flowData?.name || "MODEL"}
               </h1>
-              <Badge variant="outline" className="border-pink-500/30 text-pink-400 bg-pink-500/10 text-xs">
+              <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10 text-xs">
                 EDITOR DE FLUXO
               </Badge>
             </div>
@@ -227,7 +227,7 @@ export function AdvancedFlowEditorPage() {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium shadow-md shadow-pink-500/20"
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium shadow-md shadow-cyan-500/20"
           >
             {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
             Salvar alterações
@@ -966,7 +966,7 @@ export function AdvancedFlowEditorPage() {
               <div className="flex items-center justify-between border-b border-border/60 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <TrendingUp className="size-5 text-pink-400" /> Sequências de Upsell
+                    <TrendingUp className="size-5 text-cyan-400" /> Sequências de Upsell
                   </h2>
                   <p className="text-xs text-muted-foreground">
                     Aumente o ticket médio oferecendo produtos imediatamente após a aprovação

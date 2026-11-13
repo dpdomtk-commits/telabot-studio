@@ -84,7 +84,7 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
                     asChild
                     isActive={path.startsWith(item.url)}
                     tooltip={item.title}
-                    className="transition-all hover:bg-cyan-500/10 hover:text-cyan-300 data-[active=true]:bg-gradient-to-r data-[active=true]:from-cyan-500/15 data-[active=true]:to-purple-500/15 data-[active=true]:text-cyan-300 data-[active=true]:border-l-2 data-[active=true]:border-cyan-400 data-[active=true]:font-bold"
+                    className="transition-all hover:bg-cyan-500/10 hover:text-cyan-300 data-[active=true]:bg-gradient-to-r data-[active=true]:from-cyan-500/15 data-[active=true]:to-blue-600/15 data-[active=true]:text-cyan-300 data-[active=true]:border-l-2 data-[active=true]:border-cyan-400 data-[active=true]:font-bold"
                   >
                     <Link to={item.url}>
                       <item.icon className="size-4" />
