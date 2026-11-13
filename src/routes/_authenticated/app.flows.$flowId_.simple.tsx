@@ -56,9 +56,9 @@ export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple"
 
 const NAV_SECTIONS = [
   { id: "bots", label: "Bots", icon: Bot, category: "ESTRUTURA" },
-  { id: "welcome", label: "Boas-vindas", icon: MessageSquare, category: "ESTRUTURA" },
+  { id: "gate", label: "Gate de Entrada", icon: Sparkles, category: "ESTRUTURA" },
+  { id: "welcome", label: "Apresentação & Copy", icon: MessageSquare, category: "ESTRUTURA" },
   { id: "plans", label: "Planos", icon: CreditCard, category: "ESTRUTURA" },
-  { id: "multilingual", label: "Idiomas & Moedas", icon: Globe, category: "INTERNACIONAL" },
   { id: "upsell", label: "Upsell", icon: TrendingUp, category: "CONVERSÃO" },
   { id: "downsell", label: "Downsell", icon: TrendingDown, category: "CONVERSÃO" },
   { id: "orderBump", label: "Order Bump", icon: ShoppingBag, category: "CONVERSÃO" },
@@ -69,6 +69,7 @@ const NAV_SECTIONS = [
 export function AdvancedFlowEditorPage() {
   const { flowId } = useParams({ from: "/_authenticated/app/flows/$flowId_/simple" });
   const [activeTab, setActiveTab] = useState<string>("welcome");
+  const [bilingualTab, setBilingualTab] = useState<"pt" | "en">("pt");
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AdvancedFlowConfig>(defaultAdvancedConfig());
 
@@ -354,68 +355,376 @@ export function AdvancedFlowEditorPage() {
             </div>
           )}
 
-          {/* ABA BOAS-VINDAS */}
+          {/* ABA GATE DE ENTRADA (Configurações Iniciais Desacopladas do Fluxo) */}
+          {activeTab === "gate" && (
+            <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <Sparkles className="size-5 text-[#38BDF8]" /> Configurações Iniciais (Gate de Entrada)
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Executado automaticamente no /start antes dos blocos do fluxo principal. Define as variáveis globais <code>selected_language</code> e <code>selected_currency</code>.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Gate Ativo</span>
+                  <Switch
+                    checked={config.gate?.enabled ?? true}
+                    onCheckedChange={(checked) =>
+                      setConfig({
+                        ...config,
+                        gate: { ...(config.gate || defaultAdvancedConfig().gate), enabled: checked },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Card 1: Mensagens de Entrada no Start */}
+              <div className="p-5 rounded-2xl border border-white/10 bg-[#09090E]/90 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-white">
+                  <span className="flex size-6 items-center justify-center rounded-lg bg-[#1049B8]/30 text-[#60A5FA] text-xs">
+                    1
+                  </span>
+                  Passo 1 — Boas-vindas no /start e Seleção de Idioma
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Enviado logo após as mídias iniciais do bot. Apresenta o texto de recepção e os botões de idioma.
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Texto de Boas-vindas (Português 🇧🇷)</Label>
+                    <Textarea
+                      rows={4}
+                      value={config.gate?.welcomeMessagePt || ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          gate: { ...(config.gate || defaultAdvancedConfig().gate), welcomeMessagePt: e.target.value },
+                        })
+                      }
+                      className="bg-black/50 border-white/10 text-white text-xs"
+                      placeholder="Olá! Seja muito bem-vindo(a)..."
+                    />
+                    <div>
+                      <Label className="text-[11px] text-zinc-400">Rótulo do Botão PT</Label>
+                      <Input
+                        value={config.gate?.langButtonPt || "🇧🇷 Português"}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            gate: { ...(config.gate || defaultAdvancedConfig().gate), langButtonPt: e.target.value },
+                          })
+                        }
+                        className="bg-black/50 border-white/10 text-white text-xs h-8 mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Welcome Text (English 🇺🇸)</Label>
+                    <Textarea
+                      rows={4}
+                      value={config.gate?.welcomeMessageEn || ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          gate: { ...(config.gate || defaultAdvancedConfig().gate), welcomeMessageEn: e.target.value },
+                        })
+                      }
+                      className="bg-black/50 border-white/10 text-white text-xs"
+                      placeholder="Hello! Welcome!..."
+                    />
+                    <div>
+                      <Label className="text-[11px] text-zinc-400">EN Button Label</Label>
+                      <Input
+                        value={config.gate?.langButtonEn || "🇺🇸 English"}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            gate: { ...(config.gate || defaultAdvancedConfig().gate), langButtonEn: e.target.value },
+                          })
+                        }
+                        className="bg-black/50 border-white/10 text-white text-xs h-8 mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Pergunta de Moeda */}
+              <div className="p-5 rounded-2xl border border-white/10 bg-[#09090E]/90 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-white">
+                  <span className="flex size-6 items-center justify-center rounded-lg bg-[#1049B8]/30 text-[#60A5FA] text-xs">
+                    2
+                  </span>
+                  Passo 2 — Pergunta de Moeda para Pagamento
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Ao escolher o idioma, a mensagem anterior é apagada e o bot pergunta a moeda desejada.
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Pergunta de Moeda (Português 🇧🇷)</Label>
+                    <Textarea
+                      rows={3}
+                      value={config.gate?.currencyPromptPt || ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          gate: { ...(config.gate || defaultAdvancedConfig().gate), currencyPromptPt: e.target.value },
+                        })
+                      }
+                      className="bg-black/50 border-white/10 text-white text-xs"
+                    />
+                    <p className="text-[11px] text-zinc-500">Exibirá os botões: [ 🇧🇷 Real (R$) ] e [ 🇺🇸 Dólar ($) ]</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Currency Prompt (English 🇺🇸)</Label>
+                    <Textarea
+                      rows={3}
+                      value={config.gate?.currencyPromptEn || ""}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          gate: { ...(config.gate || defaultAdvancedConfig().gate), currencyPromptEn: e.target.value },
+                        })
+                      }
+                      className="bg-black/50 border-white/10 text-white text-xs"
+                    />
+                    <p className="text-[11px] text-zinc-500">Exibirá os botões: [ 💵 USD ], [ 💶 EUR ], [ 💷 GBP ], [ 🇧🇷 BRL ]</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA APRESENTAÇÃO & COPY (Inputs Bilíngues Dinâmicos + Botão CTA "Ver Planos") */}
           {activeTab === "welcome" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
               <div className="border-b border-border/60 pb-4">
-                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <MessageSquare className="size-5 text-primary" /> Boas-vindas
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <MessageSquare className="size-5 text-primary" /> Apresentação & Mensagem Bilíngue
                 </h2>
-                <p className="text-xs text-muted-foreground">
-                  Primeira mensagem enviada quando o lead clica em Iniciar (/start)
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mídias iniciais e espaço único de mensagem com alternador Português/Inglês e botão de CTA abaixo.
                 </p>
               </div>
 
               {/* Upload de mídias direto do PC */}
-              <FlowMediaUploader
-                media={config.welcome.media}
-                mode={config.welcome.mediaMode}
-                onModeChange={(m) =>
-                  setConfig({ ...config, welcome: { ...config.welcome, mediaMode: m } })
-                }
-                onChange={(items) =>
-                  setConfig({ ...config, welcome: { ...config.welcome, media: items } })
-                }
-                maxItems={3}
-              />
-
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Mensagem de Boas-vindas *</Label>
-                  <span className="text-[11px] text-muted-foreground">
-                    {config.welcome.message.length}/4000 caracteres
-                  </span>
-                </div>
-                <Textarea
-                  rows={6}
-                  value={config.welcome.message}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      welcome: { ...config.welcome, message: e.target.value },
-                    })
+                <Label className="text-xs font-semibold text-zinc-300">Mídias de Apresentação (Enviadas no início do chat)</Label>
+                <FlowMediaUploader
+                  media={config.welcome.media}
+                  mode={config.welcome.mediaMode}
+                  onModeChange={(m) =>
+                    setConfig({ ...config, welcome: { ...config.welcome, mediaMode: m } })
                   }
-                  placeholder="Escreva a mensagem que seu bot vai enviar..."
+                  onChange={(items) =>
+                    setConfig({ ...config, welcome: { ...config.welcome, media: items } })
+                  }
+                  maxItems={3}
                 />
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {["{nome}", "{bot_name}", "{saudacao}", "{cidade}", "{uf}"].map((tag) => (
+              </div>
+
+              {/* Alternador Rápido de Idioma da Apresentação */}
+              <div className="rounded-2xl border border-white/10 bg-[#09090E]/90 p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div>
+                    <h3 className="font-bold text-white text-sm">
+                      Copy da Apresentação & Botão de Ver Planos
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Configure a mensagem e o rótulo do botão CTA para cada idioma.
+                    </p>
+                  </div>
+
+                  <div className="flex bg-black/60 p-1 rounded-xl border border-white/10">
                     <button
-                      key={tag}
                       type="button"
-                      onClick={() =>
-                        setConfig({
-                          ...config,
-                          welcome: {
-                            ...config.welcome,
-                            message: config.welcome.message + " " + tag,
-                          },
-                        })
-                      }
-                      className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-surface-hover hover:text-foreground border border-border"
+                      onClick={() => setBilingualTab("pt")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        bilingualTab === "pt"
+                          ? "bg-[#1049B8] text-white shadow-md shadow-[#1049B8]/40"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
                     >
-                      {tag}
+                      🇧🇷 Português (PT-BR)
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setBilingualTab("en")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        bilingualTab === "en"
+                          ? "bg-[#1049B8] text-white shadow-md shadow-[#1049B8]/40"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      🇺🇸 English (EN-US)
+                    </button>
+                  </div>
+                </div>
+
+                {bilingualTab === "pt" ? (
+                  /* Painel PT-BR */
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-zinc-300 font-semibold">
+                          Texto da Mensagem (Português) *
+                        </Label>
+                        <span className="text-[11px] text-zinc-500 font-mono">
+                          {(config.welcome.messagePt || config.welcome.message).length}/4000
+                        </span>
+                      </div>
+                      <Textarea
+                        rows={5}
+                        value={config.welcome.messagePt || config.welcome.message}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            welcome: {
+                              ...config.welcome,
+                              messagePt: e.target.value,
+                              message: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Olá! Seja bem-vindo(a). Toque abaixo para ver nossos planos exclusivos:"
+                        className="bg-black/50 border-white/10 text-white text-xs leading-relaxed focus:border-[#38BDF8]"
+                      />
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {["{nome}", "{bot_name}", "{saudacao}", "{cidade}", "{uf}"].map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() =>
+                              setConfig({
+                                ...config,
+                                welcome: {
+                                  ...config.welcome,
+                                  messagePt: (config.welcome.messagePt || config.welcome.message) + " " + tag,
+                                  message: (config.welcome.messagePt || config.welcome.message) + " " + tag,
+                                },
+                              })
+                            }
+                            className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] font-mono text-zinc-300 hover:bg-white/10 border border-white/10"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-zinc-300 font-semibold">
+                        Rótulo do Botão de CTA (Português)
+                      </Label>
+                      <Input
+                        value={config.welcome.ctaPt || "💎 Ver Planos"}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            welcome: { ...config.welcome, ctaPt: e.target.value },
+                          })
+                        }
+                        placeholder="💎 Ver Planos"
+                        className="bg-black/50 border-white/10 text-white text-xs h-9"
+                      />
+                      <p className="text-[11px] text-zinc-500">
+                        Ao clicar neste botão, o lead visualiza imediatamente os planos e valores em Real (BRL) via PIX.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Painel EN-US */
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-zinc-300 font-semibold">
+                          Presentation Message (English) *
+                        </Label>
+                        <span className="text-[11px] text-zinc-500 font-mono">
+                          {(config.welcome.messageEn || "").length}/4000
+                        </span>
+                      </div>
+                      <Textarea
+                        rows={5}
+                        value={config.welcome.messageEn || ""}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            welcome: { ...config.welcome, messageEn: e.target.value },
+                          })
+                        }
+                        placeholder="Hello! Welcome to our VIP service. Tap the button below to view our exclusive plans:"
+                        className="bg-black/50 border-white/10 text-white text-xs leading-relaxed focus:border-[#38BDF8]"
+                      />
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {["{nome}", "{bot_name}", "{saudacao}"].map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() =>
+                              setConfig({
+                                ...config,
+                                welcome: {
+                                  ...config.welcome,
+                                  messageEn: (config.welcome.messageEn || "") + " " + tag,
+                                },
+                              })
+                            }
+                            className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] font-mono text-zinc-300 hover:bg-white/10 border border-white/10"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-zinc-300 font-semibold">
+                        CTA Button Label (English)
+                      </Label>
+                      <Input
+                        value={config.welcome.ctaEn || "💎 View Plans"}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            welcome: { ...config.welcome, ctaEn: e.target.value },
+                          })
+                        }
+                        placeholder="💎 View Plans"
+                        className="bg-black/50 border-white/10 text-white text-xs h-9"
+                      />
+                      <p className="text-[11px] text-zinc-500">
+                        Upon clicking, the lead views the plans converted 1:1 in the chosen currency (USD, EUR, GBP).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Preview no estilo Telegram */}
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                    Prévia da Apresentação no Telegram ({bilingualTab === "pt" ? "Português" : "English"}):
+                  </p>
+                  <div className="max-w-md rounded-2xl bg-[#0e1621] border border-white/10 p-4 space-y-3 shadow-lg">
+                    <p className="text-xs text-white whitespace-pre-wrap leading-relaxed">
+                      {bilingualTab === "pt"
+                        ? (config.welcome.messagePt || config.welcome.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP.")
+                        : (config.welcome.messageEn || "Hello! Welcome to our VIP service.")}
+                    </p>
+                    <div className="w-full py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#2072b4] text-white text-center font-bold text-xs shadow cursor-pointer transition">
+                      {bilingualTab === "pt"
+                        ? (config.welcome.ctaPt || "💎 Ver Planos")
+                        : (config.welcome.ctaEn || "💎 View Plans")}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -685,280 +994,32 @@ export function AdvancedFlowEditorPage() {
             </div>
           )}
 
-          {/* ABA IDIOMAS & MOEDAS INTERNACIONAIS */}
+          {/* ABA IDIOMAS & MOEDAS INTERNACIONAIS (DESACOPLADA / REDIRECIONADA) */}
           {activeTab === "multilingual" && (
             <div className="space-y-6 rounded-2xl border border-border/80 bg-surface/40 p-6 backdrop-blur">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Globe className="size-5 text-primary" /> Fluxo Multilíngue & Moedas Internacionais
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Atenda clientes brasileiros e internacionais com seleção de idioma, moedas (USD, EUR, GBP) e conversão automática.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {config.multilingual?.enabled ? "Ativado" : "Desativado"}
-                  </span>
-                  <Switch
-                    checked={config.multilingual?.enabled ?? true}
-                    onCheckedChange={(checked) =>
-                      setConfig({
-                        ...config,
-                        multilingual: {
-                          ...(config.multilingual || defaultAdvancedConfig().multilingual),
-                          enabled: checked,
-                        },
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Status do Fluxo e Funcionamento */}
-              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-xs text-foreground/90 space-y-2">
-                <div className="flex items-center gap-2 font-semibold text-primary">
-                  <CheckCircle2 className="size-4" /> Como funciona o Fluxo no Telegram:
-                </div>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li><strong className="text-foreground">Etapa 1:</strong> Envia as mídias configuradas no bot em ordem e apresenta a escolha de idioma.</li>
-                  <li><strong className="text-foreground">Português 🇧🇷:</strong> Exibe os planos exclusivamente em Real (BRL) e gera PIX instantâneo.</li>
-                  <li><strong className="text-foreground">English 🇺🇸:</strong> Solicita a escolha entre USD, EUR e GBP, convertendo os planos conforme as taxas abaixo.</li>
-                  <li><strong className="text-foreground">Persistência:</strong> A escolha do lead é salva e preservada nas próximas interações.</li>
-                </ul>
-              </div>
-
-              {/* Taxas de Câmbio Manuais */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <DollarSign className="size-4 text-primary" /> Taxas de Câmbio Manuais (Referência: BRL)
-                  </h3>
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                    Sem dependência de APIs externas
-                  </Badge>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {/* USD */}
-                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm flex items-center gap-1.5">
-                        🇺🇸 USD (Dólar)
-                      </span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        1 USD ≈ R$ {(1 / (config.multilingual?.rates?.USD || 0.20)).toFixed(2)}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → USD</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={config.multilingual?.rates?.USD ?? 0.20}
-                        onChange={(e) => {
-                          const val = Number(e.target.value) || 0.20;
-                          setConfig({
-                            ...config,
-                            multilingual: {
-                              ...config.multilingual,
-                              rates: { ...config.multilingual.rates, USD: val },
-                            },
-                          });
-                        }}
-                        className="mt-1 font-mono"
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.20 = US$ 5.98</p>
-                    </div>
-                  </div>
-
-                  {/* EUR */}
-                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm flex items-center gap-1.5">
-                        🇪🇺 EUR (Euro)
-                      </span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        1 EUR ≈ R$ {(1 / (config.multilingual?.rates?.EUR || 0.18)).toFixed(2)}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → EUR</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={config.multilingual?.rates?.EUR ?? 0.18}
-                        onChange={(e) => {
-                          const val = Number(e.target.value) || 0.18;
-                          setConfig({
-                            ...config,
-                            multilingual: {
-                              ...config.multilingual,
-                              rates: { ...config.multilingual.rates, EUR: val },
-                            },
-                          });
-                        }}
-                        className="mt-1 font-mono"
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.18 = € 5.38</p>
-                    </div>
-                  </div>
-
-                  {/* GBP */}
-                  <div className="rounded-xl border border-border bg-surface/60 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm flex items-center gap-1.5">
-                        🇬🇧 GBP (Libra)
-                      </span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        1 GBP ≈ R$ {(1 / (config.multilingual?.rates?.GBP || 0.16)).toFixed(2)}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Multiplicador BRL → GBP</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={config.multilingual?.rates?.GBP ?? 0.16}
-                        onChange={(e) => {
-                          const val = Number(e.target.value) || 0.16;
-                          setConfig({
-                            ...config,
-                            multilingual: {
-                              ...config.multilingual,
-                              rates: { ...config.multilingual.rates, GBP: val },
-                            },
-                          });
-                        }}
-                        className="mt-1 font-mono"
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">Ex.: R$ 29,90 x 0.16 = £ 4.78</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela de Preços Convertidos em Tempo Real */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Simulação dos Preços Convertidos dos Planos Atuais
+              <div className="rounded-2xl border border-[#1049B8]/40 bg-gradient-to-r from-[#050508] via-[#0B3B99]/20 to-[#1049B8]/30 p-6 text-center space-y-3">
+                <Sparkles className="size-8 text-[#38BDF8] mx-auto" />
+                <h3 className="font-bold text-white text-base">
+                  Idioma e Moeda foram desacoplados do construtor
                 </h3>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-surface border-b border-border text-muted-foreground">
-                      <tr>
-                        <th className="p-3 font-medium">Plano Cadastrado</th>
-                        <th className="p-3 font-medium">🇧🇷 BRL (Real)</th>
-                        <th className="p-3 font-medium">🇺🇸 USD (Dólar)</th>
-                        <th className="p-3 font-medium">🇪🇺 EUR (Euro)</th>
-                        <th className="p-3 font-medium">🇬🇧 GBP (Libra)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60 bg-surface/30">
-                      {config.plans.items.map((plan) => {
-                        const usd = formatCurrencyPrice(plan.price, "USD", config.multilingual?.rates);
-                        const eur = formatCurrencyPrice(plan.price, "EUR", config.multilingual?.rates);
-                        const gbp = formatCurrencyPrice(plan.price, "GBP", config.multilingual?.rates);
-                        return (
-                          <tr key={plan.id} className="hover:bg-surface-hover/50">
-                            <td className="p-3 font-semibold text-foreground flex items-center gap-1.5">
-                              <span>{plan.emoji || "⭐"}</span> {plan.name}
-                            </td>
-                            <td className="p-3 font-mono text-emerald-400">
-                              R$ {Number(plan.price || 0).toFixed(2).replace(".", ",")}
-                            </td>
-                            <td className="p-3 font-mono text-sky-400">{usd.formatted}</td>
-                            <td className="p-3 font-mono text-blue-400">{eur.formatted}</td>
-                            <td className="p-3 font-mono text-indigo-400">{gbp.formatted}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Textos de Apresentação e Boas-Vindas */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Textos de Apresentação e Mensagens
-                </h3>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Mensagem de Boas-vindas (Português 🇧🇷)</Label>
-                    <Textarea
-                      rows={4}
-                      value={config.multilingual?.welcomeMessages?.pt ?? ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          multilingual: {
-                            ...config.multilingual,
-                            welcomeMessages: {
-                              ...config.multilingual.welcomeMessages,
-                              pt: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                      placeholder="Texto apresentado aos leads ao iniciar o bot..."
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Mensagem de Boas-vindas (English 🇺🇸)</Label>
-                    <Textarea
-                      rows={4}
-                      value={config.multilingual?.welcomeMessages?.en ?? ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          multilingual: {
-                            ...config.multilingual,
-                            welcomeMessages: {
-                              ...config.multilingual.welcomeMessages,
-                              en: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                      placeholder="Welcome greeting in English..."
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Mensagem de Escolha de Moeda (English 🇺🇸)</Label>
-                  <Textarea
-                    rows={2}
-                    value={config.multilingual?.currencyPrompts?.en ?? ""}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        multilingual: {
-                          ...config.multilingual,
-                          currencyPrompts: {
-                            ...config.multilingual.currencyPrompts,
-                            en: e.target.value,
-                          },
-                        },
-                      })
-                    }
-                    placeholder="Currency selection prompt..."
-                  />
-                </div>
-              </div>
-
-              {/* Informação sobre Stripe */}
-              <div className="rounded-xl border border-border bg-surface/50 p-4 text-xs space-y-1.5">
-                <p className="font-semibold text-foreground flex items-center gap-1.5">
-                  🔒 Arquitetura Preparada para Stripe (Checkout Internacional)
+                <p className="text-xs text-zinc-300 max-w-md mx-auto">
+                  A configuração inicial (boas-vindas, escolha de idioma e moeda) agora fica no <strong>Gate de Entrada</strong>, e os textos do funil têm alternância bilíngue direta em <strong>Apresentação & Copy</strong>.
                 </p>
-                <p className="text-muted-foreground">
-                  Os leads internacionais que selecionarem USD, EUR ou GBP terão seu plano, moeda e intenção de compra associados e registrados. Os pagamentos via PIX continuarão funcionando normalmente para o público brasileiro.
-                </p>
+                <div className="flex justify-center gap-3 pt-2">
+                  <Button
+                    onClick={() => setActiveTab("gate")}
+                    className="bg-[#1049B8] hover:bg-[#0B3B99] text-white font-bold text-xs"
+                  >
+                    Abrir Gate de Entrada
+                  </Button>
+                  <Button
+                    onClick={() => setActiveTab("welcome")}
+                    variant="outline"
+                    className="border-white/10 text-white text-xs"
+                  >
+                    Ver Apresentação & Copy
+                  </Button>
+                </div>
               </div>
             </div>
           )}

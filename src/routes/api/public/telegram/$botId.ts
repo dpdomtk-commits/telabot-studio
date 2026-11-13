@@ -142,9 +142,9 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             return Response.json({ ok: true });
           }
 
-          // 2. Seleção de Moeda Internacional (USD, EUR, GBP)
-          if (data === "curr:USD" || data === "curr:EUR" || data === "curr:GBP") {
-            const currency = data.slice(5) as "USD" | "EUR" | "GBP";
+          // 2. Seleção de Moeda (BRL, USD, EUR, GBP)
+          if (data === "curr:BRL" || data === "curr:USD" || data === "curr:EUR" || data === "curr:GBP") {
+            const currency = data.slice(5) as "BRL" | "USD" | "EUR" | "GBP";
             await handleCurrencySelect({
               userId: bot.user_id,
               botId: bot.id,
@@ -153,6 +153,20 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               chatId,
               messageId: cbMessageId,
               currency,
+            });
+            return Response.json({ ok: true });
+          }
+
+          // 2.1 Botão CTA "Ver Planos" / "View Plans"
+          if (data === "view_plans") {
+            const { handleViewPlans } = await import("@/lib/telegram.server");
+            await handleViewPlans({
+              userId: bot.user_id,
+              botId: bot.id,
+              token: bot.token,
+              leadId,
+              chatId,
+              messageId: cbMessageId,
             });
             return Response.json({ ok: true });
           }

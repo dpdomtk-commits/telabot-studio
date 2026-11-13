@@ -379,28 +379,27 @@ export async function handleTelegramStart(params: {
 
   // Etapa 2 — Mensagem universal de boas-vindas (com botões de idioma)
   const universalWelcome =
-    "Olá! Seja muito bem-vindo(a)! 👋\n\n" +
-    "Estamos felizes em ter você aqui.\n\n" +
-    "Antes de continuar, escolha o idioma que prefere para receber nossas informações.\n\n" +
-    "───────────────\n\n" +
-    "Hello! Welcome! 👋\n\n" +
-    "We're happy to have you here.\n\n" +
-    "Before continuing, please choose your preferred language:";
+    (cfg.gate?.welcomeMessagePt || "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o idioma que prefere para receber nossas informações.") +
+    "\n\n───────────────\n\n" +
+    (cfg.gate?.welcomeMessageEn || "Hello! Welcome! 👋\n\nWe're happy to have you here.\n\nBefore continuing, please choose your preferred language:");
+
+  const ptBtnLabel = cfg.gate?.langButtonPt || "🇧🇷 Português";
+  const enBtnLabel = cfg.gate?.langButtonEn || "🇺🇸 English";
 
   await sendMessage(params.token, params.chatId, universalWelcome, {
     inline_keyboard: [
       [
-        { text: "🇧🇷 Português", callback_data: "lang:pt" },
-        { text: "🇺🇸 English", callback_data: "lang:en" },
+        { text: ptBtnLabel, callback_data: "lang:pt" },
+        { text: enBtnLabel, callback_data: "lang:en" },
       ],
     ],
   });
 }
 
 /**
- * Trata a escolha de idioma pelo lead.
- * As mensagens de seleção somem (deleteMessage), mantendo apenas as mídias no topo,
- * e é acrescentado o texto de acordo com o idioma junto com os planos.
+ * Passo 2 — Seleção de Idioma e Pergunta de Moeda:
+ * Ao clicar no idioma, salva selected_language, apaga a mensagem anterior e exibe
+ * a pergunta de moeda no idioma selecionado.
  */
 export async function handleLanguageSelect(params: {
   userId: string;
@@ -413,7 +412,7 @@ export async function handleLanguageSelect(params: {
 }) {
   await setLeadPreferences(params.userId, params.leadId, { language: params.language });
 
-  // 1. Remove a mensagem universal anterior (mantendo apenas as mídias no chat)
+  // Remove a mensagem universal anterior (mantendo apenas as mídias fixas no topo)
   if (params.messageId) {
     await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
   }
@@ -422,18 +421,11 @@ export async function handleLanguageSelect(params: {
   const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
   const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
 
-  if (params.language === "pt") {
-    await setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
-    // 2. Acrescenta o texto de apresentação em português junto com os botões de planos em BRL
-    await sendBrlPlansMenu(params, cfg, true);
-  } else {
-    // Apresenta a seleção de moeda internacional
-    await sendCurrencySelectionMenu(params, cfg);
-  }
+  await sendCurrencySelectionMenu(params, cfg, params.language);
 }
 
 /**
- * Menu de seleção de moeda internacional (USD, EUR, GBP).
+ * Menu de seleção de moeda adaptado ao idioma escolhido (BRL, USD, EUR, GBP).
  */
 export async function sendCurrencySelectionMenu(
   params: {
@@ -443,21 +435,130 @@ export async function sendCurrencySelectionMenu(
     leadId: string;
     chatId: number;
   },
-  cfg: any
+  cfg: any,
+  language: "pt" | "en" = "pt"
 ) {
-  const prompt =
-    "Hello! Welcome! 👋\n\n" +
-    "Please choose your preferred currency to view our plans:";
+  if (language === "pt") {
+    const prompt =
+      cfg.gate?.currencyPromptPt ||
+      "Perfeito! 🇧🇷\n\nEscolha a moeda que prefere para visualizar nossos planos:";
 
-  await sendMessage(params.token, params.chatId, prompt, {
+    await sendMessage(params.token, params.chatId, prompt, {
+      inline_keyboard: [
+        [
+          { text: "🇧🇷 Real (R$)", callback_data: "curr:BRL" },
+          { text: "🇺🇸 Dólar ($)", callback_data: "curr:USD" },
+        ],
+      ],
+    });
+  } else {
+    const prompt =
+      cfg.gate?.currencyPromptEn ||
+      "Perfect! 🌎\n\nChoose your preferred currency to view our plans:";
+
+    await sendMessage(params.token, params.chatId, prompt, {
+      inline_keyboard: [
+        [
+          { text: "💵 USD ($)", callback_data: "curr:USD" },
+          { text: "💶 EUR (€)", callback_data: "curr:EUR" },
+          { text: "💷 GBP (£)", callback_data: "curr:GBP" },
+          { text: "🇧🇷 BRL (R$)", callback_data: "curr:BRL" },
+        ],
+      ],
+    });
+  }
+}
+
+/**
+ * Passo 3 — Seleção de Moeda e Exibição da Mensagem de Apresentação Bilíngue + Botão CTA "Ver Planos".
+ */
+export async function handleCurrencySelect(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  messageId?: number;
+  currency: "BRL" | "USD" | "EUR" | "GBP";
+}) {
+  await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
+
+  // Remove a mensagem de escolha de moeda
+  if (params.messageId) {
+    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+  }
+
+  const flow = await resolveBotFlow(params.botId);
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+
+  const prefs = await getLeadPreferences(params.leadId);
+  const lang = prefs.language || "pt";
+
+  // Exibe a mensagem de apresentação no idioma correspondente com o botão CTA abaixo
+  await sendPresentationMessageWithCta(params, cfg, lang);
+}
+
+/**
+ * Exibe a mensagem de apresentação com o botão CTA para ver os planos.
+ */
+export async function sendPresentationMessageWithCta(
+  params: {
+    userId: string;
+    botId: string;
+    token: string;
+    leadId: string;
+    chatId: number;
+  },
+  cfg: any,
+  language: "pt" | "en" = "pt"
+) {
+  const text =
+    language === "en"
+      ? (cfg.welcome?.messageEn || "Hello! Welcome to our VIP service.\nTap the button below to view our exclusive plans:")
+      : (cfg.welcome?.messagePt || cfg.welcome?.message || "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nToque no botão abaixo para ver nossos planos exclusivos:");
+
+  const ctaLabel =
+    language === "en"
+      ? (cfg.welcome?.ctaEn || "💎 View Plans")
+      : (cfg.welcome?.ctaPt || "💎 Ver Planos");
+
+  await sendMessage(params.token, params.chatId, text, {
     inline_keyboard: [
       [
-        { text: "💵 USD ($)", callback_data: "curr:USD" },
-        { text: "💶 EUR (€)", callback_data: "curr:EUR" },
-        { text: "💷 GBP (£)", callback_data: "curr:GBP" },
+        { text: ctaLabel, callback_data: "view_plans" },
       ],
     ],
   });
+}
+
+/**
+ * Passo 4 — Exibição dos Planos após clicar no botão CTA "Ver Planos".
+ */
+export async function handleViewPlans(params: {
+  userId: string;
+  botId: string;
+  token: string;
+  leadId: string;
+  chatId: number;
+  messageId?: number;
+}) {
+  if (params.messageId) {
+    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+  }
+
+  const flow = await resolveBotFlow(params.botId);
+  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+
+  const prefs = await getLeadPreferences(params.leadId);
+  const currency = (prefs.currency || "BRL") as "BRL" | "USD" | "EUR" | "GBP";
+
+  if (currency === "BRL") {
+    await sendBrlPlansMenu(params, cfg, false);
+  } else {
+    await sendIntlPlansMenu(params, cfg, currency, false);
+  }
 }
 
 /**

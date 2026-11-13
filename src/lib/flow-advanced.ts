@@ -38,8 +38,27 @@ export type AdvancedFlowConfig = {
     mediaCacheChannel: string;
     supportUsername: string;
   };
+  gate: {
+    enabled: boolean;
+    welcomeMessagePt: string;
+    welcomeMessageEn: string;
+    langButtonPt: string;
+    langButtonEn: string;
+    currencyPromptPt: string;
+    currencyPromptEn: string;
+    currenciesEnabled: {
+      BRL: boolean;
+      USD: boolean;
+      EUR: boolean;
+      GBP: boolean;
+    };
+  };
   welcome: {
     message: string;
+    messagePt: string;
+    ctaPt: string;
+    messageEn: string;
+    ctaEn: string;
     media: FlowMedia[];
     mediaMode: "separated" | "grouped";
     hasSecondaryMessage: boolean;
@@ -144,8 +163,29 @@ export const defaultAdvancedConfig = (): AdvancedFlowConfig => ({
     mediaCacheChannel: "",
     supportUsername: "",
   },
+  gate: {
+    enabled: true,
+    welcomeMessagePt:
+      "Olá! Seja muito bem-vindo(a)! 👋\n\nEstamos felizes em ter você aqui.\n\nAntes de continuar, escolha o idioma que prefere para receber nossas informações.",
+    welcomeMessageEn:
+      "Hello! Welcome! 👋\n\nWe're happy to have you here.\n\nBefore continuing, please choose your preferred language.",
+    langButtonPt: "🇧🇷 Português",
+    langButtonEn: "🇺🇸 English",
+    currencyPromptPt: "Perfeito! 🇧🇷 Selecione a moeda para visualizar nossos planos:",
+    currencyPromptEn: "Perfect! 🌎 Choose your currency to view our plans:",
+    currenciesEnabled: {
+      BRL: true,
+      USD: true,
+      EUR: true,
+      GBP: true,
+    },
+  },
   welcome: {
-    message: "Olá! Bem-vindo(a) ao nosso atendimento vip.\nEscolha uma das opções abaixo:",
+    message: "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nToque abaixo para ver os planos disponíveis:",
+    messagePt: "Olá! Bem-vindo(a) ao nosso atendimento VIP.\nToque no botão abaixo para ver nossos planos exclusivos:",
+    ctaPt: "💎 Ver Planos",
+    messageEn: "Hello! Welcome to our VIP service.\nTap the button below to view our exclusive plans:",
+    ctaEn: "💎 View Plans",
     media: [],
     mediaMode: "separated",
     hasSecondaryMessage: false,
@@ -334,11 +374,30 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
     ? rawRemarketing.sequences
     : base.remarketing.sequences;
 
+  const rawWelcome = (value.welcome ?? {}) as Partial<AdvancedFlowConfig["welcome"]>;
+  const welcomeMessage = rawWelcome.message ?? base.welcome.message;
+
   return {
     ...base,
     ...value,
     bots: { ...base.bots, ...(value.bots ?? {}) },
-    welcome: { ...base.welcome, ...(value.welcome ?? {}) },
+    gate: {
+      ...base.gate,
+      ...(value.gate ?? {}),
+      currenciesEnabled: {
+        ...base.gate.currenciesEnabled,
+        ...(value.gate?.currenciesEnabled ?? {}),
+      },
+    },
+    welcome: {
+      ...base.welcome,
+      ...rawWelcome,
+      message: welcomeMessage,
+      messagePt: rawWelcome.messagePt || welcomeMessage || base.welcome.messagePt,
+      ctaPt: rawWelcome.ctaPt || base.welcome.ctaPt,
+      messageEn: rawWelcome.messageEn || base.welcome.messageEn,
+      ctaEn: rawWelcome.ctaEn || base.welcome.ctaEn,
+    },
     plans: { ...base.plans, ...(value.plans ?? {}) },
     upsell: { ...base.upsell, ...(value.upsell ?? {}) },
     downsell: {
