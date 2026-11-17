@@ -77,6 +77,9 @@ export type AdvancedFlowConfig = {
       id: string;
       name: string;
       price: number;
+      priceUsd?: number;
+      priceEur?: number;
+      priceGbp?: number;
       duration: string;
       buttonText?: string;
       emoji?: string;
@@ -84,6 +87,8 @@ export type AdvancedFlowConfig = {
       deliveryType?: "fallback" | "custom";
       deliveryCustomDestination?: string;
       hasCustomOrderBump?: boolean;
+      stripePriceId?: string;
+      stripeMode?: "payment" | "subscription";
     }[];
   };
   upsell: {
@@ -445,22 +450,26 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
 export function formatCurrencyPrice(
   amountBrl: number,
   currency: "BRL" | "USD" | "EUR" | "GBP",
-  _rates?: unknown
-): { formatted: string; amount: number; symbol: string } {
-  // Conversão 1:1 direta sem cálculo de câmbio (ex: 10 R$ = 10 $ = 10 € = 10 £)
-  const val = Number(amountBrl || 0);
+  customPrice?: number | unknown
+): { formatted: string; amount: number; converted: number; symbol: string } {
+  const num =
+    typeof customPrice === "number" && !isNaN(customPrice) && customPrice > 0
+      ? customPrice
+      : Number(amountBrl || 0);
+
   if (currency === "USD") {
-    return { formatted: `$ ${val.toFixed(2)}`, amount: val, symbol: "$" };
+    return { formatted: `$ ${num.toFixed(2)}`, amount: num, converted: num, symbol: "$" };
   }
   if (currency === "EUR") {
-    return { formatted: `€ ${val.toFixed(2)}`, amount: val, symbol: "€" };
+    return { formatted: `€ ${num.toFixed(2)}`, amount: num, converted: num, symbol: "€" };
   }
   if (currency === "GBP") {
-    return { formatted: `£ ${val.toFixed(2)}`, amount: val, symbol: "£" };
+    return { formatted: `£ ${num.toFixed(2)}`, amount: num, converted: num, symbol: "£" };
   }
   return {
-    formatted: `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    amount: val,
+    formatted: `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    amount: num,
+    converted: num,
     symbol: "R$",
   };
 }

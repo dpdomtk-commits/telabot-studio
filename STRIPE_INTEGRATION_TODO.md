@@ -1,96 +1,89 @@
 # Stripe Integration Guide & Next Steps
 
-This document serves as the single source of truth for completing the Stripe Checkout integration on CASH BOT.
+This document serves as the single source of truth for completing and managing the Stripe Checkout integration on CASH BOT.
 
 ---
 
-## Values to Replace
+## 🚀 Status da Integração
 
-The following values are placeholders and must be updated before going live.
+A integração do Stripe Checkout agora conta com gerenciamento completo e automatizado diretamente pelo **Painel CASH BOT**, permitindo configurar credenciais, adicionar planos com preços internacionais e aceitar pagamentos com cartão via Telegram.
 
-**Files containing placeholders:**
-- [src/routes/api/create-checkout-session.ts](src/routes/api/create-checkout-session.ts)
-- [.env](.env)
+### Parâmetros Obrigatórios (Fixed by UI)
+Configurados e validados no backend conforme as especificações de Checkout:
 
-| Field | Current Value | What to Set |
-|-------|--------------|-------------|
-| `mode` | `payment` | Set to `"payment"` for one-time charges or `"subscription"` for recurring billing. |
-| `line_items[].price` | `price_...` | Your actual Stripe Price ID from the Dashboard (https://dashboard.stripe.com/prices) or created via the Stripe API. |
-| `STRIPE_PUBLISHABLE_KEY` | `pk_test_placeholder` | Your publishable API key from Stripe Dashboard (https://dashboard.stripe.com/test/apikeys). |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_placeholder` | Same publishable API key, accessible by the browser via Vite for embedded forms. |
-| `STRIPE_SECRET_KEY` | `sk_test_placeholder` | Your secret API key from Stripe Dashboard (https://dashboard.stripe.com/test/apikeys). |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_placeholder` | Your webhook signing secret from Stripe Workbench / Webhooks (https://dashboard.stripe.com/workbench/webhooks). |
-
----
-
-## Configured Parameters
-
-These parameters were configured in Checkout Studio and are already set correctly.
-
-**Files containing these parameters:**
-- [src/routes/api/create-checkout-session.ts](src/routes/api/create-checkout-session.ts)
-
-| Parameter | Value |
-|-----------|-------|
+| Parâmetro | Valor Configurado |
+|-----------|-------------------|
 | `ui_mode` | `form` |
 | `billing_address_collection` | `auto` |
 | `phone_number_collection` | `{"enabled": false}` |
 | `automatic_tax` | `{"enabled": false}` |
 | `submit_type` | `auto` |
 | `integration_identifier` | `custom_embedded_web_0001` |
-| `payment_method_collection` | `always` (included when `mode` is `"subscription"`) |
+| `payment_method_collection` | `always` (incluído dinamicamente quando `mode === "subscription"`) |
 
 ---
 
-## Setup and Next Steps
+## 🛠️ Como Utilizar pelo Painel CASH BOT (Passo a Passo)
 
-### 1. Environment Variables Configuration
-Ensure the following variables are defined in your `.env` file (local development) and in your **Vercel Project Settings > Environment Variables** (production):
-
-```bash
-# Stripe API Keys (Dashboard -> https://dashboard.stripe.com/test/apikeys)
-STRIPE_PUBLISHABLE_KEY=pk_test_51...
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51...
-STRIPE_SECRET_KEY=sk_test_51...
-
-# Stripe Webhook Secret (Dashboard -> https://dashboard.stripe.com/workbench/webhooks)
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# Application Domain
-DOMAIN=https://telabot-studio.vercel.app
-```
-
-### 2. Project Structure of Created Files
-- [`src/lib/stripe.server.ts`](src/lib/stripe.server.ts): Instanciação segura do SDK do Stripe com a versão de API `2026-03-25.dahlia`.
-- [`src/routes/api/create-checkout-session.ts`](src/routes/api/create-checkout-session.ts): Endpoint de servidor que cria a Sessão de Checkout e retorna `{ client_secret: session.client_secret }`.
-- [`src/routes/api/webhook.ts`](src/routes/api/webhook.ts): Endpoint de Webhook para processar eventos como `checkout.session.completed` e liberar o acesso automático do lead.
-- [`src/components/checkout/StripeEmbeddedForm.tsx`](src/components/checkout/StripeEmbeddedForm.tsx): Componente React cliente que inicializa o Checkout Form SDK (`stripe.initCheckoutFormSdk`) e renderiza o formulário embutido em `<div id="checkout-form"></div>`.
-- [`src/routes/checkout.tsx`](src/routes/checkout.tsx): Página de checkout segura acessada pelos leads para pagamento via cartão / Apple Pay / Google Pay.
-- [`src/routes/__root.tsx`](src/routes/__root.tsx): Injeção do script Dahlia (`https://js.stripe.com/dahlia/stripe.js`) diretamente no `<head>`.
-
-### 3. How the Integration Works (Flow Overview)
-1. **Lead Seleciona Plano no Telegram:** Quando o lead clica em um plano em moeda internacional (USD, EUR, GBP) no Telegram, o bot gera a mensagem com o botão direto de pagamento com cartão via Stripe.
-2. **Página de Checkout Embutida:** O link direciona para `https://telabot-studio.vercel.app/checkout`, carregando o script oficial Dahlia e o formulário embutido da Stripe.
-3. **Criação da Sessão:** O frontend requisita `/api/create-checkout-session`, que cria a sessão com `ui_mode: "form"`, `integration_identifier: "custom_embedded_web_0001"` e os parâmetros configurados.
-4. **Confirmação e Webhook:** Quando o pagamento é confirmado, a Stripe dispara `checkout.session.completed` para `/api/webhook`, confirmando o pagamento e entregando o acesso VIP instantaneamente.
-
-### 4. Testing Credit Card Numbers (Test Mode)
-Use the official Stripe test cards in test mode (`pk_test_...` / `sk_test_...`):
-
-| Card Brand | Card Number | Expiration | CVC |
-|------------|-------------|------------|-----|
-| Visa (Success) | `4242 4242 4242 4242` | Any future date | Any 3 digits |
-| Mastercard (Success) | `5555 5555 5555 4444` | Any future date | Any 3 digits |
-| Requires 3D Secure | `4000 0027 6000 3184` | Any future date | Any 3 digits |
-| Card Declined | `4000 0000 0000 0002` | Any future date | Any 3 digits |
-
-### 5. Next Steps
-1. Adicione seus Price IDs reais do Stripe Dashboard em `src/routes/api/create-checkout-session.ts`.
-2. Configure o Webhook no Stripe Workbench apontando para:
+### 1. Conectar suas Chaves no Painel de Gateways
+1. Acesse o painel web em **Gateways** (`/app/gateways`).
+2. Localize o novo card **Stripe Payments**.
+3. Insira suas credenciais da Stripe:
+   - **Publishable Key**: `pk_live_...` (ou `pk_test_...` para testes).
+   - **Secret Key**: `sk_live_...` (ou `sk_test_...`).
+   - **Webhook Secret** *(opcional)*: `whsec_...`.
+4. Clique em **Salvar Credenciais Stripe**. O sistema testará a chave em tempo real contra a API da Stripe e exibirá a confirmação.
+5. Copie a **URL do Webhook** exibida no card:
    `https://telabot-studio.vercel.app/api/webhook`
-   e selecione o evento `checkout.session.completed`.
-3. Obtenha o `whsec_...` gerado e adicione na variável `STRIPE_WEBHOOK_SECRET` na Vercel.
+6. No Stripe Dashboard, acesse **Workbench > Webhooks**, adicione essa URL e selecione o evento `checkout.session.completed`.
 
-### 6. Official Resources
-- Stripe Documentation & Support: https://support.stripe.com
-- Stripe Developer MCP Tools: https://docs.stripe.com/mcp
+---
+
+### 2. Configurar e Adicionar Planos no Editor de Fluxo
+1. Acesse **Fluxos** e abra seu fluxo no modo simples (`/app/flows/[id]/simple`).
+2. Clique na aba **Planos**.
+3. Em qualquer plano existente ou ao clicar em **Adicionar Plano**, você verá os novos campos:
+   - **Preço em Dólares ($ USD)**
+   - **Preço em Euros (€ EUR)**
+   - **Preço em Libras (£ GBP)**
+   - **Tipo de Cobrança Stripe**: *Pagamento Único* (`payment`) ou *Assinatura Recorrente* (`subscription`).
+   - **Price ID Stripe (Opcional)**: caso queira usar um preço existente cadastrado no Stripe Dashboard (`price_...`). Se deixar em branco, o valor é gerado dinamicamente de forma 100% automática!
+4. No lado direito, utilize o novo seletor de moedas do **Live Preview** (`🇧🇷 BRL`, `🇺🇸 USD`, `🇪🇺 EUR`, `🇬🇧 GBP`) para ver exatamente como os botões aparecerão para o lead no Telegram.
+5. Clique em **Salvar Fluxo**.
+
+---
+
+### 3. Experiência do Lead no Telegram
+1. O lead entra no bot e seleciona o idioma **English** ou a moeda **USD / EUR / GBP**.
+2. Os botões de planos são atualizados instantaneamente na mensagem com os valores em dólar, euro ou libra configurados no plano.
+3. Ao tocar no plano, o bot envia a mensagem de checkout com o botão:
+   `💳 Pay $ XX.XX with Card (Stripe) ↗`
+4. O link abre a tela segura `/checkout` com o formulário embutido Dahlia da Stripe no tema escuro do CASH BOT.
+5. Ao pagar com cartão de crédito, Apple Pay ou Google Pay, a Stripe confirma a transação.
+6. O webhook `/api/webhook` processa a confirmação, registra a venda paga, toca o som de caixa registradora no painel, envia notificação Push e entrega o acesso ao canal VIP no Telegram!
+
+---
+
+## 💳 Cartões de Teste Oficiais (Modo Teste)
+
+Quando estiver utilizando chaves de teste (`pk_test_...` e `sk_test_...`):
+
+| Cartão | Número | Validade | CVC |
+|--------|--------|----------|-----|
+| Visa (Aprovado) | `4242 4242 4242 4242` | Qualquer data futura | 123 |
+| Mastercard (Aprovado) | `5555 5555 5555 4444` | Qualquer data futura | 123 |
+| Requer 3D Secure | `4000 0027 6000 3184` | Qualquer data futura | 123 |
+| Cartão Recusado | `4000 0000 0000 0002` | Qualquer data futura | 123 |
+
+---
+
+## 📁 Arquivos da Integração
+- [`src/lib/stripe.server.ts`](src/lib/stripe.server.ts): SDK Stripe versão `2026-03-25.dahlia` com suporte a chaves por usuário e globais.
+- [`src/routes/api/create-checkout-session.ts`](src/routes/api/create-checkout-session.ts): Endpoint que cria a sessão com todos os parâmetros do Field Intents e preços dinâmicos.
+- [`src/routes/api/webhook.ts`](src/routes/api/webhook.ts): Endpoint de Webhook que confirma pagamentos e entrega o acesso Telegram via `approvePayment`.
+- [`src/lib/user-gateway.functions.ts`](src/lib/user-gateway.functions.ts): Funções de servidor para gerenciar e testar as credenciais Stripe do usuário.
+- [`src/components/app/UserStripeCard.tsx`](src/components/app/UserStripeCard.tsx): Card no painel de gateways para salvar, testar e desconectar a Stripe.
+- [`src/routes/_authenticated/app.gateways.tsx`](src/routes/_authenticated/app.gateways.tsx): Página de gateways exibindo a configuração da Stripe.
+- [`src/routes/_authenticated/app.flows.$flowId_.simple.tsx`](src/routes/_authenticated/app.flows.$flowId_.simple.tsx): Aba Planos com campos internacionais, Stripe Mode, Price ID e Live Preview multimoeda.
+- [`src/routes/checkout.tsx`](src/routes/checkout.tsx): Rota de checkout embutida para os leads.
+- [`src/components/checkout/StripeEmbeddedForm.tsx`](src/components/checkout/StripeEmbeddedForm.tsx): Formulário oficial Dahlia integrado com confirmação automática.

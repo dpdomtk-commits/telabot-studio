@@ -580,7 +580,15 @@ export async function handleCurrencySelect(params: {
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
   for (const plan of planItems) {
-    const conv = formatCurrencyPrice(plan.price, params.currency);
+    const customPrice =
+      params.currency === "USD"
+        ? plan.priceUsd
+        : params.currency === "EUR"
+        ? plan.priceEur
+        : params.currency === "GBP"
+        ? plan.priceGbp
+        : undefined;
+    const conv = formatCurrencyPrice(plan.price, params.currency, customPrice);
     const emoji = plan.emoji ? `${plan.emoji} ` : "";
     const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
     const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} — ${conv.formatted}`;
@@ -827,10 +835,47 @@ export async function handleInternationalPlanPurchase(params: {
       duration: "Lifetime Access",
     };
 
-  const conv = formatCurrencyPrice(plan.price, params.currency, cfg.multilingual?.rates);
+  const customPrice =
+    params.currency === "USD"
+      ? plan.priceUsd
+      : params.currency === "EUR"
+      ? plan.priceEur
+      : params.currency === "GBP"
+      ? plan.priceGbp
+      : undefined;
+
+  const conv = formatCurrencyPrice(plan.price, params.currency, customPrice);
 
   const domain = process.env.DOMAIN || "https://telabot-studio.vercel.app";
-  const checkoutUrl = `${domain}/checkout?plan_name=${encodeURIComponent(plan.name)}&price=${conv.converted.toFixed(2)}&currency=${params.currency}&lead_id=${params.leadId}&bot_id=${params.botId}`;
+  const checkoutParams = new URLSearchParams({
+    plan_name: plan.name,
+    price: conv.amount.toFixed(2),
+    currency: params.currency,
+    lead_id: params.leadId,
+    bot_id: params.botId,
+    plan_id: params.planId,
+  });
+
+  if (plan.stripePriceId) {
+    checkoutParams.set("price_id", plan.stripePriceId);
+  }
+  if (plan.stripeMode) {
+    checkoutParams.set("mode", plan.stripeMode);
+  }
+
+  // Busca se o dono do bot configurou chave própria no painel
+  const { data: creds } = await supabaseAdmin
+    .from("user_gateway_credentials")
+    .select("client_id")
+    .eq("user_id", params.userId)
+    .eq("provider", "stripe")
+    .maybeSingle();
+
+  if (creds?.client_id) {
+    checkoutParams.set("pk", creds.client_id);
+  }
+
+  const checkoutUrl = `${domain}/checkout?${checkoutParams.toString()}`;
 
   const lines = [
     `⭐ <b>${plan.name.toUpperCase()}</b>`,

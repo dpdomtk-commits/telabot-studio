@@ -8,15 +8,30 @@ declare global {
 
 export function StripeEmbeddedForm({
   planName = "Plano VIP",
+  price = "29.90",
   priceFormatted = "$ 29.90",
+  currency = "USD",
   mode = "payment",
+  leadId,
+  botId,
+  planId,
+  priceId,
+  customPublishableKey,
 }: {
   planName?: string;
+  price?: string | number;
   priceFormatted?: string;
+  currency?: string;
   mode?: "payment" | "subscription";
+  leadId?: string;
+  botId?: string;
+  planId?: string;
+  priceId?: string;
+  customPublishableKey?: string;
 }) {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 
@@ -27,11 +42,13 @@ export function StripeEmbeddedForm({
     async function initializeCheckout() {
       try {
         const publishableKey =
-          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder";
+          customPublishableKey ||
+          import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+          "pk_test_placeholder";
 
         if (!window.Stripe) {
           // Aguarda o script Dahlia carregar caso ainda não esteja pronto
-          await new Promise<void>((resolve, reject) => {
+          await new Promise<void>((resolve) => {
             const timeout = setTimeout(() => resolve(), 3000);
             if (window.Stripe) {
               clearTimeout(timeout);
@@ -58,12 +75,12 @@ export function StripeEmbeddedForm({
           labels: "auto",
           inputs: "spaced",
           variables: {
-            borderRadius: "4px",
+            borderRadius: "6px",
             colorBackground: "#ffffff",
             colorDanger: "#df1b41",
             colorPrimary: "#0570de",
             colorSuccess: "#00c853",
-            colorText: "#30313d",
+            colorText: "#18181b",
             fontFamily: "default",
             fontSizeBase: "16px",
             spacingUnit: "4px",
@@ -73,7 +90,21 @@ export function StripeEmbeddedForm({
         const clientSecret = fetch("/api/create-checkout-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode }),
+          body: JSON.stringify({
+            mode,
+            plan_name: planName,
+            price,
+            currency,
+            price_id: priceId,
+            metadata: {
+              plan_name: planName,
+              price,
+              currency,
+              lead_id: leadId,
+              bot_id: botId,
+              plan_id: planId,
+            },
+          }),
         })
           .then((response) => response.json())
           .then((json) => {
@@ -89,7 +120,10 @@ export function StripeEmbeddedForm({
         if (loadActionsResult.type === "success") {
           form.on("confirm", async (event: any) => {
             try {
-              await loadActionsResult.actions.confirm({ formConfirmEvent: event });
+              const res = await loadActionsResult.actions.confirm({ formConfirmEvent: event });
+              if (res?.type === "success") {
+                setIsSuccess(true);
+              }
             } catch (error) {
               console.error("Payment confirmation error:", error);
             }
@@ -107,7 +141,24 @@ export function StripeEmbeddedForm({
     }
 
     initializeCheckout();
-  }, [mode]);
+  }, [mode, customPublishableKey, leadId, botId, planId, priceId, planName, price, currency]);
+
+  if (isSuccess) {
+    return (
+      <div className="w-full max-w-xl mx-auto p-8 bg-zinc-900 border border-emerald-500/30 rounded-2xl shadow-2xl text-white text-center space-y-4">
+        <div className="size-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto text-2xl font-bold">
+          ✓
+        </div>
+        <h2 className="text-2xl font-bold text-white">Pagamento Aprovado com Sucesso!</h2>
+        <p className="text-sm text-zinc-300">
+          Seu acesso ao <strong>{planName}</strong> foi confirmado e liberado.
+        </p>
+        <p className="text-xs text-zinc-400">
+          Você já pode voltar para a conversa no <strong>Telegram</strong>. O bot acabou de lhe enviar o link exclusivo do canal VIP!
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-xl mx-auto p-6 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl text-white">
@@ -133,8 +184,7 @@ export function StripeEmbeddedForm({
           <p className="font-semibold">Aviso de Configuração Stripe:</p>
           <p className="mt-1 text-xs">{errorMessage}</p>
           <p className="mt-2 text-[11px] text-zinc-400">
-            Verifique suas chaves de API em <code>.env</code> conforme instruções em{" "}
-            <code>STRIPE_INTEGRATION_TODO.md</code>.
+            Configure suas chaves de API no painel CASH BOT em <strong>Gateways &gt; Stripe</strong>.
           </p>
         </div>
       )}

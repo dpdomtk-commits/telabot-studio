@@ -16,10 +16,16 @@ function CheckoutPage() {
     typeof window !== "undefined" ? window.location.search : ""
   );
   const planName = searchParams.get("plan_name") || "Acesso VIP Internacional";
-  const currency = searchParams.get("currency") || "USD";
+  const currency = (searchParams.get("currency") || "USD").toUpperCase();
   const symbol = currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$";
   const price = searchParams.get("price") || "29.90";
   const priceFormatted = `${symbol} ${price}`;
+  const leadId = searchParams.get("lead_id") || undefined;
+  const botId = searchParams.get("bot_id") || undefined;
+  const planId = searchParams.get("plan_id") || undefined;
+  const priceId = searchParams.get("price_id") || undefined;
+  const mode = (searchParams.get("mode") as "payment" | "subscription") || "payment";
+  const customPublishableKey = searchParams.get("pk") || undefined;
 
   return (
     <div className="min-h-screen bg-[#050508] text-white flex flex-col justify-center items-center p-4">
@@ -37,8 +43,15 @@ function CheckoutPage() {
 
       <StripeEmbeddedForm
         planName={planName}
+        price={price}
         priceFormatted={priceFormatted}
-        mode="payment"
+        currency={currency}
+        mode={mode}
+        leadId={leadId}
+        botId={botId}
+        planId={planId}
+        priceId={priceId}
+        customPublishableKey={customPublishableKey}
       />
 
       <div className="mt-6 text-center text-xs text-zinc-600">

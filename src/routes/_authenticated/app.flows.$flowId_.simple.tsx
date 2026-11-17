@@ -70,6 +70,7 @@ export function AdvancedFlowEditorPage() {
   const { flowId } = useParams({ from: "/_authenticated/app/flows/$flowId_/simple" });
   const [activeTab, setActiveTab] = useState<string>("welcome");
   const [bilingualTab, setBilingualTab] = useState<"pt" | "en">("pt");
+  const [previewCurrency, setPreviewCurrency] = useState<"BRL" | "USD" | "EUR" | "GBP">("BRL");
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AdvancedFlowConfig>(defaultAdvancedConfig());
 
@@ -693,10 +694,15 @@ export function AdvancedFlowEditorPage() {
                       id: `plan-${Date.now()}`,
                       name: "NOVO PLANO",
                       price: 19.9,
+                      priceUsd: 9.9,
+                      priceEur: 8.9,
+                      priceGbp: 7.9,
                       duration: "Vitalício",
                       buttonColor: "default" as const,
                       deliveryType: "fallback" as const,
                       hasCustomOrderBump: false,
+                      stripeMode: "payment" as const,
+                      stripePriceId: "",
                     };
                     setConfig({
                       ...config,
@@ -862,6 +868,112 @@ export function AdvancedFlowEditorPage() {
                             }}
                           />
                         </div>
+
+                        {/* Moedas Internacionais & Configuração Stripe */}
+                        <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <Globe className="size-3.5 text-cyan-400" /> Preços Internacionais & Stripe (Cartão)
+                            </span>
+                            <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-400">
+                              USD • EUR • GBP
+                            </Badge>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div>
+                              <Label className="text-[11px] text-zinc-400">Preço em Dólares ($ USD)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={plan.price ? String(plan.price) : "29.90"}
+                                value={plan.priceUsd ?? ""}
+                                className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
+                                onChange={(e) => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id
+                                      ? { ...p, priceUsd: e.target.value ? Number(e.target.value) : undefined }
+                                      : p
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-400">Preço em Euros (€ EUR)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={plan.price ? String(plan.price) : "29.90"}
+                                value={plan.priceEur ?? ""}
+                                className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
+                                onChange={(e) => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id
+                                      ? { ...p, priceEur: e.target.value ? Number(e.target.value) : undefined }
+                                      : p
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-400">Preço em Libras (£ GBP)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={plan.price ? String(plan.price) : "29.90"}
+                                value={plan.priceGbp ?? ""}
+                                className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
+                                onChange={(e) => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id
+                                      ? { ...p, priceGbp: e.target.value ? Number(e.target.value) : undefined }
+                                      : p
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2 pt-1 border-t border-white/5">
+                            <div>
+                              <Label className="text-[11px] text-zinc-400">Tipo de Cobrança Stripe</Label>
+                              <select
+                                value={plan.stripeMode || "payment"}
+                                onChange={(e) => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id
+                                      ? { ...p, stripeMode: e.target.value as "payment" | "subscription" }
+                                      : p
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                                className="w-full h-8 rounded-lg border border-white/10 bg-black/60 px-2.5 text-xs text-white"
+                              >
+                                <option value="payment">💳 Pagamento Único (Checkout)</option>
+                                <option value="subscription">🔄 Assinatura Recorrente</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-400">
+                                Price ID Stripe <span className="text-[10px] text-zinc-500">(Opcional)</span>
+                              </Label>
+                              <Input
+                                placeholder="price_1N... (automático se vazio)"
+                                value={plan.stripePriceId || ""}
+                                className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
+                                onChange={(e) => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id ? { ...p, stripePriceId: e.target.value } : p
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -886,51 +998,104 @@ export function AdvancedFlowEditorPage() {
                       Assim que o lead der /start, estes botões com valor e emojis aparecerão para escolha do plano:
                     </p>
 
+                    {/* SELETOR DE MOEDA NO PREVIEW */}
+                    <div className="flex items-center gap-1 p-1 bg-black/60 rounded-xl border border-white/10">
+                      {(["BRL", "USD", "EUR", "GBP"] as const).map((curr) => (
+                        <button
+                          key={curr}
+                          type="button"
+                          onClick={() => setPreviewCurrency(curr)}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
+                            previewCurrency === curr
+                              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                              : "text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          <span>{curr === "BRL" ? "🇧🇷" : curr === "USD" ? "🇺🇸" : curr === "EUR" ? "🇪🇺" : "🇬🇧"}</span>
+                          <span>{curr}</span>
+                        </button>
+                      ))}
+                    </div>
+
                     {/* MOCKUP EXATO DO TELEGRAM COM BOTÕES COLORIDOS */}
                     <div className="rounded-xl border border-white/10 bg-[#161a23]/90 p-3.5 space-y-2.5 shadow-inner">
-                      {config.plans.items.map((plan, idx) => {
-                        const priceFormatted = Number(plan.price || 0).toLocaleString("pt-BR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        });
-                        const emoji = plan.emoji || (idx === 0 ? "🎗️" : idx === 1 ? "💎" : "👑");
-                        const label =
-                          plan.buttonText?.trim() || `${emoji} ${plan.name} ${emoji} por R$ ${priceFormatted}`;
+                      {previewCurrency === "BRL" ? (
+                        <>
+                          {config.plans.items.map((plan, idx) => {
+                            const priceFormatted = Number(plan.price || 0).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            });
+                            const emoji = plan.emoji || (idx === 0 ? "🎗️" : idx === 1 ? "💎" : "👑");
+                            const label =
+                              plan.buttonText?.trim() || `${emoji} ${plan.name} ${emoji} por R$ ${priceFormatted}`;
 
-                        const colorClasses =
-                          plan.buttonColor === "green"
-                            ? "bg-[#4b9e67] hover:bg-[#43915d] text-white"
-                            : plan.buttonColor === "gold"
-                            ? "bg-[#d29922] hover:bg-[#b0801a] text-black font-extrabold"
-                            : plan.buttonColor === "red"
-                            ? "bg-[#b94a48] hover:bg-[#a33e3c] text-white"
-                            : plan.buttonColor === "purple"
-                            ? "bg-[#7c3aed] hover:bg-[#6d28d9] text-white"
-                            : "bg-[#4693b7] hover:bg-[#3c81a2] text-white";
+                            const colorClasses =
+                              plan.buttonColor === "green"
+                                ? "bg-[#4b9e67] hover:bg-[#43915d] text-white"
+                                : plan.buttonColor === "gold"
+                                ? "bg-[#d29922] hover:bg-[#b0801a] text-black font-extrabold"
+                                : plan.buttonColor === "red"
+                                ? "bg-[#b94a48] hover:bg-[#a33e3c] text-white"
+                                : plan.buttonColor === "purple"
+                                ? "bg-[#7c3aed] hover:bg-[#6d28d9] text-white"
+                                : "bg-[#4693b7] hover:bg-[#3c81a2] text-white";
 
-                        return (
-                          <div
-                            key={plan.id}
-                            className={`w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${colorClasses}`}
-                          >
-                            <span>{label}</span>
+                            return (
+                              <div
+                                key={plan.id}
+                                className={`w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${colorClasses}`}
+                              >
+                                <span>{label}</span>
+                              </div>
+                            );
+                          })}
+
+                          {/* Botão de Redirecionamento Mundial */}
+                          <div className="w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md bg-[#b95d52] hover:bg-[#a64e43] text-white cursor-pointer flex items-center justify-center gap-2">
+                            <span>PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺</span>
+                            <span className="text-xs">↗</span>
                           </div>
-                        );
-                      })}
+                        </>
+                      ) : (
+                        <>
+                          {config.plans.items.map((plan, idx) => {
+                            const customPrice =
+                              previewCurrency === "USD"
+                                ? plan.priceUsd
+                                : previewCurrency === "EUR"
+                                ? plan.priceEur
+                                : plan.priceGbp;
+                            const conv = formatCurrencyPrice(plan.price, previewCurrency, customPrice);
+                            const emoji = plan.emoji ? `${plan.emoji} ` : "⭐ ";
+                            const label =
+                              plan.buttonText?.trim() || `${emoji}${plan.name} — ${conv.formatted} [ GET ACCESS ]`;
 
-                      {/* Botão de Redirecionamento Mundial */}
-                      <div className="w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md bg-[#b95d52] hover:bg-[#a64e43] text-white cursor-pointer flex items-center justify-center gap-2">
-                        <span>PAGAMENTOS MUNDIAIS 🇺🇸 🇬🇧 🇪🇺</span>
-                        <span className="text-xs">↗</span>
-                      </div>
+                            return (
+                              <div
+                                key={plan.id}
+                                className="w-full py-3 px-4 rounded-xl text-center text-sm font-bold shadow-md bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:opacity-95 text-white cursor-pointer flex items-center justify-center gap-1.5 transition"
+                              >
+                                <span>{label}</span>
+                              </div>
+                            );
+                          })}
+
+                          <div className="w-full py-2.5 px-3 rounded-xl text-center text-xs font-semibold bg-white/5 border border-white/10 text-zinc-300 flex items-center justify-center gap-2">
+                            <span>🌐 Change Currency</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-3 text-[11px] text-cyan-300/90 space-y-1">
                       <p className="font-bold flex items-center gap-1">
-                        <Sparkles className="size-3.5" /> Valor e PIX Dinâmico:
+                        <Sparkles className="size-3.5" /> {previewCurrency === "BRL" ? "PIX Dinâmico Instantâneo:" : "Checkout Stripe Integrado:"}
                       </p>
                       <p>
-                        O lead escolhe o plano clicando no botão. O PIX será gerado com o nome e valor exatos do plano escolhido.
+                        {previewCurrency === "BRL"
+                          ? "O lead escolhe o plano clicando no botão. O PIX será gerado com o nome e valor exatos do plano escolhido."
+                          : "O lead internacional recebe o link direto com cartão de crédito, Apple Pay e Google Pay na moeda selecionada via Stripe."}
                       </p>
                     </div>
                   </div>
