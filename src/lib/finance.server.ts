@@ -61,17 +61,43 @@ export type CreateChargeInput = {
  */
 export async function createPixCharge(input: CreateChargeInput) {
   if (input.idempotencyKey) {
-    const { data: existing } = await supabaseAdmin
-      .from("payments")
-      .select("id,pix_code,amount_cents,description,product_name,success_message,status")
-      .eq("idempotency_key", input.idempotencyKey)
-      .maybeSingle();
-    // Só reaproveita cobranças válidas: sem código PIX a cobrança é refeita.
-    if (existing && existing.pix_code) return existing;
-    if (existing) await supabaseAdmin.from("payments").delete().eq("id", existing.id);
+    try {
+      const { data: existing } = await supabaseAdmin
+        .from("payments")
+        .select("id,pix_code,amount_cents,description,product_name,success_message,status,provider")
+        .eq("idempotency_key", input.idempotencyKey)
+        .maybeSingle();
+
+      // Só reaproveita cobranças pendentes válidas geradas via OmegaPay com o mesmo valor
+      if (
+        existing &&
+        existing.pix_code &&
+        existing.status === "pending" &&
+        existing.provider === "omegapay" &&
+        existing.amount_cents === input.amountCents
+      ) {
+        return existing;
+      }
+      if (existing) {
+        await supabaseAdmin.from("payments").delete().eq("id", existing.id);
+      }
+    } catch (idempErr) {
+      console.warn("[createPixCharge-idempotency-warn]", idempErr);
+    }
   }
 
-  const settings = await getFinanceSettings();
+  const [settings, flowRow] = await Promise.all([
+    getFinanceSettings(),
+    !input.gatewayId && input.flowId
+      ? supabaseAdmin
+          .from("flows")
+          .select("gateway_id")
+          .eq("id", input.flowId)
+          .maybeSingle()
+          .then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
+
   const percent =
     typeof input.platformFeePercent === "number" && input.platformFeePercent >= 0
       ? Math.min(input.platformFeePercent, 100)
@@ -84,41 +110,65 @@ export async function createPixCharge(input: CreateChargeInput) {
           return { feeCents: fee, netCents: input.amountCents - fee };
         })();
 
-  // Roteamento por fluxo: o fluxo pode fixar qual gateway deve ser usado.
-  let preferredGatewayId = input.gatewayId ?? null;
-  if (!preferredGatewayId && input.flowId) {
-    const { data: flow } = await supabaseAdmin
-      .from("flows")
-      .select("gateway_id")
-      .eq("id", input.flowId)
+  const preferredGatewayId = input.gatewayId ?? flowRow?.gateway_id ?? null;
+
+  const fallbackUuid =
+    typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `pix-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  let charge: {
+    id: string;
+    pix_code: string | null;
+    amount_cents: number;
+    description: string | null;
+    product_name: string | null;
+    success_message: string | null;
+    status: string;
+  } = {
+    id: fallbackUuid,
+    pix_code: null,
+    amount_cents: input.amountCents,
+    description: input.description,
+    product_name: input.productName ?? null,
+    success_message: input.successMessage ?? null,
+    status: "pending",
+  };
+
+  let insertedInDb = false;
+  try {
+    const { data: dbCharge, error } = await supabaseAdmin
+      .from("payments")
+      .insert({
+        user_id: input.userId,
+        bot_id: input.botId ?? null,
+        lead_id: input.leadId ?? null,
+        flow_id: input.flowId ?? null,
+        amount_cents: input.amountCents,
+        description: input.description,
+        product_name: input.productName ?? null,
+        success_message: input.successMessage ?? null,
+        expires_at: input.expiresAt ?? null,
+        method: "pix",
+        status: "pending",
+        provider: "omegapay",
+        fee_cents: feeCents,
+        net_cents: netCents,
+        platform_fee_percent: percent,
+        idempotency_key: input.idempotencyKey ?? null,
+      })
+      .select("id,pix_code,amount_cents,description,product_name,success_message,status")
       .maybeSingle();
-    preferredGatewayId = flow?.gateway_id ?? null;
+
+    if (!error && dbCharge) {
+      charge = dbCharge;
+      insertedInDb = true;
+    } else if (error) {
+      console.warn("[createPixCharge-db-insert-fallback]", error.message);
+    }
+  } catch (dbErr) {
+    console.warn("[createPixCharge-db-insert-exception]", dbErr);
   }
-
-  const { data: charge, error } = await supabaseAdmin
-    .from("payments")
-    .insert({
-      user_id: input.userId,
-      bot_id: input.botId ?? null,
-      lead_id: input.leadId ?? null,
-      flow_id: input.flowId ?? null,
-      amount_cents: input.amountCents,
-      description: input.description,
-      product_name: input.productName ?? null,
-      success_message: input.successMessage ?? null,
-      expires_at: input.expiresAt ?? null,
-      method: "pix",
-      status: "pending",
-      provider: settings.provider,
-      fee_cents: feeCents,
-      net_cents: netCents,
-      platform_fee_percent: percent,
-      idempotency_key: input.idempotencyKey ?? null,
-    })
-    .select("id,pix_code,amount_cents,description,product_name,success_message,status")
-    .maybeSingle();
-
-  if (error || !charge) throw new Error(error?.message ?? "Falha ao criar cobrança");
 
   const { createChargeWithFallback } = await import("@/lib/payments/gateways.server");
   const result = await createChargeWithFallback({
@@ -143,59 +193,69 @@ export async function createPixCharge(input: CreateChargeInput) {
     },
   });
 
-
-  await supabaseAdmin
-    .from("payments")
-    .update({
-      pix_code: result.pixCode || null,
-      external_id: result.externalId,
-      gateway_id: result.gatewayId,
-      provider: result.provider,
-    })
-    .eq("id", charge.id);
-
-  // Registro no log com o NOME DO LEAD QUE GEROU O PIX
-  let leadName = input.payerName || "Lead";
-  if (input.leadId) {
-    const { data: lead } = await supabaseAdmin
-      .from("leads")
-      .select("name,telegram_username,first_name,last_name")
-      .eq("id", input.leadId)
-      .maybeSingle();
-    if (lead) {
-      leadName =
-        lead.name ||
-        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
-        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
-    }
+  if (insertedInDb) {
+    supabaseAdmin
+      .from("payments")
+      .update({
+        pix_code: result.pixCode || null,
+        external_id: result.externalId,
+        gateway_id: result.gatewayId,
+        provider: result.provider,
+      })
+      .eq("id", charge.id)
+      .then(() => undefined)
+      .catch((e) => console.warn("[createPixCharge-update-warn]", e));
   }
 
-  const { logActivity, notify } = await import("@/lib/telegram.server");
-  const amountFormatted = (input.amountCents / 100).toFixed(2).replace(".", ",");
-  const desc = input.description || input.productName || "Plano";
+  // Log de atividade e notificação em background para não atrasar a entrega do PIX no Telegram
+  void (async () => {
+    try {
+      let leadName = input.payerName || "Lead";
+      if (input.leadId && !input.leadId.startsWith("lead-")) {
+        const { data: lead } = await supabaseAdmin
+          .from("leads")
+          .select("name,telegram_username,first_name,last_name")
+          .eq("id", input.leadId)
+          .maybeSingle();
+        if (lead) {
+          leadName =
+            lead.name ||
+            [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+            (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+        }
+      }
 
-  await logActivity(
-    input.userId,
-    "pagamento",
-    `PIX gerado por ${leadName} - R$ ${amountFormatted} (${desc})`,
-    charge.id,
-    {
-      lead_name: leadName,
-      lead_id: input.leadId,
-      amount_cents: input.amountCents,
-      description: desc,
-      status: "pending",
+      const { logActivity, notify } = await import("@/lib/telegram.server");
+      const amountFormatted = (input.amountCents / 100).toFixed(2).replace(".", ",");
+      const desc = input.description || input.productName || "Plano";
+
+      await Promise.allSettled([
+        logActivity(
+          input.userId,
+          "pagamento",
+          `PIX gerado por ${leadName} - R$ ${amountFormatted} (${desc})`,
+          charge.id,
+          {
+            lead_name: leadName,
+            lead_id: input.leadId,
+            amount_cents: input.amountCents,
+            description: desc,
+            status: "pending",
+          },
+        ),
+        notify(
+          input.userId,
+          "info",
+          `⏳ Venda Gerada por ${leadName}!`,
+          `Novo pedido de R$ ${amountFormatted} aguardando pagamento por ${leadName} (${desc}).`,
+          "payment",
+          charge.id,
+        ),
+      ]);
+    } catch (bgErr) {
+      console.warn("[createPixCharge-bg-log-warn]", bgErr);
     }
-  );
-
-  await notify(
-    input.userId,
-    "info",
-    `⏳ Venda Gerada por ${leadName}!`,
-    `Novo pedido de R$ ${amountFormatted} aguardando pagamento por ${leadName} (${desc}).`,
-    "payment",
-    charge.id,
-  );
+  })();
 
   return { ...charge, pix_code: result.pixCode || null };
 }

@@ -4,6 +4,7 @@ import {
   sendMessage,
   sendPhoto,
   sendVideo,
+  sendPixPaymentMessages,
   getLeadPreferences,
 } from "@/lib/telegram.server";
 import { normalizeAdvancedConfig, type SequenceStep } from "@/lib/flow-advanced";
@@ -598,24 +599,16 @@ export async function handleDownsellPurchase(params: {
     });
 
     const priceFormatted = (amountCents / 100).toFixed(2).replace(".", ",");
-    const lines = [
-      `🔥 <b>OFERTA ESPECIAL: ${plan.name}</b>`,
-      `Valor exclusivo: <b>R$ ${priceFormatted}</b>`,
-    ];
-
-    if (charge.pix_code) {
-      lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
-    }
-    lines.push("", "Assim que o PIX for confirmado, seu acesso é liberado instantaneamente!");
-
-    const replyMarkup = {
-      inline_keyboard: [
-        [{ text: "✅ Já realizei o pagamento", callback_data: `check_payment:${charge.id}` }],
-        [{ text: "↩️ Voltar aos Planos", callback_data: "nav:plans" }],
-      ],
-    };
-
-    await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
+    await sendPixPaymentMessages({
+      token: params.token,
+      chatId: params.chatId,
+      chargeId: charge.id,
+      title: `OFERTA ESPECIAL: ${plan.name}`,
+      priceFormatted,
+      pixCode: charge.pix_code,
+      showBackToPlans: true,
+      footerText: "Assim que o PIX for confirmado, seu acesso é liberado instantaneamente!",
+    });
 
     // Agenda o downsell de PIX pendente para esta cobrança
     await schedulePixDownsells({

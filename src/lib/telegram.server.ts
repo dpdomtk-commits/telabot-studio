@@ -7,29 +7,61 @@ export type TelegramSendResult = { ok: boolean; error?: string; result?: any };
 // Cache em memória de file_id do Telegram para evitar downloads/uploads repetidos
 export const telegramFileIdCache = new Map<string, string>();
 
-// Cache em memória de fluxo e configurações ativas do bot (TTL de 60 segundos com invalidação sob demanda)
+// Cache em memória de fluxo e configurações ativas do bot (TTL 5 min com stale-while-revalidate)
+const BOT_CONFIG_TTL_MS = 300_000;
 interface BotConfigCacheEntry {
   flow: any;
   cfg: any;
   expiresAt: number;
+  refreshing?: boolean;
 }
 export const botConfigCache = new Map<string, BotConfigCacheEntry>();
+const botConfigInFlight = new Map<string, Promise<BotConfigCacheEntry>>();
+
+// Cache temporário em memória de códigos PIX gerados (garante fallback de cópia mesmo se DB falhar)
+export const pixCodeCache = new Map<string, { code: string; expiresAt: number }>();
 
 export function invalidateBotCache(botId: string) {
   botConfigCache.delete(botId);
 }
 
-export async function getCachedBotConfig(botId: string): Promise<BotConfigCacheEntry> {
-  const now = Date.now();
-  let cached = botConfigCache.get(botId);
-  if (!cached || cached.expiresAt < now) {
+async function fetchBotConfigEntry(botId: string): Promise<BotConfigCacheEntry> {
+  const existing = botConfigInFlight.get(botId);
+  if (existing) return existing;
+
+  const task = (async () => {
     const flow = await resolveBotFlow(botId);
     const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
     const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-    cached = { flow, cfg, expiresAt: now + 60000 };
-    botConfigCache.set(botId, cached);
+    const entry: BotConfigCacheEntry = {
+      flow,
+      cfg,
+      expiresAt: Date.now() + BOT_CONFIG_TTL_MS,
+      refreshing: false,
+    };
+    botConfigCache.set(botId, entry);
+    return entry;
+  })().finally(() => {
+    botConfigInFlight.delete(botId);
+  });
+
+  botConfigInFlight.set(botId, task);
+  return task;
+}
+
+export async function getCachedBotConfig(botId: string): Promise<BotConfigCacheEntry> {
+  const now = Date.now();
+  const cached = botConfigCache.get(botId);
+  if (cached) {
+    if (cached.expiresAt < now && !cached.refreshing) {
+      cached.refreshing = true;
+      fetchBotConfigEntry(botId).catch(() => {
+        cached.refreshing = false;
+      });
+    }
+    return cached;
   }
-  return cached;
+  return fetchBotConfigEntry(botId);
 }
 
 export const userCredsCache = new Map<string, { pk?: string; expiresAt: number }>();
@@ -312,6 +344,11 @@ export function publicBaseUrl(host?: string): string {
   return "https://telabot-studio.vercel.app";
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(val?: string | null): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val);
+}
+
 export async function notify(
   userId: string,
   type: string,
@@ -326,7 +363,7 @@ export async function notify(
     title,
     body: body ?? null,
     entity: entity ?? null,
-    entity_id: entityId ?? null,
+    entity_id: isUuid(entityId) ? entityId : null,
   });
 }
 
@@ -341,7 +378,7 @@ export async function logActivity(
     user_id: userId,
     entity,
     action,
-    entity_id: entityId ?? null,
+    entity_id: isUuid(entityId) ? entityId : null,
     metadata: (metadata ?? {}) as never,
   });
 }
@@ -360,32 +397,21 @@ type ConnectionRow = {
 };
 
 /**
- * Resolve qual fluxo o bot deve executar: o ativo e, se nenhum estiver
- * marcado como ativo, o fluxo mais recente que já tenha etapas compiladas.
- * Assim o /start nunca fica mudo por causa de um flag esquecido.
+ * Resolve qual fluxo o bot deve executar em uma única query rápida:
+ * prioriza o fluxo ativo e, caso não exista, o mais recente com configuração/etapas.
  */
 export async function resolveBotFlow(botId: string): Promise<{ id: string; simple_config?: unknown } | null> {
-  const { data: active } = await supabaseAdmin
+  const { data: flows } = await supabaseAdmin
     .from("flows")
-    .select("id,simple_config")
+    .select("id,is_active,simple_config")
     .eq("bot_id", botId)
-    .eq("is_active", true)
+    .order("is_active", { ascending: false })
     .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (active) return active;
+    .limit(5);
 
-  const { data: candidates } = await supabaseAdmin
-    .from("flows")
-    .select("id,simple_config,flow_steps(id)")
-    .eq("bot_id", botId)
-    .order("updated_at", { ascending: false })
-    .limit(10);
-
-  const withSteps = (candidates ?? []).find(
-    (f) => Boolean((f as any).simple_config) || (Array.isArray((f as { flow_steps?: unknown[] }).flow_steps) && (f as { flow_steps: unknown[] }).flow_steps.length > 0),
-  );
-  return withSteps ? { id: (withSteps as { id: string }).id, simple_config: (withSteps as any).simple_config } : null;
+  if (!flows || flows.length === 0) return null;
+  const chosen = flows.find((f) => f.is_active || Boolean(f.simple_config)) ?? flows[0];
+  return chosen ? { id: chosen.id, simple_config: chosen.simple_config } : null;
 }
 
 export type LeadPreferences = {
@@ -400,6 +426,7 @@ export const leadPrefsCache = new Map<string, LeadPreferences>();
 export async function getLeadPreferences(leadId: string): Promise<LeadPreferences> {
   const cached = leadPrefsCache.get(leadId);
   if (cached) return cached;
+  if (!isUuid(leadId)) return {};
   try {
     const { data } = await supabaseAdmin
       .from("activity_logs")
@@ -424,22 +451,26 @@ export async function setLeadPreferences(
   prefs: Partial<LeadPreferences>
 ) {
   try {
-    const current = leadPrefsCache.get(leadId) ?? (await getLeadPreferences(leadId));
+    const current = leadPrefsCache.get(leadId) ?? {};
     const updated = { ...current, ...prefs };
     leadPrefsCache.set(leadId, updated);
 
-    // Gravação assíncrona em background sem bloquear o envio de mensagens para o lead
-    supabaseAdmin
-      .from("activity_logs")
-      .insert({
-        user_id: userId,
-        entity: "lead_preference",
-        action: "update_preferences",
-        entity_id: leadId,
-        metadata: updated as Record<string, unknown>,
-      })
-      .then(() => undefined)
-      .catch((e) => console.warn("Falha ao salvar preferência do lead:", e));
+    if (isUuid(leadId)) {
+      // Gravação assíncrona em background sem bloquear o envio de mensagens para o lead
+      supabaseAdmin
+        .from("activity_logs")
+        .insert({
+          user_id: userId,
+          entity: "lead_preference",
+          action: "update_preferences",
+          entity_id: leadId,
+          metadata: updated as Record<string, unknown>,
+        })
+        .then(
+          () => undefined,
+          (e) => console.warn("Falha ao salvar preferência do lead:", e),
+        );
+    }
 
     return updated;
   } catch (e) {
@@ -449,7 +480,7 @@ export async function setLeadPreferences(
 }
 
 /**
- * Envia as mídias configuradas na etapa de apresentação do bot (/start).
+ * Envia as mídias configuradas na etapa de apresentação do bot (/start) sem atrasos artificiais.
  */
 export async function sendWelcomeMedia(
   token: string,
@@ -485,15 +516,14 @@ export async function sendWelcomeMedia(
       } catch (err) {
         console.error("Erro ao enviar mídia de boas-vindas:", err);
       }
-      await new Promise((resolve) => setTimeout(resolve, 400));
     }
   }
 }
 
 /**
- * Fluxo de boas-vindas do Telegram (/start) ultra-otimizado (sub-segundo):
- * - Resolução instantânea via cache em memória (LRU com TTL de 60s)
- * - Cache de file_id para zero upload/download no Telegram
+ * Fluxo de boas-vindas do Telegram (/start) ultra-otimizado (< 1s):
+ * - Resolução instantânea via cache em memória (TTL 5min com stale-while-revalidate)
+ * - Cache de file_id para zero upload/download repetido no Telegram
  * - Disparo unificado (Foto/Vídeo + Copy + Botões de Idioma em 1 única requisição HTTP)
  */
 export async function handleTelegramStart(params: {
@@ -503,7 +533,6 @@ export async function handleTelegramStart(params: {
   leadId: string;
   chatId: number;
 }) {
-  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
   const { cfg } = await getCachedBotConfig(params.botId);
 
   const welcomeText =
@@ -522,24 +551,35 @@ export async function handleTelegramStart(params: {
 
   const mediaList = (cfg.welcome?.media ?? []).filter((m: any) => Boolean(m.url || m.fileId));
 
-  // Otimização Máxima: Se houver apenas 1 mídia, unifica Mídia + Copy + Botões em 1 ÚNICA chamada HTTP ao Telegram
+  // Otimização Máxima: 1 mídia + legenda <= 1024 caracteres em 1 ÚNICA chamada HTTP ao Telegram
   if (mediaList.length === 1) {
     const m = mediaList[0];
     const target = (m.url && !m.url.startsWith("local_")) ? m.url : (m.fileId && !m.fileId.startsWith("local_")) ? m.fileId : (m.url || m.fileId);
-    if (m.kind === "video") {
-      await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup);
-    } else {
-      await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
+    if (target && welcomeText.length <= 1024) {
+      const res =
+        m.kind === "video"
+          ? await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup)
+          : await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
+      if (res.ok) return;
+      await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
+      return;
     }
-    return;
+
+    if (target) {
+      if (m.kind === "video") {
+        await sendVideo(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
+      } else {
+        await sendPhoto(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
+      }
+      await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
+      return;
+    }
   }
 
-  // Se houver múltiplas mídias, envia o grupo de mídias rapidamente e a mensagem de texto com os botões logo após
   if (mediaList.length > 1) {
     await sendWelcomeMedia(params.token, params.chatId, mediaList, cfg.welcome?.mediaMode);
   }
 
-  // Disparo do texto e botões
   await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
 }
 
@@ -703,14 +743,13 @@ export async function handleViewPlans(params: {
   messageId?: number;
 }) {
   if (params.messageId) {
-    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+    deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
   }
 
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-
-  const prefs = await getLeadPreferences(params.leadId);
+  const [{ cfg }, prefs] = await Promise.all([
+    getCachedBotConfig(params.botId),
+    getLeadPreferences(params.leadId),
+  ]);
   const currency = (prefs.currency || "BRL") as "BRL" | "USD" | "EUR" | "GBP";
 
   if (currency === "BRL") {
@@ -1100,6 +1139,90 @@ export async function handleInternationalPlanPurchase(params: {
   await sendMessage(params.token, params.chatId, lines.join("\n"), { inline_keyboard });
 }
 
+export function getCachedPixCode(chargeId: string): string | null {
+  const cached = pixCodeCache.get(chargeId);
+  if (!cached || cached.expiresAt < Date.now()) return null;
+  return cached.code;
+}
+
+/**
+ * Envia o pagamento PIX em duas mensagens separadas no Telegram:
+ * 1) Resumo do plano, valor e instruções de pagamento
+ * 2) Código PIX Copia e Cola isolado com botão de cópia direta (copy_text) e fallback
+ */
+export async function sendPixPaymentMessages(params: {
+  token: string;
+  chatId: number;
+  chargeId: string;
+  title: string;
+  priceFormatted: string;
+  pixCode?: string | null;
+  expiresMinutes?: number;
+  showBackToPlans?: boolean;
+  footerText?: string;
+}): Promise<TelegramSendResult> {
+  const showBack = params.showBackToPlans !== false;
+  const infoLines = [
+    `⭐ <b>${params.title}</b>`,
+    `💰 Valor: <b>R$ ${params.priceFormatted}</b>`,
+    "",
+    "📲 <b>Como pagar via PIX:</b>",
+    "1. Copie o código PIX enviado separadamente abaixo (ou clique no botão <b>📋 Copiar Código PIX</b>).",
+    "2. Abra o aplicativo do seu banco e escolha <b>PIX Copia e Cola</b>.",
+    "3. Cole o código e finalize o pagamento.",
+  ];
+  if (params.expiresMinutes && params.expiresMinutes > 0) {
+    infoLines.push("", `⏳ Esta cobrança expira em ${params.expiresMinutes} minutos.`);
+  }
+  infoLines.push(
+    "",
+    `⚡ <i>${params.footerText || "Assim que o PIX for confirmado, o acesso é liberado automaticamente aqui."}</i>`,
+  );
+
+  if (!params.pixCode) {
+    const fallbackButtons: Array<Array<{ text: string; callback_data: string }>> = [
+      [{ text: "✅ Já realizei o pagamento", callback_data: `check_payment:${params.chargeId}` }],
+    ];
+    if (showBack) {
+      fallbackButtons.push([{ text: "↩️ Voltar aos Planos", callback_data: "nav:plans" }]);
+    }
+    return sendMessage(params.token, params.chatId, infoLines.join("\n"), {
+      inline_keyboard: fallbackButtons,
+    });
+  }
+
+  pixCodeCache.set(params.chargeId, {
+    code: params.pixCode,
+    expiresAt: Date.now() + 3_600_000,
+  });
+
+  // Mensagem 1: Detalhes e instruções do pagamento
+  await sendMessage(params.token, params.chatId, infoLines.join("\n"));
+
+  const codeText = `<code>${params.pixCode}</code>`;
+  const buildKeyboard = (useNativeCopy: boolean) => {
+    const rows: Array<Array<Record<string, unknown>>> = [
+      [
+        useNativeCopy
+          ? { text: "📋 Copiar Código PIX", copy_text: { text: params.pixCode } }
+          : { text: "📋 Copiar Código PIX", callback_data: `copy_pix:${params.chargeId}` },
+      ],
+      [{ text: "✅ Já realizei o pagamento", callback_data: `check_payment:${params.chargeId}` }],
+    ];
+    if (showBack) {
+      rows.push([{ text: "↩️ Voltar aos Planos", callback_data: "nav:plans" }]);
+    }
+    return { inline_keyboard: rows };
+  };
+
+  // Mensagem 2: Código PIX Copia e Cola isolado com botão de copiar
+  const codeRes = await sendMessage(params.token, params.chatId, codeText, buildKeyboard(true));
+  if (!codeRes.ok) {
+    return sendMessage(params.token, params.chatId, codeText, buildKeyboard(false));
+  }
+  return codeRes;
+}
+
 /**
  * Gera e envia a cobrança PIX imediata de um plano selecionado.
  */
@@ -1111,9 +1234,6 @@ export async function handlePixPlanPurchase(params: {
   chatId: number;
   planId: string;
 }) {
-  // Mostra digitando imediatamente pro lead
-  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
-
   setLeadPreferences(params.userId, params.leadId, {
     selectedPlanId: params.planId,
     currency: "BRL",
@@ -1151,85 +1271,99 @@ export async function handlePixPlanPurchase(params: {
       flowId: flow?.id || null,
     });
   } catch (error) {
-    console.warn("[pix-plan-warning] Falha ao criar cobrança no banco/gateway, gerando PIX estático direto:", error);
-    // Garantia de 100% de disponibilidade: gera o payload do PIX estático sem deixar o usuário na mão
-    const { buildPixPayload } = await import("@/lib/payments/pix");
-    const fallbackPixCode = buildPixPayload({
-      key: "e3b0c442-98fc-1c14-9afb-f4c5962079cd",
-      amountCents,
-      merchantName: "CASH BOT",
-      merchantCity: "SAO PAULO",
-      reference: `plan${plan.id}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, 25),
-      description: `Plano ${plan.name}`,
-    });
-    charge = {
-      id: `pix-${Date.now()}`,
-      pix_code: fallbackPixCode,
-    };
+    console.warn("[pix-plan-warning] Falha ao criar cobrança no banco, tentando OmegaPay direto:", error);
+    const directChargeId =
+      typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function"
+        ? globalThis.crypto.randomUUID()
+        : `pix-${Date.now()}`;
+
+    try {
+      const { createOmegaPixCharge } = await import("@/lib/payments/omegapay.server");
+      const omegaRes = await createOmegaPixCharge({
+        chargeId: directChargeId,
+        amountCents,
+        description: `Plano ${plan.name} (${plan.duration || "Acesso Imediato"})`,
+        productName: plan.name,
+        expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
+      });
+      charge = { id: directChargeId, pix_code: omegaRes.pixCode };
+    } catch (omegaErr) {
+      console.warn("[pix-plan-omega-fallback] Gerando PIX estático de emergência:", omegaErr);
+      const { buildPixPayload } = await import("@/lib/payments/pix");
+      const fallbackPixCode = buildPixPayload({
+        key: "e3b0c442-98fc-1c14-9afb-f4c5962079cd",
+        amountCents,
+        merchantName: "CASH BOT",
+        merchantCity: "SAO PAULO",
+        reference: `plan${plan.id}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, 25),
+        description: `Plano ${plan.name}`,
+      });
+      charge = {
+        id: directChargeId,
+        pix_code: fallbackPixCode,
+      };
+    }
   }
 
   const priceFormatted = (amountCents / 100).toFixed(2).replace(".", ",");
-  const lines = [
-    `⭐ <b>${plan.name}</b>`,
-    `Valor: <b>R$ ${priceFormatted}</b>`,
-  ];
-  if (charge.pix_code) {
-    lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
-  }
-  lines.push("", "Assim que o PIX for confirmado, o acesso é liberado automaticamente aqui.");
 
-  const replyMarkup = {
-    inline_keyboard: [
-      [{ text: "✅ Já realizei o pagamento", callback_data: `check_payment:${charge.id}` }],
-      [{ text: "↩️ Voltar aos Planos", callback_data: "nav:plans" }],
-    ],
-  };
+  await sendPixPaymentMessages({
+    token: params.token,
+    chatId: params.chatId,
+    chargeId: charge.id,
+    title: plan.name,
+    priceFormatted,
+    pixCode: charge.pix_code,
+    showBackToPlans: true,
+  });
 
-  // Envia a mensagem do PIX Copia e Cola e botão de conferir (sem imagem do QR code)
-  await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
+  // Registro em log e agendamento de downsells em background sem bloquear a resposta ao lead
+  void (async () => {
+    try {
+      let leadName = "Lead";
+      if (isUuid(params.leadId)) {
+        const { data: lead } = await supabaseAdmin
+          .from("leads")
+          .select("name,telegram_username,first_name,last_name")
+          .eq("id", params.leadId)
+          .maybeSingle();
+        if (lead) {
+          leadName =
+            lead.name ||
+            [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+            (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+        }
+      }
 
-  // Busca o nome do lead para salvar explicitamente no log de atividades
-  let leadName = "Lead";
-  try {
-    const { data: lead } = await supabaseAdmin
-      .from("leads")
-      .select("name,telegram_username,first_name,last_name")
-      .eq("id", params.leadId)
-      .maybeSingle();
-    if (lead) {
-      leadName =
-        lead.name ||
-        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
-        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+      await logActivity(
+        params.userId,
+        "pagamento",
+        `PIX gerado por ${leadName} - ${plan.name} (R$ ${priceFormatted})`,
+        charge.id,
+        {
+          lead_name: leadName,
+          lead_id: params.leadId,
+          plan_name: plan.name,
+          amount_cents: amountCents,
+        },
+      );
+    } catch (bgErr) {
+      console.warn("[pix-plan-bg-log]", bgErr);
     }
-  } catch {
-    // fallback
-  }
+  })();
 
-  await logActivity(
-    params.userId,
-    "pagamento",
-    `PIX gerado por ${leadName} - ${plan.name} (R$ ${priceFormatted})`,
-    charge.id,
-    {
-      lead_name: leadName,
-      lead_id: params.leadId,
-      plan_name: plan.name,
-      amount_cents: amountCents,
-    }
-  );
-
-  // Gatilho 2: Agenda o downsell automático de PIX pendente (carrinho abandonado)
-  import("@/lib/downsell.server").then(({ schedulePixDownsells }) => {
-    schedulePixDownsells({
-      userId: params.userId,
-      botId: params.botId,
-      leadId: params.leadId,
-      chatId: params.chatId,
-      orderId: charge.id,
-      flowId: flow?.id,
-    });
-  }).catch((e) => console.warn("[downsell-pix-schedule-bg]", e));
+  import("@/lib/downsell.server")
+    .then(({ schedulePixDownsells }) =>
+      schedulePixDownsells({
+        userId: params.userId,
+        botId: params.botId,
+        leadId: params.leadId,
+        chatId: params.chatId,
+        orderId: charge.id,
+        flowId: flow?.id,
+      }),
+    )
+    .catch((e) => console.warn("[downsell-pix-schedule-bg]", e));
 }
 
 /**
@@ -1643,35 +1777,18 @@ async function sendCharge(
     );
   }
 
-  const lines = [
-    `<b>${input.productName ?? input.description}</b>`,
-    `Valor: R$ ${(input.amount / 100).toFixed(2).replace(".", ",")}`,
-  ];
-  if (charge.pix_code) lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
-  if (input.expiresMinutes > 0) lines.push("", `Esta cobrança expira em ${input.expiresMinutes} minutos.`);
-  lines.push("", "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.");
-
-  const replyMarkup = {
-    inline_keyboard: [
-      [
-        { text: "✅ Já realizei o pagamento", callback_data: `check_payment:${charge.id}` }
-      ]
-    ]
-  };
-
-  const result = await sendMessage(params.token, params.chatId, lines.join("\n"), replyMarkup);
-
-  // QR Code do PIX enviado como imagem de apoio (sem bloquear ou derrubar o envio do copia e cola)
-  if (charge.pix_code) {
-    try {
-      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
-        charge.pix_code,
-      )}`;
-      await sendPhoto(params.token, params.chatId, qr, "Escaneie o QR Code para pagar").catch(() => undefined);
-    } catch {
-      // Ignora erro no QR externo
-    }
-  }
+  const priceFormatted = (input.amount / 100).toFixed(2).replace(".", ",");
+  const result = await sendPixPaymentMessages({
+    token: params.token,
+    chatId: params.chatId,
+    chargeId: charge.id,
+    title: input.productName ?? input.description,
+    priceFormatted,
+    pixCode: charge.pix_code,
+    expiresMinutes: input.expiresMinutes,
+    showBackToPlans: false,
+    footerText: "Assim que o PIX for confirmado, o produto é entregue automaticamente aqui.",
+  });
   // Order bump: ofertas complementares logo após o PIX principal.
   if (result.ok) {
     await sendFlowOffers({
@@ -1890,20 +2007,18 @@ export async function sendOfferCharge(args: {
       flowId: offer.flow_id,
     });
 
-    const lines = [
-      `<b>${offer.name}</b>`,
-      `Valor: R$ ${(offer.amount_cents / 100).toFixed(2).replace(".", ",")}`,
-    ];
-    if (charge.pix_code) {
-      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=${encodeURIComponent(
-        charge.pix_code,
-      )}`;
-      await sendPhoto(args.token, args.chatId, qr, "Escaneie o QR Code para pagar");
-      lines.push("", "PIX copia e cola:", `<code>${charge.pix_code}</code>`);
-    }
-    lines.push("", "Assim que o PIX for confirmado, liberamos o acesso automaticamente.");
-    await sendMessage(args.token, args.chatId, lines.join("\n"));
-    await logActivity(args.userId, "pagamento", "cobrança de oferta criada", charge.id);
+    const priceFormatted = (offer.amount_cents / 100).toFixed(2).replace(".", ",");
+    await sendPixPaymentMessages({
+      token: args.token,
+      chatId: args.chatId,
+      chargeId: charge.id,
+      title: offer.name,
+      priceFormatted,
+      pixCode: charge.pix_code,
+      showBackToPlans: false,
+      footerText: "Assim que o PIX for confirmado, liberamos o acesso automaticamente.",
+    });
+    logActivity(args.userId, "pagamento", "cobrança de oferta criada", charge.id).catch(() => undefined);
   } catch (error) {
     await sendMessage(
       args.token,

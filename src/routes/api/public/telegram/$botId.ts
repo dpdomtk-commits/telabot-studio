@@ -5,16 +5,18 @@ const processedUpdates = new Map<number, number>();
 function isDuplicateUpdate(updateId?: number): boolean {
   if (!updateId) return false;
   const now = Date.now();
-  // Limpa updates mais antigos que 60 segundos
   for (const [id, time] of processedUpdates.entries()) {
-    if (now - time > 60000) processedUpdates.delete(id);
+    if (now - time > 60_000) processedUpdates.delete(id);
   }
   if (processedUpdates.has(updateId)) return true;
   processedUpdates.set(updateId, now);
   return false;
 }
 
-// Cache em memória do bot para evitar consultas repetidas ao banco a cada update
+// Cache em memória do bot com TTL de 5 min e stale-while-revalidate
+const BOT_CACHE_TTL_MS = 300_000;
+const LEAD_CACHE_TTL_MS = 600_000;
+
 interface BotCacheItem {
   id: string;
   user_id: string;
@@ -22,9 +24,113 @@ interface BotCacheItem {
   status: string;
   webhook_secret: string | null;
   expiresAt: number;
+  refreshing?: boolean;
 }
+
 const botDbCache = new Map<string, BotCacheItem>();
 const leadCache = new Map<string, { id: string; expiresAt: number }>();
+
+type TelegramUpdate = {
+  update_id?: number;
+  message?: {
+    chat?: { id?: number };
+    from?: { id?: number; username?: string; first_name?: string };
+    text?: string;
+  };
+  callback_query?: {
+    id?: string;
+    data?: string;
+    message?: { chat?: { id?: number }; message_id?: number };
+    from?: { id?: number; username?: string; first_name?: string };
+  };
+};
+
+async function refreshBotCache(supabaseAdmin: any, botId: string): Promise<BotCacheItem | null> {
+  const { data: dbBot } = await supabaseAdmin
+    .from("bots")
+    .select("id,user_id,token,status,webhook_secret")
+    .eq("id", botId)
+    .maybeSingle();
+
+  if (!dbBot) return null;
+  const item: BotCacheItem = {
+    ...dbBot,
+    expiresAt: Date.now() + BOT_CACHE_TTL_MS,
+    refreshing: false,
+  };
+  botDbCache.set(botId, item);
+  return item;
+}
+
+async function resolveCachedBot(supabaseAdmin: any, botId: string): Promise<BotCacheItem | null> {
+  const now = Date.now();
+  const cached = botDbCache.get(botId);
+  if (cached) {
+    if (cached.expiresAt < now && !cached.refreshing) {
+      cached.refreshing = true;
+      refreshBotCache(supabaseAdmin, botId).catch(() => {
+        cached.refreshing = false;
+      });
+    }
+    return cached;
+  }
+  return refreshBotCache(supabaseAdmin, botId);
+}
+
+async function resolveOrCreateLead(
+  supabaseAdmin: any,
+  bot: BotCacheItem,
+  from: { id: number; username?: string; first_name?: string },
+): Promise<string | null> {
+  const leadKey = `${bot.id}:${from.id}`;
+  const cached = leadCache.get(leadKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.id;
+  }
+
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from("leads")
+      .select("id,status")
+      .eq("bot_id", bot.id)
+      .eq("telegram_id", from.id)
+      .maybeSingle();
+
+    let leadId: string | null = existing?.id ?? null;
+    if (!leadId) {
+      const { data: created } = await supabaseAdmin
+        .from("leads")
+        .insert({
+          user_id: bot.user_id,
+          bot_id: bot.id,
+          telegram_id: from.id,
+          telegram_username: from.username ?? null,
+          name: from.first_name ?? null,
+          status: "new",
+        })
+        .select("id")
+        .maybeSingle();
+      leadId = created?.id ?? null;
+    } else if (existing?.status === "new") {
+      supabaseAdmin
+        .from("leads")
+        .update({ status: "engaged" })
+        .eq("id", leadId)
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+
+    if (leadId) {
+      leadCache.set(leadKey, { id: leadId, expiresAt: Date.now() + LEAD_CACHE_TTL_MS });
+    }
+    return leadId;
+  } catch (e) {
+    console.warn("[lead-upsert-warn]", e);
+    return cached?.id ?? null;
+  }
+}
 
 export const Route = createFileRoute("/api/public/telegram/$botId")({
   server: {
@@ -33,12 +139,20 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
         // Nunca responder != 200 depois de aceitar o update: o Telegram
         // reenvia em loop e o fluxo roda duplicado.
         try {
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          // Etapa 1: Carrega módulos e faz parsing do payload em paralelo
+          const [{ supabaseAdmin }, telegramMod, update] = await Promise.all([
+            import("@/integrations/supabase/client.server"),
+            import("@/lib/telegram.server"),
+            request.json() as Promise<TelegramUpdate>,
+          ]);
+
           const {
+            getCachedBotConfig,
+            getCachedPixCode,
             handleTelegramStart,
             handleLanguageSelect,
             handleCurrencySelect,
-            sendCurrencySelectionMenu,
+            handleViewPlans,
             sendBrlPlansMenu,
             sendIntlPlansMenu,
             handleInternationalPlanPurchase,
@@ -46,47 +160,24 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             handleSettingsMenu,
             getLeadPreferences,
             runFlowForLead,
-            deliverForPayment,
             sendOfferCharge,
             sendMessage,
             sendChatAction,
-          } = await import("@/lib/telegram.server");
+            editMessageReplyMarkup,
+          } = telegramMod;
 
-          // 1. Resolução ultrarrápida do bot via cache em memória (60s TTL)
-          const now = Date.now();
-          let bot = botDbCache.get(params.botId);
-          if (!bot || bot.expiresAt < now) {
-            const { data: dbBot } = await supabaseAdmin
-              .from("bots")
-              .select("id,user_id,token,status,webhook_secret")
-              .eq("id", params.botId)
-              .maybeSingle();
+          // Etapa 2: Lookup do bot e aquecimento do fluxo configurável em paralelo
+          const [bot] = await Promise.all([
+            resolveCachedBot(supabaseAdmin, params.botId),
+            getCachedBotConfig(params.botId).catch(() => null),
+          ]);
 
-            if (!dbBot) return new Response("Not found", { status: 404 });
-            bot = { ...dbBot, expiresAt: now + 60000 };
-            botDbCache.set(params.botId, bot);
-          }
+          if (!bot) return new Response("Not found", { status: 404 });
 
           const secret = request.headers.get("x-telegram-bot-api-secret-token") ?? "";
           if (secret !== bot.webhook_secret) return new Response("Unauthorized", { status: 401 });
           if (bot.status !== "active") return Response.json({ ok: true, ignored: true });
 
-          const update = (await request.json()) as {
-            update_id?: number;
-            message?: {
-              chat?: { id?: number };
-              from?: { id?: number; username?: string; first_name?: string };
-              text?: string;
-            };
-            callback_query?: {
-              id?: string;
-              data?: string;
-              message?: { chat?: { id?: number }; message_id?: number };
-              from?: { id?: number; username?: string; first_name?: string };
-            };
-          };
-
-          // Evita processamento duplicado do mesmo update enviado pelo Telegram
           if (update.update_id && isDuplicateUpdate(update.update_id)) {
             return Response.json({ ok: true, duplicate: true });
           }
@@ -96,10 +187,14 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           const chatId = update.message?.chat?.id ?? cb?.message?.chat?.id;
           if (!from?.id || !chatId) return Response.json({ ok: true, ignored: true });
 
-          // Dispara imediatamente o status "digitando..." para o lead
-          sendChatAction(bot.token, chatId, "typing").catch(() => undefined);
+          const fromUser = {
+            id: from.id,
+            username: from.username,
+            first_name: from.first_name,
+          };
 
-          // Encerra o "loading" do botão imediatamente (sem aguardar)
+          // Dispara "digitando..." e remove loading do botão sem bloquear o fluxo
+          sendChatAction(bot.token, chatId, "typing").catch(() => undefined);
           if (cb?.id) {
             fetch(`https://api.telegram.org/bot${bot.token}/answerCallbackQuery`, {
               method: "POST",
@@ -109,120 +204,97 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           }
 
           const msgText = (update.message?.text ?? "").trim();
+          const leadKey = `${bot.id}:${from.id}`;
 
-          // PRIORIDADE MÁXIMA NÃO-BLOQUEANTE: Mensagem /start
-          // Dispara a apresentação/mídias imediatamente em menos de 1 segundo
-          // enquanto o upsert do lead roda em background
+          // PRIORIDADE MÁXIMA NÃO-BLOQUEANTE: Mensagem /start (< 1s)
           if (msgText.startsWith("/start")) {
-            // Upsert assíncrono em background sem atrasar a resposta
-            const leadUpsertPromise = (async () => {
-              try {
-                const { data: existing } = await supabaseAdmin
-                  .from("leads")
-                  .select("id")
-                  .eq("bot_id", bot.id)
-                  .eq("telegram_id", from.id)
-                  .maybeSingle();
+            const leadUpsertPromise = resolveOrCreateLead(supabaseAdmin, bot, fromUser);
+            const fallbackLeadId = leadCache.get(leadKey)?.id ?? `lead-${from.id}`;
 
-                if (!existing) {
-                  await supabaseAdmin.from("leads").insert({
-                    user_id: bot.user_id,
-                    bot_id: bot.id,
-                    telegram_id: from.id,
-                    telegram_username: from.username ?? null,
-                    name: from.first_name ?? null,
-                    status: "new",
-                  });
-                }
-              } catch (e) {
-                console.warn("[start-lead-upsert-bg]", e);
-              }
-            })();
-
-            // Disparo imediato do /start
             await handleTelegramStart({
               userId: bot.user_id,
               botId: bot.id,
               token: bot.token,
-              leadId: `lead-${from.id}`,
+              leadId: fallbackLeadId,
               chatId,
             });
 
-            // Gatilho 1: Agenda o downsell automático de /start em background
-            import("@/lib/downsell.server").then(({ scheduleStartDownsells, processScheduledDownsells }) => {
-              scheduleStartDownsells({
-                userId: bot.user_id,
-                botId: bot.id,
-                leadId: `lead-${from.id}`,
-                chatId,
-              }).then(() => processScheduledDownsells());
-            }).catch((e) => console.warn("[downsell-start-schedule-bg]", e));
+            import("@/lib/downsell.server")
+              .then(({ scheduleStartDownsells, processScheduledDownsells }) =>
+                scheduleStartDownsells({
+                  userId: bot.user_id,
+                  botId: bot.id,
+                  leadId: leadCache.get(leadKey)?.id ?? fallbackLeadId,
+                  chatId,
+                }).then(() => processScheduledDownsells()),
+              )
+              .catch((e) => console.warn("[downsell-start-schedule-bg]", e));
 
-            // Aguarda o upsert terminar se necessário sem bloquear retorno
             leadUpsertPromise.catch(() => undefined);
             return Response.json({ ok: true });
           }
 
-          // Para callbacks ou outras mensagens, garante leadId via cache em memória (zero latency)
-          const leadKey = `${bot.id}:${from.id}`;
-          let leadId = leadCache.get(leadKey)?.id ?? null;
-
-          if (!leadId) {
-            const { data: existing } = await supabaseAdmin
-              .from("leads")
-              .select("id,status")
-              .eq("bot_id", bot.id)
-              .eq("telegram_id", from.id)
-              .maybeSingle();
-
-            leadId = existing?.id ?? null;
-            if (!leadId) {
-              const { data: created } = await supabaseAdmin
-                .from("leads")
-                .insert({
-                  user_id: bot.user_id,
-                  bot_id: bot.id,
-                  telegram_id: from.id,
-                  telegram_username: from.username ?? null,
-                  name: from.first_name ?? null,
-                  status: "new",
-                })
-                .select("id")
-                .maybeSingle();
-              leadId = created?.id ?? null;
-            } else if (existing?.status === "new") {
-              supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", leadId).then(() => undefined);
-            }
-
-            if (leadId) {
-              leadCache.set(leadKey, { id: leadId, expiresAt: Date.now() + 300000 });
-            }
-          }
-
-          if (!leadId) return Response.json({ ok: true });
-
-          // Trigger oportunístico em background: processa downsells vencidos sem onerar a resposta
-          import("@/lib/downsell.server").then(({ processScheduledDownsells }) => {
-            processScheduledDownsells();
-          }).catch(() => undefined);
-
           const data = cb?.data ?? "";
           const cbMessageId = cb?.message?.message_id;
 
-          // 1. Seleção de Idioma (🇧🇷 Português / 🇺🇸 English)
-          if (data === "lang:pt") {
-            await handleLanguageSelect({
-              userId: bot.user_id,
-              botId: bot.id,
-              token: bot.token,
-              leadId,
-              chatId,
-              messageId: cbMessageId,
-              language: "pt",
-            });
+          // Callbacks instantâneos: nunca bloqueiam na query de leads se o cache ainda não aqueceu
+          const isFastCallback =
+            data === "lang:pt" ||
+            data === "lang:en" ||
+            data === "curr:BRL" ||
+            data === "curr:USD" ||
+            data === "curr:EUR" ||
+            data === "curr:GBP" ||
+            data.startsWith("nav:") ||
+            data.startsWith("copy_pix:");
+
+          let leadId = leadCache.get(leadKey)?.id ?? null;
+
+          if (!leadId) {
+            if (isFastCallback) {
+              leadId = `lead-${from.id}`;
+              resolveOrCreateLead(supabaseAdmin, bot, fromUser).catch(() => undefined);
+            } else {
+              leadId = (await resolveOrCreateLead(supabaseAdmin, bot, fromUser)) ?? `lead-${from.id}`;
+            }
+          }
+
+          // Trigger oportunístico em background de downsells vencidos
+          import("@/lib/downsell.server")
+            .then(({ processScheduledDownsells }) => processScheduledDownsells())
+            .catch(() => undefined);
+
+          // Botão fallback de cópia do Código PIX enviado isoladamente
+          if (data.startsWith("copy_pix:")) {
+            const chargeId = data.slice(9);
+            let pixCode = getCachedPixCode(chargeId);
+            if (!pixCode) {
+              try {
+                const { data: paymentRow } = await supabaseAdmin
+                  .from("payments")
+                  .select("pix_code")
+                  .eq("id", chargeId)
+                  .maybeSingle();
+                pixCode = paymentRow?.pix_code ?? null;
+              } catch {
+                pixCode = null;
+              }
+            }
+
+            if (pixCode) {
+              await sendMessage(bot.token, chatId, `<code>${pixCode}</code>`);
+            } else {
+              await sendMessage(
+                bot.token,
+                chatId,
+                "Não foi possível localizar o código PIX desta cobrança. Selecione o plano novamente.",
+              );
+            }
             return Response.json({ ok: true });
           }
-          if (data === "lang:en") {
+
+          // 1. Seleção de Idioma (🇧🇷 Português / 🇺🇸 English)
+          if (data === "lang:pt" || data === "lang:en") {
             await handleLanguageSelect({
               userId: bot.user_id,
               botId: bot.id,
@@ -230,7 +302,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               leadId,
               chatId,
               messageId: cbMessageId,
-              language: "en",
+              language: data === "lang:pt" ? "pt" : "en",
             });
             return Response.json({ ok: true });
           }
@@ -252,7 +324,6 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
 
           // 2.1 Botão CTA "Ver Planos" / "View Plans"
           if (data === "view_plans") {
-            const { handleViewPlans } = await import("@/lib/telegram.server");
             await handleViewPlans({
               userId: bot.user_id,
               botId: bot.id,
@@ -264,7 +335,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             return Response.json({ ok: true });
           }
 
-          // 3. Seleção de Plano Internacional (Preparação Stripe)
+          // 3. Seleção de Plano Internacional (Stripe Checkout Nativo)
           if (data.startsWith("intl_plan:")) {
             const [, planId, currency] = data.split(":");
             await handleInternationalPlanPurchase({
@@ -306,7 +377,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
                     { text: "🇺🇸 English", callback_data: "lang:en" },
                   ],
                 ],
-              }
+              },
             );
             return Response.json({ ok: true });
           }
@@ -322,28 +393,35 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               ],
             };
             if (cbMessageId) {
-              const { editMessageReplyMarkup } = await import("@/lib/telegram.server");
               await editMessageReplyMarkup(bot.token, chatId, cbMessageId, currencyMarkup);
               return Response.json({ ok: true });
             }
-            const { resolveBotFlow, sendCurrencySelectionMenu } = await import("@/lib/telegram.server");
-            const flow = await resolveBotFlow(bot.id);
-            const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-            const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-            await sendCurrencySelectionMenu({ userId: bot.user_id, botId: bot.id, token: bot.token, leadId, chatId }, cfg);
+            const { cfg } = await getCachedBotConfig(bot.id);
+            const textEn =
+              cfg.welcome?.messageEn ||
+              "Hello! Welcome to our VIP service. 👋\n\nPlease choose your preferred currency below to view our exclusive plans:";
+            await sendMessage(bot.token, chatId, textEn, currencyMarkup);
             return Response.json({ ok: true });
           }
 
           if (data === "nav:plans") {
-            const { resolveBotFlow } = await import("@/lib/telegram.server");
-            const flow = await resolveBotFlow(bot.id);
-            const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-            const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-            const prefs = await getLeadPreferences(leadId);
+            const [{ cfg }, prefs] = await Promise.all([
+              getCachedBotConfig(bot.id),
+              getLeadPreferences(leadId),
+            ]);
             if (prefs.language === "en" && prefs.currency && prefs.currency !== "BRL") {
-              await sendIntlPlansMenu({ userId: bot.user_id, botId: bot.id, token: bot.token, leadId, chatId }, cfg, prefs.currency, false);
+              await sendIntlPlansMenu(
+                { userId: bot.user_id, botId: bot.id, token: bot.token, leadId, chatId },
+                cfg,
+                prefs.currency,
+                false,
+              );
             } else {
-              await sendBrlPlansMenu({ userId: bot.user_id, botId: bot.id, token: bot.token, leadId, chatId }, cfg, false);
+              await sendBrlPlansMenu(
+                { userId: bot.user_id, botId: bot.id, token: bot.token, leadId, chatId },
+                cfg,
+                false,
+              );
             }
             return Response.json({ ok: true });
           }
@@ -413,7 +491,6 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             resumeFromStepId = parts[1];
             resumeHandle = parts.slice(2).join(":");
 
-            // Se for um clique de plano no menu legado, direciona para o PIX imediatamente
             if (resumeHandle && resumeHandle.startsWith("plan-")) {
               const planId = resumeHandle.slice(5);
               await handlePixPlanPurchase({
