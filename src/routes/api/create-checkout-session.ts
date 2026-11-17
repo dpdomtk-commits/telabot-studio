@@ -8,11 +8,11 @@ export const Route = createFileRoute("/api/create-checkout-session")({
         try {
           const body = await request.json().catch(() => ({}));
 
-          let stripe = getStripe();
+          let stripe = null;
           let paymentId: string | undefined;
 
           // Se bot_id e lead_id forem informados, vincula as credenciais do dono do bot e registra o pedido pendente
-          if (body?.metadata?.bot_id && body?.metadata?.lead_id) {
+          if (body?.metadata?.bot_id) {
             try {
               const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
               const { data: bot } = await supabaseAdmin
@@ -27,24 +27,26 @@ export const Route = createFileRoute("/api/create-checkout-session")({
                   stripe = userStripe.stripe;
                 }
 
-                const amountCents = body?.price ? Math.round(Number(body.price) * 100) : 2990;
-                const { data: pendingPayment } = await supabaseAdmin
-                  .from("payments")
-                  .insert({
-                    user_id: bot.user_id,
-                    bot_id: bot.id,
-                    lead_id: body.metadata.lead_id,
-                    amount_cents: amountCents,
-                    status: "pending",
-                    provider: "stripe",
-                    product_name: body?.plan_name || "Plano VIP",
-                    currency: (body?.currency || "USD").toUpperCase(),
-                  })
-                  .select("id")
-                  .maybeSingle();
+                if (body?.metadata?.lead_id) {
+                  const amountCents = body?.price ? Math.round(Number(body.price) * 100) : 2990;
+                  const { data: pendingPayment } = await supabaseAdmin
+                    .from("payments")
+                    .insert({
+                      user_id: bot.user_id,
+                      bot_id: bot.id,
+                      lead_id: body.metadata.lead_id,
+                      amount_cents: amountCents,
+                      status: "pending",
+                      provider: "stripe",
+                      product_name: body?.plan_name || "Plano VIP",
+                      currency: (body?.currency || "USD").toUpperCase(),
+                    })
+                    .select("id")
+                    .maybeSingle();
 
-                if (pendingPayment?.id) {
-                  paymentId = pendingPayment.id;
+                  if (pendingPayment?.id) {
+                    paymentId = pendingPayment.id;
+                  }
                 }
               }
             } catch (initErr) {
@@ -52,9 +54,12 @@ export const Route = createFileRoute("/api/create-checkout-session")({
             }
           }
 
-          // Validação clara da chave secreta antes de disparar a requisição
-          const secretKey = (stripe as any)?._apiKey || process.env.STRIPE_SECRET_KEY || "";
-          if (!secretKey || secretKey === "sk_test_placeholder" || secretKey.length < 10) {
+          if (!stripe) {
+            stripe = getStripe();
+          }
+
+          // Validação explícita da chave antes de disparar a requisição
+          if (!stripe) {
             return Response.json(
               {
                 error:

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/webhook")({
         const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
         // Tenta verificar com a chave do ambiente se fornecida
-        if (endpointSecret && endpointSecret !== "whsec_placeholder") {
+        if (stripe && endpointSecret && endpointSecret !== "whsec_placeholder") {
           try {
             event = stripe.webhooks.constructEvent(payload, signature, endpointSecret);
           } catch (err: any) {
