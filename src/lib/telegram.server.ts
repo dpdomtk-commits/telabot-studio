@@ -1038,51 +1038,34 @@ export async function handleInternationalPlanPurchase(params: {
 
   let checkoutUrl = `${domain}/checkout?${checkoutParams.toString()}`;
 
-  // Tenta gerar a cobrança NATIVA direta da Stripe (checkout.stripe.com)
+  // Gera diretamente a cobrança NATIVA hospedada na Stripe (checkout.stripe.com)
   try {
-    const { getStripeForUser } = await import("@/lib/stripe.server");
-    const { stripe } = await getStripeForUser(params.userId);
+    const { createNativeStripeCheckoutSession } = await import("@/lib/stripe.server");
+    const botUsername = (cfg.bots?.username || "").replace("@", "");
 
-    if (stripe) {
-      const botUsername = (cfg.bots?.username || "").replace("@", "");
-      let lineItems: any[] = [];
-      if (plan.stripePriceId) {
-        lineItems = [{ price: plan.stripePriceId, quantity: 1 }];
-      } else {
-        lineItems = [
-          {
-            price_data: {
-              currency: params.currency.toLowerCase(),
-              product_data: {
-                name: plan.name,
-                description: `Acesso VIP ${plan.name} (${conv.formatted})`,
-              },
-              unit_amount: amountCents > 0 ? amountCents : 2990,
-            },
-            quantity: 1,
-          },
-        ];
-      }
+    const session = await createNativeStripeCheckoutSession({
+      userId: params.userId,
+      mode: (plan.stripeMode as "payment" | "subscription") || "payment",
+      currency: params.currency,
+      unitAmountCents: amountCents > 0 ? amountCents : 2990,
+      productName: plan.name,
+      productDescription: `Acesso VIP ${plan.name} (${conv.formatted})`,
+      priceId: plan.stripePriceId || undefined,
+      successUrl: `${domain}/checkout?success=true&payment_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: botUsername ? `https://t.me/${botUsername}` : `${domain}/checkout?cancelled=true`,
+      clientReferenceId: orderId,
+      metadata: {
+        user_id: params.userId,
+        bot_id: params.botId,
+        lead_id: params.leadId,
+        payment_id: orderId,
+        plan_name: plan.name,
+        currency: params.currency,
+      },
+    });
 
-      const session = await stripe.checkout.sessions.create({
-        mode: (plan.stripeMode as "payment" | "subscription") || "payment",
-        line_items: lineItems,
-        success_url: `${domain}/checkout?success=true&payment_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: botUsername ? `https://t.me/${botUsername}` : `${domain}/checkout?cancelled=true`,
-        client_reference_id: orderId,
-        metadata: {
-          user_id: params.userId,
-          bot_id: params.botId,
-          lead_id: params.leadId,
-          payment_id: orderId,
-          plan_name: plan.name,
-          currency: params.currency,
-        },
-      });
-
-      if (session?.url) {
-        checkoutUrl = session.url;
-      }
+    if (session?.url) {
+      checkoutUrl = session.url;
     }
   } catch (stripeErr) {
     console.warn("[native-stripe-hosted-session-fallback]", stripeErr);
