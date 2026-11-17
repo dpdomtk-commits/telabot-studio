@@ -1,8 +1,16 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBots } from "./app.bots";
+import {
+  getLeadChatContext,
+  sendLeadGuidedMessage,
+  type LeadChatFlowPlan,
+  type LeadChatMessageRow,
+  type LeadChatPaymentRow,
+} from "@/lib/telegram.functions";
 import {
   Download,
   ExternalLink,
@@ -14,15 +22,33 @@ import {
   CheckCircle2,
   Sparkles,
   MessageSquare,
+  Send,
+  Bot,
+  Loader2,
+  Image as ImageIcon,
+  Video,
+  Zap,
+  Tag,
+  ListOrdered,
+  CreditCard,
+  Flame,
 } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { downloadCsv } from "@/lib/csv";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,19 +67,42 @@ export const Route = createFileRoute("/_authenticated/app/leads")({
 
 type Lead = {
   id: string;
+  bot_id: string | null;
   name: string | null;
   telegram_id: number | null;
   telegram_username: string | null;
   status: string;
   created_at: string;
-  bots: { name: string } | null;
+  bots: { name: string; telegram_username?: string | null } | null;
 };
+
+type GuidedMode =
+  | "text"
+  | "view_plans_button"
+  | "trigger_plans_menu"
+  | "specific_plan"
+  | "resend_pending_pix"
+  | "custom_pix_offer"
+  | "vip_link";
 
 const statusLabels: Record<string, string> = {
   new: "Novo",
   engaged: "Em conversa",
   converted: "Convertido",
 };
+
+function cleanTelegramDisplayText(raw: string | null): string {
+  if (!raw) return "";
+  return raw.replace(/<\/?(?:b|strong|i|em|code|pre|u|s)>/gi, "");
+}
+
+function formatChatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
 
 function LeadsPage() {
   const { data: bots } = useBots();
@@ -63,30 +112,51 @@ function LeadsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [activeChatLead, setActiveChatLead] = useState<Lead | null>(null);
 
   const { data: leadsData, isLoading } = useQuery({
     queryKey: ["leads", botId, status, from, to],
     queryFn: async () => {
       let q = supabase
         .from("leads")
-        .select("id,name,telegram_id,telegram_username,status,created_at,bots(name)")
+        .select("id,bot_id,name,telegram_id,telegram_username,status,created_at,bots(name,telegram_username)")
         .order("created_at", { ascending: false })
         .limit(300);
       if (botId !== "all") q = q.eq("bot_id", botId);
       if (status !== "all") q = q.eq("status", status as "new" | "engaged" | "converted");
       if (from) q = q.gte("created_at", new Date(`${from}T00:00:00`).toISOString());
       if (to) q = q.lte("created_at", new Date(`${to}T23:59:59`).toISOString());
-      const [leadsRes, paymentsRes] = await Promise.all([
+      const [leadsRes, paymentsRes, convsRes] = await Promise.all([
         q,
         supabase.from("payments").select("lead_id,amount_cents,status").limit(600),
+        supabase
+          .from("conversations")
+          .select("lead_id,unread_count,last_message_preview,last_message_at")
+          .limit(400),
       ]);
       if (leadsRes.error) throw leadsRes.error;
       return {
         leads: (leadsRes.data ?? []) as unknown as Lead[],
         payments: paymentsRes.data ?? [],
+        conversations: convsRes.data ?? [],
       };
     },
   });
+
+  const conversationByLead = useMemo(() => {
+    const map = new Map<
+      string,
+      { unreadCount: number; lastPreview: string | null; lastAt: string }
+    >();
+    for (const c of leadsData?.conversations ?? []) {
+      map.set(c.lead_id, {
+        unreadCount: c.unread_count ?? 0,
+        lastPreview: c.last_message_preview ?? null,
+        lastAt: c.last_message_at,
+      });
+    }
+    return map;
+  }, [leadsData?.conversations]);
 
   const paymentSummaryByLead = useMemo(() => {
     const map = new Map<string, { paidCents: number; paidCount: number; pendingCount: number }>();
@@ -165,6 +235,7 @@ function LeadsPage() {
           <TableBody>
             {rows.map((lead) => {
               const sum = paymentSummaryByLead.get(lead.id);
+              const conv = conversationByLead.get(lead.id);
               const initials = (lead.name || lead.telegram_username || "L").slice(0, 2).toUpperCase();
               const usernameClean = lead.telegram_username?.replace("@", "");
               return (
@@ -174,10 +245,11 @@ function LeadsPage() {
                       <div className="size-8 shrink-0 rounded-full bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[11px] font-bold text-cyan-300">
                         {initials}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 max-w-[220px]">
                         <p className="font-medium text-white truncate">{lead.name ?? "Sem nome"}</p>
                         <p className="text-xs text-zinc-400 truncate">
                           {usernameClean ? `@${usernameClean}` : "Sem username"}
+                          {conv?.lastPreview ? ` · ${cleanTelegramDisplayText(conv.lastPreview)}` : ""}
                         </p>
                       </div>
                     </div>
@@ -214,14 +286,24 @@ function LeadsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{formatDate(lead.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    {usernameClean ? (
-                      <Button size="sm" variant="outline" asChild className="h-7 text-xs border-white/10">
-                        <a href={`https://t.me/${usernameClean}`} target="_blank" rel="noopener noreferrer">
-                          Abrir Chat <ExternalLink className="size-3 ml-1" />
-                        </a>
+                    {lead.telegram_id && lead.bot_id ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="default"
+                        onClick={() => setActiveChatLead(lead)}
+                        className="h-7 text-xs bg-gradient-to-r from-[#1049B8] to-[#38BDF8] text-white font-semibold"
+                      >
+                        <MessageSquare className="size-3 mr-1" />
+                        Conversar
+                        {conv && conv.unreadCount > 0 && (
+                          <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-black">
+                            {conv.unreadCount}
+                          </span>
+                        )}
                       </Button>
                     ) : (
-                      <span className="text-[11px] text-zinc-500">Privado</span>
+                      <span className="text-[11px] text-zinc-500">Sem vínculo</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -397,7 +479,584 @@ function LeadsPage() {
           <TabsContent value="vip">{renderLeadTable(rankedLeads)}</TabsContent>
         </Tabs>
       )}
+
+      <LeadGuidedChatSheet
+        lead={activeChatLead}
+        paymentSummary={activeChatLead ? paymentSummaryByLead.get(activeChatLead.id) : undefined}
+        onClose={() => setActiveChatLead(null)}
+      />
     </div>
+  );
+}
+
+function LeadGuidedChatSheet({
+  lead,
+  paymentSummary,
+  onClose,
+}: {
+  lead: Lead | null;
+  paymentSummary: { paidCents: number; paidCount: number; pendingCount: number } | undefined;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const scrollEndRef = useRef<HTMLDivElement | null>(null);
+
+  const [guidedMode, setGuidedMode] = useState<GuidedMode>("text");
+  const [messageText, setMessageText] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [offerTitle, setOfferTitle] = useState("Oferta Especial VIP");
+  const [offerPriceBRL, setOfferPriceBRL] = useState("19.90");
+  const [buttonLabel, setButtonLabel] = useState("🔓 Acessar Área VIP");
+  const [buttonUrl, setButtonUrl] = useState("");
+  const [showMediaBox, setShowMediaBox] = useState(false);
+  const [mediaKind, setMediaKind] = useState<"image" | "video">("image");
+  const [mediaUrl, setMediaUrl] = useState("");
+
+  useEffect(() => {
+    setGuidedMode("text");
+    setMessageText("");
+    setSelectedPlanId("");
+    setShowMediaBox(false);
+    setMediaUrl("");
+  }, [lead?.id]);
+
+  const { data: chatData, isLoading: loadingChat } = useQuery({
+    queryKey: ["lead-chat-context", lead?.id],
+    enabled: Boolean(lead?.id),
+    refetchInterval: 3500,
+    queryFn: () => getLeadChatContext({ data: { leadId: lead!.id } }),
+  });
+
+  const conversationId = chatData?.ok ? chatData.conversationId : null;
+  const messages: LeadChatMessageRow[] = chatData?.ok ? chatData.messages : [];
+  const payments: LeadChatPaymentRow[] = chatData?.ok ? chatData.payments : [];
+  const flowPlans: LeadChatFlowPlan[] = chatData?.ok ? chatData.flowPlans : [];
+  const latestPending = useMemo(
+    () => payments.find((p) => p.status === "pending" && Boolean(p.pix_code)) ?? null,
+    [payments],
+  );
+
+  useEffect(() => {
+    if (!selectedPlanId && flowPlans.length > 0 && flowPlans[0]) {
+      setSelectedPlanId(flowPlans[0].id);
+    }
+  }, [flowPlans, selectedPlanId]);
+
+  useEffect(() => {
+    if (!lead?.id || !conversationId) return;
+    const channel = supabase
+      .channel(`lead-chat-${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead.id] });
+          void qc.invalidateQueries({ queryKey: ["leads"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [lead?.id, conversationId, qc]);
+
+  useEffect(() => {
+    if (scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, lead?.id]);
+
+  const sendMutation = useMutation({
+    mutationFn: async () => {
+      if (!lead) throw new Error("Lead não selecionado.");
+      const selectedPlan = flowPlans.find((p) => p.id === selectedPlanId);
+      const parsedOfferPrice = Number.parseFloat(offerPriceBRL.replace(",", ".")) || 19.9;
+
+      const payload: {
+        leadId: string;
+        message: string;
+        guidedMode: GuidedMode;
+        mediaUrl?: string;
+        mediaKind?: "image" | "video";
+        planId?: string;
+        planName?: string;
+        planPriceBRL?: number;
+        paymentId?: string;
+        offerTitle?: string;
+        offerPriceBRL?: number;
+        buttonLabel?: string;
+        buttonUrl?: string;
+      } = {
+        leadId: lead.id,
+        message: messageText,
+        guidedMode,
+      };
+
+      const cleanMediaUrl = mediaUrl.trim();
+      if (showMediaBox && cleanMediaUrl) {
+        payload.mediaUrl = cleanMediaUrl;
+        payload.mediaKind = mediaKind;
+      }
+      if (guidedMode === "specific_plan" && selectedPlan) {
+        payload.planId = selectedPlan.id;
+        payload.planName = selectedPlan.name;
+        payload.planPriceBRL = selectedPlan.price;
+      }
+      if (guidedMode === "resend_pending_pix" && latestPending) {
+        payload.paymentId = latestPending.id;
+      }
+      if (guidedMode === "custom_pix_offer") {
+        payload.offerTitle = offerTitle.trim() || "Oferta Especial VIP";
+        payload.offerPriceBRL = parsedOfferPrice;
+      }
+      if (guidedMode === "view_plans_button" || guidedMode === "vip_link") {
+        payload.buttonLabel = buttonLabel.trim();
+      }
+      if (guidedMode === "vip_link") {
+        payload.buttonUrl = buttonUrl.trim();
+      }
+
+      const res = await sendLeadGuidedMessage({ data: payload });
+      if (!res.ok) {
+        throw new Error(res.error || "Não foi possível enviar pelo bot.");
+      }
+      return res;
+    },
+    onSuccess: () => {
+      setMessageText("");
+      setShowMediaBox(false);
+      setMediaUrl("");
+      void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead?.id] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem pelo bot");
+    },
+  });
+
+  const applyQuickScript = (
+    script: "initial" | "pix_pending" | "closing_offer" | "vip_delivery",
+  ) => {
+    if (script === "initial") {
+      setGuidedMode("view_plans_button");
+      setButtonLabel("📋 Ver Planos VIP");
+      setMessageText(
+        "Olá {nome}! Tudo bem? Vi que você iniciou atendimento aqui no bot. Ficou com alguma dúvida ou quer dar uma olhada nos planos disponíveis?",
+      );
+    } else if (script === "pix_pending") {
+      if (latestPending) {
+        setGuidedMode("resend_pending_pix");
+        setMessageText(
+          "Oi {nome}! Notei que o seu PIX para {plano} ainda está aguardando confirmação. Vou reenviar o código abaixo para facilitar sua liberação imediata:",
+        );
+      } else {
+        setGuidedMode("view_plans_button");
+        setButtonLabel("📋 Escolher Plano");
+        setMessageText(
+          "Oi {nome}! Quer gerar um novo PIX agora para liberar seu acesso imediato?",
+        );
+      }
+    } else if (script === "closing_offer") {
+      setGuidedMode("custom_pix_offer");
+      setOfferTitle("Condição Especial VIP");
+      setOfferPriceBRL("19.90");
+      setMessageText(
+        "{nome}, liberei uma condição especial exclusiva somente neste atendimento para você entrar ainda hoje! Clique abaixo para garantir:",
+      );
+    } else {
+      setGuidedMode("text");
+      setMessageText(
+        "Perfeito {nome}! Qualquer dúvida sobre seu acesso VIP ou conteúdo, pode responder aqui mesmo neste chat que te ajudo na hora.",
+      );
+    }
+  };
+
+  const usernameClean = lead?.telegram_username?.replace("@", "") ?? "";
+  const botDisplay =
+    chatData?.ok && chatData.botInfo
+      ? chatData.botInfo.telegram_username
+        ? `@${chatData.botInfo.telegram_username.replace("@", "")}`
+        : chatData.botInfo.name
+      : lead?.bots?.name ?? "Bot do Telegram";
+
+  return (
+    <Sheet open={Boolean(lead)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-2xl p-0 flex flex-col bg-[#09090E] border-l border-white/10 text-white"
+      >
+        <SheetHeader className="px-5 py-4 border-b border-white/10 bg-[#0d111a] pr-12 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <SheetTitle className="text-base font-bold text-white flex items-center gap-2 truncate">
+                <span>{lead?.name ?? "Cliente"}</span>
+                {lead?.status && (
+                  <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-300">
+                    {statusLabels[lead.status] ?? lead.status}
+                  </Badge>
+                )}
+              </SheetTitle>
+              <SheetDescription className="text-xs text-zinc-400 flex flex-wrap items-center gap-2 mt-0.5">
+                <span>{usernameClean ? `@${usernameClean}` : "Sem username público"}</span>
+                <span>·</span>
+                <span className="font-mono">ID {lead?.telegram_id}</span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 text-sky-300">
+                  <Bot className="size-3" /> {botDisplay}
+                </span>
+              </SheetDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {paymentSummary && paymentSummary.paidCount > 0 ? (
+                <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px]">
+                  {formatBRL(paymentSummary.paidCents)} ({paymentSummary.paidCount}x)
+                </Badge>
+              ) : latestPending ? (
+                <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px]">
+                  PIX Pendente
+                </Badge>
+              ) : null}
+              {usernameClean && (
+                <Button asChild size="icon" variant="ghost" className="size-7 text-zinc-400 hover:text-white">
+                  <a
+                    href={`https://t.me/${usernameClean}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir no Telegram externo"
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-emerald-300 font-medium">
+              <Zap className="size-3" /> Conversa Guiada pelo Bot · Sem interferir nos fluxos automáticos
+            </span>
+          </div>
+        </SheetHeader>
+
+        {/* Área da Conversa ao Vivo */}
+        <div className="flex-1 overflow-y-auto bg-[#0e1621] p-4 space-y-3">
+          {lead && (
+            <div className="mx-auto max-w-md rounded-xl border border-white/10 bg-[#17212b]/90 px-3.5 py-2 text-center text-[11px] text-zinc-300">
+              Cliente entrou em <strong className="text-white">{formatDate(lead.created_at)}</strong>.{" "}
+              As mensagens enviadas aqui saem direto pelo <strong className="text-sky-300">{botDisplay}</strong>{" "}
+              e respostas do cliente chegam aqui sem reiniciar seu funil.
+            </div>
+          )}
+
+          {loadingChat ? (
+            <div className="space-y-3 pt-4">
+              <Skeleton className="h-14 w-3/4 bg-white/5" />
+              <Skeleton className="h-14 w-2/3 ml-auto bg-sky-500/10" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-zinc-400">
+              <MessageSquare className="size-9 opacity-30 mb-2" />
+              <p className="text-sm font-medium text-zinc-200">
+                Nenhuma mensagem registrada ainda nesta conversa
+              </p>
+              <p className="text-xs text-zinc-400 max-w-sm mt-1">
+                Escolha um roteiro guiado ou escreva uma resposta abaixo para conversar com este cliente usando o bot.
+              </p>
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const isOut = msg.direction === "out";
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${isOut ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm shadow ${
+                      isOut
+                        ? "bg-[#2b5278] text-white rounded-br-sm"
+                        : "bg-[#182533] text-zinc-100 border border-white/5 rounded-bl-sm"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1 text-[10px] opacity-80">
+                      <span className="font-semibold">
+                        {isOut ? "🤖 Bot (Atendimento)" : `👤 ${lead?.name || "Cliente"}`}
+                      </span>
+                      {msg.kind !== "text" && (
+                        <span className="rounded bg-black/25 px-1.5 py-0.5 uppercase tracking-wide text-[9px]">
+                          {msg.kind}
+                        </span>
+                      )}
+                    </div>
+                    <p className="whitespace-pre-wrap break-words leading-relaxed text-[13px]">
+                      {cleanTelegramDisplayText(msg.body)}
+                    </p>
+                    <p className="mt-1 text-right text-[10px] opacity-65">
+                      {formatChatTime(msg.created_at)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={scrollEndRef} />
+        </div>
+
+        {/* Barra de Conversa Guiada + Compositor */}
+        <div className="border-t border-white/10 bg-[#0b0d14] p-4 space-y-3 shrink-0">
+          {/* Roteiros Guiados Rápidos */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                Roteiros Guiados (1 clique)
+              </span>
+              <span className="text-[10px] text-zinc-500">
+                Variáveis:{" "}
+                {(["{nome}", "{plano}", "{pix_copia_cola}"] as const).map((tok) => (
+                  <button
+                    key={tok}
+                    type="button"
+                    onClick={() => setMessageText((prev) => `${prev}${prev ? " " : ""}${tok}`)}
+                    className="ml-1 rounded bg-white/5 px-1.5 py-0.5 font-mono text-cyan-300 hover:bg-white/10"
+                  >
+                    {tok}
+                  </button>
+                ))}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] border-white/10 bg-white/[0.03]"
+                onClick={() => applyQuickScript("initial")}
+              >
+                👋 Abordagem Inicial
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] border-amber-500/30 bg-amber-950/20 text-amber-200"
+                onClick={() => applyQuickScript("pix_pending")}
+              >
+                ⚡ Lembrete PIX
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] border-cyan-500/30 bg-cyan-950/20 text-cyan-200"
+                onClick={() => applyQuickScript("closing_offer")}
+              >
+                🔥 Oferta Fechamento
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] border-emerald-500/30 bg-emerald-950/20 text-emerald-200"
+                onClick={() => applyQuickScript("vip_delivery")}
+              >
+                ✅ Suporte / Pós-Venda
+              </Button>
+            </div>
+          </div>
+
+          {/* Ação Guiada no Bot */}
+          <div className="space-y-2 rounded-xl border border-white/10 bg-black/40 p-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              Ação Guiada no Bot (opcional — sem alterar o fluxo)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { id: "text", label: "💬 Resposta Livre" },
+                  { id: "view_plans_button", label: "📋 Botão Ver Planos" },
+                  { id: "trigger_plans_menu", label: "🚀 Cardápio Planos" },
+                  { id: "specific_plan", label: "🎯 Plano do Fluxo" },
+                  { id: "resend_pending_pix", label: "💠 Reenviar PIX" },
+                  { id: "custom_pix_offer", label: "🏷️ Oferta PIX" },
+                  { id: "vip_link", label: "🔗 Link VIP" },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setGuidedMode(m.id)}
+                  className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                    guidedMode === m.id
+                      ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {guidedMode === "specific_plan" && (
+              <div className="pt-1">
+                {flowPlans.length === 0 ? (
+                  <p className="text-[11px] text-amber-300">
+                    Nenhum plano configurado no fluxo ativo deste bot.
+                  </p>
+                ) : (
+                  <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                    <SelectTrigger className="h-8 text-xs bg-zinc-900 border-white/10">
+                      <SelectValue placeholder="Escolha um plano do fluxo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flowPlans.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} — R$ {p.price.toFixed(2).replace(".", ",")} ({p.duration})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+
+            {guidedMode === "resend_pending_pix" && (
+              <div className="text-[11px] pt-1">
+                {latestPending ? (
+                  <span className="text-emerald-300 flex items-center gap-1.5">
+                    <CreditCard className="size-3.5" /> PIX encontrado:{" "}
+                    <strong>{latestPending.product_name || "Plano VIP"}</strong> —{" "}
+                    {formatBRL(latestPending.amount_cents)}
+                  </span>
+                ) : (
+                  <span className="text-amber-300">
+                    Este lead não possui PIX pendente no momento.
+                  </span>
+                )}
+              </div>
+            )}
+
+            {guidedMode === "custom_pix_offer" && (
+              <div className="grid gap-2 sm:grid-cols-2 pt-1">
+                <Input
+                  value={offerTitle}
+                  onChange={(e) => setOfferTitle(e.target.value)}
+                  placeholder="Nome da oferta (ex: VIP Desconto)"
+                  className="h-8 text-xs bg-zinc-900 border-white/10"
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="1"
+                  value={offerPriceBRL}
+                  onChange={(e) => setOfferPriceBRL(e.target.value)}
+                  placeholder="Valor em R$ (ex: 19.90)"
+                  className="h-8 text-xs bg-zinc-900 border-white/10"
+                />
+              </div>
+            )}
+
+            {(guidedMode === "view_plans_button" || guidedMode === "vip_link") && (
+              <div className="grid gap-2 sm:grid-cols-2 pt-1">
+                <Input
+                  value={buttonLabel}
+                  onChange={(e) => setButtonLabel(e.target.value)}
+                  placeholder="Texto do botão"
+                  className="h-8 text-xs bg-zinc-900 border-white/10"
+                />
+                {guidedMode === "vip_link" && (
+                  <Input
+                    value={buttonUrl}
+                    onChange={(e) => setButtonUrl(e.target.value)}
+                    placeholder="https://t.me/+seu-grupo-vip"
+                    className="h-8 text-xs bg-zinc-900 border-white/10"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {showMediaBox && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/40 p-2">
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mediaKind === "image" ? "default" : "outline"}
+                  className="h-7 text-[11px]"
+                  onClick={() => setMediaKind("image")}
+                >
+                  <ImageIcon className="size-3 mr-1" /> Imagem
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mediaKind === "video" ? "default" : "outline"}
+                  className="h-7 text-[11px]"
+                  onClick={() => setMediaKind("video")}
+                >
+                  <Video className="size-3 mr-1" /> Vídeo
+                </Button>
+              </div>
+              <Input
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="URL pública (https://...) ou file_id do Telegram"
+                className="h-7 flex-1 text-xs bg-zinc-900 border-white/10"
+              />
+            </div>
+          )}
+
+          {/* Caixa de Texto & Envio */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1">
+              <Textarea
+                rows={2}
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!sendMutation.isPending) sendMutation.mutate();
+                  }
+                }}
+                placeholder="Escreva a resposta como o bot... (Enter envia, Shift+Enter quebra linha)"
+                className="min-h-[60px] resize-none text-xs bg-black/50 border-white/15 text-white"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => setShowMediaBox((prev) => !prev)}
+                className="h-7 w-full border-white/10 text-zinc-300"
+                title="Anexar imagem ou vídeo"
+              >
+                <ImageIcon className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                disabled={sendMutation.isPending}
+                onClick={() => sendMutation.mutate()}
+                className="h-8 px-4 bg-gradient-to-r from-[#1049B8] to-[#38BDF8] text-white font-semibold text-xs"
+              >
+                {sendMutation.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin mr-1" />
+                ) : (
+                  <Send className="size-3.5 mr-1" />
+                )}
+                Enviar pelo Bot
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

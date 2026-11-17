@@ -33,9 +33,16 @@ const leadCache = new Map<string, { id: string; expiresAt: number }>();
 type TelegramUpdate = {
   update_id?: number;
   message?: {
+    message_id?: number;
     chat?: { id?: number };
     from?: { id?: number; username?: string; first_name?: string };
     text?: string;
+    caption?: string;
+    photo?: Array<{ file_id?: string }>;
+    video?: { file_id?: string; file_name?: string };
+    voice?: { file_id?: string };
+    audio?: { file_id?: string; file_name?: string };
+    document?: { file_id?: string; file_name?: string };
   };
   callback_query?: {
     id?: string;
@@ -132,6 +139,106 @@ async function resolveOrCreateLead(
   }
 }
 
+async function recordInboundLeadMessage(
+  supabaseAdmin: any,
+  bot: BotCacheItem,
+  leadId: string | null,
+  message: NonNullable<TelegramUpdate["message"]>,
+  fromUser: { id: number; username?: string | undefined; first_name?: string | undefined },
+) {
+  try {
+    let realLeadId = leadId && !leadId.startsWith("lead-") ? leadId : null;
+    if (!realLeadId) {
+      realLeadId = await resolveOrCreateLead(supabaseAdmin, bot, fromUser);
+    }
+    if (!realLeadId || realLeadId.startsWith("lead-")) return;
+
+    const rawText = (message.text ?? message.caption ?? "").trim();
+    let kind = "text";
+    let fileId: string | null = null;
+    let fileName: string | null = null;
+    let body = rawText;
+
+    if (message.photo && message.photo.length > 0) {
+      kind = "photo";
+      fileId = message.photo[message.photo.length - 1]?.file_id ?? null;
+      body = rawText || "📷 Foto enviada pelo cliente";
+    } else if (message.video) {
+      kind = "video";
+      fileId = message.video.file_id ?? null;
+      fileName = message.video.file_name ?? null;
+      body = rawText || "🎬 Vídeo enviado pelo cliente";
+    } else if (message.voice || message.audio) {
+      kind = "audio";
+      fileId = message.voice?.file_id ?? message.audio?.file_id ?? null;
+      fileName = message.audio?.file_name ?? null;
+      body = rawText || "🎤 Áudio enviado pelo cliente";
+    } else if (message.document) {
+      kind = "document";
+      fileId = message.document.file_id ?? null;
+      fileName = message.document.file_name ?? null;
+      body = rawText || "📎 Documento enviado pelo cliente";
+    }
+
+    if (!body && !fileId) return;
+
+    const nowIso = new Date().toISOString();
+    const preview = (body || "Mídia recebida").slice(0, 160);
+
+    const { data: existingConv } = await supabaseAdmin
+      .from("conversations")
+      .select("id,unread_count")
+      .eq("lead_id", realLeadId)
+      .maybeSingle();
+
+    let convId: string | null = existingConv?.id ?? null;
+    if (convId) {
+      await supabaseAdmin
+        .from("conversations")
+        .update({
+          bot_id: bot.id,
+          status: "open",
+          last_message_at: nowIso,
+          last_inbound_at: nowIso,
+          last_message_preview: preview,
+          unread_count: (existingConv?.unread_count ?? 0) + 1,
+        })
+        .eq("id", convId);
+    } else {
+      const { data: createdConv } = await supabaseAdmin
+        .from("conversations")
+        .insert({
+          user_id: bot.user_id,
+          bot_id: bot.id,
+          lead_id: realLeadId,
+          status: "open",
+          last_message_at: nowIso,
+          last_inbound_at: nowIso,
+          last_message_preview: preview,
+          unread_count: 1,
+        })
+        .select("id")
+        .maybeSingle();
+      convId = createdConv?.id ?? null;
+    }
+
+    if (convId) {
+      await supabaseAdmin.from("messages").insert({
+        conversation_id: convId,
+        user_id: bot.user_id,
+        direction: "in",
+        kind,
+        body: body || null,
+        file_id: fileId,
+        file_name: fileName,
+        telegram_message_id: message.message_id ?? null,
+      });
+    }
+  } catch (err) {
+    console.warn("[recordInboundLeadMessage-warn]", err);
+  }
+}
+
 export const Route = createFileRoute("/api/public/telegram/$botId")({
   server: {
     handlers: {
@@ -210,6 +317,15 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           if (msgText.startsWith("/start")) {
             const leadUpsertPromise = resolveOrCreateLead(supabaseAdmin, bot, fromUser);
             const fallbackLeadId = leadCache.get(leadKey)?.id ?? `lead-${from.id}`;
+
+            leadUpsertPromise
+              .then((realId) => {
+                if (realId && update.message) {
+                  return recordInboundLeadMessage(supabaseAdmin, bot, realId, update.message, fromUser);
+                }
+                return undefined;
+              })
+              .catch(() => undefined);
 
             await handleTelegramStart({
               userId: bot.user_id,
@@ -550,6 +666,11 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               });
               return Response.json({ ok: true });
             }
+          }
+
+          if (!cb && update.message) {
+            await recordInboundLeadMessage(supabaseAdmin, bot, leadId, update.message, fromUser);
+            return Response.json({ ok: true, chatLogged: true });
           }
 
           await runFlowForLead({
