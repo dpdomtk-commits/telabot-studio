@@ -870,7 +870,7 @@ export async function handleInternationalPlanPurchase(params: {
     .then(() => undefined)
     .catch(() => undefined);
 
-  const { cfg } = await getCachedBotConfig(params.botId);
+  const { cfg, flow } = await getCachedBotConfig(params.botId);
   const { formatCurrencyPrice } = await import("@/lib/flow-advanced");
 
   const plan =
@@ -891,6 +891,94 @@ export async function handleInternationalPlanPurchase(params: {
       : undefined;
 
   const conv = formatCurrencyPrice(plan.price, params.currency, customPrice);
+  const amountCents = Math.round(conv.amount * 100);
+
+  // Busca o nome do lead para salvar explicitamente no log de atividades e notificações
+  let leadName = "Lead";
+  try {
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("name,telegram_username,first_name,last_name")
+      .eq("id", params.leadId)
+      .maybeSingle();
+    if (lead) {
+      leadName =
+        lead.name ||
+        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
+        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+    }
+  } catch {
+    // fallback
+  }
+
+  // Registra IMEDIATAMENTE o pedido pendente em `payments` (dispara Realtime push notification + som de caixa registradora no celular)
+  let orderId = `stripe-${Date.now()}`;
+  try {
+    const { data: pendingPayment, error: payErr } = await supabaseAdmin
+      .from("payments")
+      .insert({
+        user_id: params.userId,
+        bot_id: params.botId,
+        lead_id: params.leadId,
+        amount_cents: amountCents,
+        currency: params.currency,
+        method: "card",
+        provider: "stripe",
+        status: "pending",
+        product_name: plan.name,
+        description: `Plano Internacional ${plan.name} (${conv.formatted})`,
+        flow_id: flow?.id || null,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (pendingPayment?.id) {
+      orderId = pendingPayment.id;
+    }
+    if (payErr) {
+      console.warn("[intl-payment-insert-err]", payErr);
+    }
+  } catch (err) {
+    console.warn("[intl-payment-insert-catch]", err);
+  }
+
+  // Log de atividades imediato no feed do painel
+  await logActivity(
+    params.userId,
+    "pagamento",
+    `Pedido Internacional (${params.currency}) gerado por ${leadName} - ${plan.name} (${conv.formatted})`,
+    orderId,
+    {
+      lead_name: leadName,
+      lead_id: params.leadId,
+      plan_name: plan.name,
+      amount_cents: amountCents,
+      currency: params.currency,
+      provider: "stripe",
+    }
+  );
+
+  // Notificação interna
+  await notify(
+    params.userId,
+    "info",
+    `🛒 Pedido Internacional Gerado (${params.currency})`,
+    `Pedido de ${conv.formatted} gerado por ${leadName} (${plan.name}) via Stripe.`,
+    "payment",
+    orderId
+  ).catch(() => undefined);
+
+  // Gatilho 2: Agenda o downsell automático de pedido internacional abandonado
+  import("@/lib/downsell.server").then(({ schedulePixDownsells }) => {
+    schedulePixDownsells({
+      userId: params.userId,
+      botId: params.botId,
+      leadId: params.leadId,
+      chatId: params.chatId,
+      orderId: orderId,
+      flowId: flow?.id,
+    });
+  }).catch((e) => console.warn("[downsell-intl-schedule-bg]", e));
 
   const domain = process.env.DOMAIN || "https://telabot-studio.vercel.app";
   const checkoutParams = new URLSearchParams({
@@ -900,7 +988,12 @@ export async function handleInternationalPlanPurchase(params: {
     lead_id: params.leadId,
     bot_id: params.botId,
     plan_id: params.planId,
+    payment_id: orderId,
   });
+
+  if (cfg.bots?.username) {
+    checkoutParams.set("bot_user", cfg.bots.username.replace("@", ""));
+  }
 
   if (plan.stripePriceId) {
     checkoutParams.set("price_id", plan.stripePriceId);

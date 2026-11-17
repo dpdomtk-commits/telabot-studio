@@ -57,7 +57,14 @@ function AppLayout() {
           const rec = payload.new;
           if (!rec) return;
 
-          const amountFormatted = `R$ ${((rec.amount_cents || 0) / 100).toFixed(2).replace(".", ",")}`;
+          const curr = (rec.currency || "BRL").toUpperCase();
+          const symbol = curr === "EUR" ? "€" : curr === "GBP" ? "£" : curr === "USD" ? "$" : "R$";
+          const amountValue = (rec.amount_cents || 0) / 100;
+          const amountFormatted =
+            curr === "BRL" || curr === "EUR"
+              ? `${symbol} ${amountValue.toFixed(2).replace(".", ",")}`
+              : `${symbol} ${amountValue.toFixed(2)}`;
+
           const prodName = rec.product_name || rec.description || "Plano";
 
           // Evento: Venda Paga (Aprovada)
@@ -73,8 +80,9 @@ function AppLayout() {
             });
           }
 
-          // Evento: Venda Gerada (Novo PIX/pedido pendente)
+          // Evento: Venda Gerada (Novo PIX/pedido pendente nacional ou internacional)
           if (rec.status === "pending" && payload.eventType === "INSERT") {
+            playCashRegisterSound();
             triggerSaleNotification({
               type: "generated",
               amountFormatted,

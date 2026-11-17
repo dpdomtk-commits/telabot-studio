@@ -36,6 +36,7 @@ import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/publi
 import { Route as ApiCronProcessDownsellsRouteImport } from './routes/api/cron/process-downsells'
 import { Route as ApiPublicCronDownsellsRouteImport } from './routes/api/public/cron/downsells'
 import { Route as ApiCreateCheckoutSessionRouteImport } from './routes/api/create-checkout-session'
+import { Route as ApiConfirmStripePaymentRouteImport } from './routes/api/confirm-stripe-payment'
 import { Route as ApiWebhookRouteImport } from './routes/api/webhook'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AuthenticatedAppFlowsFlowIdOffersRouteImport } from './routes/_authenticated/app.flows.$flowId_.offers'
@@ -189,6 +190,12 @@ const ApiCreateCheckoutSessionRoute =
     path: '/api/create-checkout-session',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiConfirmStripePaymentRoute =
+  ApiConfirmStripePaymentRouteImport.update({
+    id: '/api/confirm-stripe-payment',
+    path: '/api/confirm-stripe-payment',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWebhookRoute =
   ApiWebhookRouteImport.update({
     id: '/api/webhook',
@@ -240,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/confirm-stripe-payment': typeof ApiConfirmStripePaymentRoute
   '/api/webhook': typeof ApiWebhookRoute
   '/checkout': typeof CheckoutRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -271,6 +279,7 @@ export interface FileRoutesByTo {
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/confirm-stripe-payment': typeof ApiConfirmStripePaymentRoute
   '/api/webhook': typeof ApiWebhookRoute
   '/checkout': typeof CheckoutRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
@@ -305,6 +314,7 @@ export interface FileRoutesById {
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
   '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/confirm-stripe-payment': typeof ApiConfirmStripePaymentRoute
   '/api/webhook': typeof ApiWebhookRoute
   '/checkout': typeof CheckoutRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
@@ -593,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCreateCheckoutSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/confirm-stripe-payment': {
+      id: '/api/confirm-stripe-payment'
+      path: '/api/confirm-stripe-payment'
+      fullPath: '/api/confirm-stripe-payment'
+      preLoaderRoute: typeof ApiConfirmStripePaymentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhook': {
       id: '/api/webhook'
       path: '/api/webhook'
@@ -693,6 +710,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessDownsellsRoute: ApiCronProcessDownsellsRoute,
   ApiPublicCronDownsellsRoute: ApiPublicCronDownsellsRoute,
   ApiCreateCheckoutSessionRoute: ApiCreateCheckoutSessionRoute,
+  ApiConfirmStripePaymentRoute: ApiConfirmStripePaymentRoute,
   ApiWebhookRoute: ApiWebhookRoute,
   CheckoutRoute: CheckoutRoute,
 }

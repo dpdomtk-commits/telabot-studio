@@ -24,6 +24,8 @@ function CheckoutPage() {
   const botId = searchParams.get("bot_id") || undefined;
   const planId = searchParams.get("plan_id") || undefined;
   const priceId = searchParams.get("price_id") || undefined;
+  const paymentId = searchParams.get("payment_id") || undefined;
+  const botUser = searchParams.get("bot_user") || undefined;
   const mode = (searchParams.get("mode") as "payment" | "subscription") || "payment";
   const customPublishableKey = searchParams.get("pk") || undefined;
 
@@ -51,6 +53,8 @@ function CheckoutPage() {
         botId={botId}
         planId={planId}
         priceId={priceId}
+        paymentId={paymentId}
+        botUser={botUser}
         customPublishableKey={customPublishableKey}
       />
 

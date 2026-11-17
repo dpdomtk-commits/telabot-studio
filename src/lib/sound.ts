@@ -146,24 +146,31 @@ export function triggerSaleNotification(params: {
 
   if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
     try {
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: "TRIGGER_LOCAL_NOTIFICATION",
-          payload: {
-            title,
-            body,
-            icon: "/cashbot-icon-192.png",
-            badge: "/cashbot-badge-72.png",
-            vibrate: [200, 100, 200],
-            data: { url: "/app/payments" },
-          },
-        });
+      const options = {
+        body,
+        icon: "/cashbot-icon-192.png",
+        badge: "/cashbot-badge-72.png",
+        vibrate: [200, 100, 200],
+        data: { url: "/app/payments" },
+      };
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.ready
+          .then((registration) => {
+            registration.showNotification(title, options);
+          })
+          .catch(() => {
+            new Notification(title, options);
+          });
+
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "TRIGGER_LOCAL_NOTIFICATION",
+            payload: { title, ...options },
+          });
+        }
       } else {
-        new Notification(title, {
-          body,
-          icon: "/cashbot-icon-192.png",
-          badge: "/cashbot-badge-72.png",
-        });
+        new Notification(title, options);
       }
     } catch {
       // fallback
