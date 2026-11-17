@@ -14,6 +14,7 @@ import {
   Store,
   ShieldCheck,
   LogOut,
+  Image as ImageIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -29,18 +30,50 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const items = [
-  { title: "Dashboard", url: "/app/dashboard", icon: LayoutDashboard },
-  { title: "Bots", url: "/app/bots", icon: Bot },
-  { title: "Fluxos", url: "/app/flows", icon: GitBranch },
-  { title: "Remarketing", url: "/app/remarketing", icon: Clock },
-  { title: "Financeiro", url: "/app/finance", icon: Wallet },
-  { title: "Marketplace", url: "/app/marketplace", icon: Store },
-  { title: "Leads", url: "/app/leads", icon: Users },
-  { title: "Pagamentos", url: "/app/payments", icon: CreditCard },
-  { title: "Links", url: "/app/redirects", icon: Link2 },
-  { title: "Configurações", url: "/app/settings", icon: Settings },
-] as const;
+type SidebarNavItem = {
+  title: string;
+  subtitle: string;
+  url:
+    | "/app/dashboard"
+    | "/app/finance"
+    | "/app/payments"
+    | "/app/bots"
+    | "/app/flows"
+    | "/app/leads"
+    | "/app/remarketing"
+    | "/app/redirects"
+    | "/app/media"
+    | "/app/marketplace"
+    | "/app/settings";
+  icon: typeof LayoutDashboard;
+  badge?: string;
+};
+
+const principalItems: readonly SidebarNavItem[] = [
+  { title: "Dashboard", subtitle: "Visão geral", url: "/app/dashboard", icon: LayoutDashboard },
+  { title: "Financeiro & Saques", subtitle: "Carteira e PIX", url: "/app/finance", icon: Wallet },
+  { title: "Transações", subtitle: "Vendas e pedidos", url: "/app/payments", icon: CreditCard },
+];
+
+const automationItems: readonly SidebarNavItem[] = [
+  { title: "Meus Robôs", subtitle: "Gerenciar bots", url: "/app/bots", icon: Bot },
+  { title: "Meus Fluxos", subtitle: "Funis de venda", url: "/app/flows", icon: GitBranch },
+  { title: "Clientes (Leads)", subtitle: "Base de contatos", url: "/app/leads", icon: Users },
+  {
+    title: "Remarketing",
+    subtitle: "Campanhas e disparos",
+    url: "/app/remarketing",
+    icon: Clock,
+    badge: "HOT",
+  },
+  { title: "Redirecionadores", subtitle: "Links e rastreio", url: "/app/redirects", icon: Link2 },
+  { title: "Mídias & Cache", subtitle: "Biblioteca file_id", url: "/app/media", icon: ImageIcon },
+  { title: "Marketplace", subtitle: "Templates prontos", url: "/app/marketplace", icon: Store },
+];
+
+const systemItems: readonly SidebarNavItem[] = [
+  { title: "Configurações", subtitle: "Conta e integrações", url: "/app/settings", icon: Settings },
+];
 
 export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
   const path = useRouterState({ select: (r) => r.location.pathname });
@@ -53,6 +86,45 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
+  const renderGroup = (label: string, groupItems: readonly SidebarNavItem[]) => (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold">
+        {label}
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {groupItems.map((item) => (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton
+                asChild
+                isActive={path.startsWith(item.url)}
+                tooltip={`${item.title} — ${item.subtitle}`}
+                className="h-auto py-2 transition-all hover:bg-cyan-500/10 hover:text-cyan-300 data-[active=true]:bg-gradient-to-r data-[active=true]:from-cyan-500/15 data-[active=true]:to-blue-600/15 data-[active=true]:text-cyan-300 data-[active=true]:border-l-2 data-[active=true]:border-cyan-400 data-[active=true]:font-bold"
+              >
+                <Link to={item.url} className="flex items-center justify-between gap-2 w-full">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <item.icon className="size-4 shrink-0" />
+                    <div className="flex flex-col min-w-0 leading-tight">
+                      <span className="truncate text-[13px]">{item.title}</span>
+                      <span className="truncate text-[10px] text-zinc-500 font-normal">
+                        {item.subtitle}
+                      </span>
+                    </div>
+                  </div>
+                  {item.badge ? (
+                    <span className="shrink-0 rounded-full bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-300 tracking-wider">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
 
   return (
     <Sidebar collapsible="icon" className="border-r border-white/5 bg-[#050508]">
@@ -72,34 +144,15 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold">
-            Operação
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={path.startsWith(item.url)}
-                    tooltip={item.title}
-                    className="transition-all hover:bg-cyan-500/10 hover:text-cyan-300 data-[active=true]:bg-gradient-to-r data-[active=true]:from-cyan-500/15 data-[active=true]:to-blue-600/15 data-[active=true]:text-cyan-300 data-[active=true]:border-l-2 data-[active=true]:border-cyan-400 data-[active=true]:font-bold"
-                  >
-                    <Link to={item.url}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {renderGroup("Principal", principalItems)}
+        {renderGroup("Automações", automationItems)}
+        {renderGroup("Sistema", systemItems)}
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold">Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold">
+              Administração
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>

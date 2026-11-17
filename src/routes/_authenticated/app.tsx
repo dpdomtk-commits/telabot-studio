@@ -1,6 +1,7 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { TrendingUp } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app/AppSidebar";
 import { NotificationBell } from "@/components/app/NotificationBell";
@@ -46,6 +47,24 @@ function AppLayout() {
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
   const seededNotificationsRef = useRef(false);
 
+  const { data: headerGoal } = useQuery({
+    queryKey: ["header-revenue-goal"],
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const [{ data: userData }, { data: paidRows }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from("payments").select("amount_cents").eq("status", "approved").limit(1000),
+      ]);
+      const approvedCents = (paidRows ?? []).reduce((s, p) => s + (p.amount_cents || 0), 0);
+      const userName =
+        (userData.user?.user_metadata?.["full_name"] as string | undefined) ||
+        (userData.user?.email ? userData.user.email.split("@")[0] : "") ||
+        "Operador";
+      return { approvedCents, userName };
+    },
+  });
+
   // Listener em tempo real (Realtime WebSocket + polling resiliente no iOS/PWA + Web Push VAPID)
   useEffect(() => {
     const handleFirstInteraction = () => {
@@ -77,6 +96,7 @@ function AppLayout() {
           qc.invalidateQueries({ queryKey: ["notifications"] });
           qc.invalidateQueries({ queryKey: ["finance"] });
           qc.invalidateQueries({ queryKey: ["payments"] });
+          qc.invalidateQueries({ queryKey: ["header-revenue-goal"] });
         }
         return;
       }
@@ -93,6 +113,7 @@ function AppLayout() {
           qc.invalidateQueries({ queryKey: ["notifications"] });
           qc.invalidateQueries({ queryKey: ["finance"] });
           qc.invalidateQueries({ queryKey: ["payments"] });
+          qc.invalidateQueries({ queryKey: ["header-revenue-goal"] });
         }
       }
     };
@@ -277,14 +298,67 @@ function AppLayout() {
     };
   }, [qc]);
 
+  const approvedCents = headerGoal?.approvedCents ?? 0;
+  const tiers = [
+    { targetCents: 1_000_000, label: "10k" },
+    { targetCents: 10_000_000, label: "100k" },
+    { targetCents: 50_000_000, label: "500k" },
+    { targetCents: 100_000_000, label: "1M" },
+    { targetCents: 500_000_000, label: "5M" },
+  ] as const;
+  const currentTier = tiers.find((t) => approvedCents < t.targetCents) ?? tiers[tiers.length - 1]!;
+  const goalPercent = Math.min(100, Math.round((approvedCents / currentTier.targetCents) * 100));
+  const approvedFormatted = (approvedCents / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const nowHour = new Date().getHours();
+  const greeting = nowHour < 12 ? "Bom dia" : nowHour < 18 ? "Boa tarde" : "Boa noite";
+  const currentDateLabel = new Date()
+    .toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+    .toUpperCase();
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-[#050508] text-white">
         <AppSidebar isAdmin={!!isAdmin} />
         <div className="flex min-w-0 flex-1 flex-col bg-[#050508]">
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-white/5 bg-[#08080A]/90 backdrop-blur-md px-4">
+          <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-3 border-b border-white/5 bg-[#08080A]/90 backdrop-blur-md px-4 py-2">
             <SidebarTrigger />
-            <span className="text-sm font-medium text-zinc-400">Painel</span>
+
+            {/* Pill Meta de Faturamento (Estilo SharkBot) */}
+            <Link
+              to="/app/finance"
+              className="hidden sm:flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-950/20 hover:border-emerald-400/50 px-3 py-1.5 transition"
+              title="Abrir carteira e metas de faturamento"
+            >
+              <TrendingUp className="size-3.5 text-emerald-400 shrink-0" />
+              <div className="flex flex-col gap-1 min-w-[140px]">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="font-bold text-emerald-300">{goalPercent}%</span>
+                  <span className="text-zinc-300 font-mono text-[10px]">
+                    R$ {approvedFormatted} / {currentTier.label}
+                  </span>
+                </div>
+                <div className="h-1 w-full rounded-full bg-zinc-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all"
+                    style={{ width: `${Math.max(3, goalPercent)}%` }}
+                  />
+                </div>
+              </div>
+            </Link>
+
+            {/* Saudação Dinâmica & Data */}
+            <div className="hidden md:flex flex-col ml-2">
+              <span className="text-xs font-semibold text-white">
+                {greeting}, <span className="text-cyan-400">{headerGoal?.userName ?? "Operador"}</span>
+              </span>
+              <span className="text-[10px] tracking-wider text-zinc-500 font-semibold">
+                {currentDateLabel}
+              </span>
+            </div>
+
             <div className="ml-auto flex items-center gap-2.5">
               <PwaInstallButton />
               <NotificationBell />

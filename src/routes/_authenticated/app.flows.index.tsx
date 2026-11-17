@@ -21,12 +21,14 @@ import {
   Share2,
   Store,
   LayoutList,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBots } from "./app.bots";
 import { duplicateFlow } from "@/lib/flow.functions";
 import { exportFlow, importFlow, shareFlow, publishToMarketplace } from "@/lib/flow-share.functions";
-import { defaultSimpleConfig } from "@/lib/flow-simple";
+import { defaultAdvancedConfig } from "@/lib/flow-advanced";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,7 +100,8 @@ function FlowsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [botId, setBotId] = useState("");
-  
+  const [modeChoice, setModeChoice] = useState<"simple" | "n8n" | "ia">("simple");
+
   const [filter, setFilter] = useState<"live" | "archived">("live");
 
   const [importOpen, setImportOpen] = useState(false);
@@ -121,8 +124,8 @@ function FlowsPage() {
             "id,name,description,bot_id,status,mode,share_code,is_active,created_at,updated_at,bots(name)",
           )
           .order("updated_at", { ascending: false }),
-        supabase.from("leads").select("id,status"),
-        supabase.from("payments").select("amount_cents,net_cents,status"),
+        supabase.from("leads").select("id,bot_id,status"),
+        supabase.from("payments").select("bot_id,flow_id,amount_cents,net_cents,status"),
         supabase.from("subscriptions").select("id,amount_cents,interval_days,status"),
       ]);
       const approved = (payments.data ?? []).filter((p) => p.status === "approved");
@@ -130,6 +133,7 @@ function FlowsPage() {
       return {
         flows: (flows.data ?? []) as unknown as FlowRow[],
         leads: leads.data ?? [],
+        payments: payments.data ?? [],
         conversions: (leads.data ?? []).filter((l) => l.status === "converted").length,
         revenue: approved.reduce((s, p) => s + (p.net_cents ?? p.amount_cents), 0),
         subscribers: activeSubs.length,
@@ -152,6 +156,9 @@ function FlowsPage() {
         .parse({ name, description: description.trim() || undefined, botId });
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Sessão expirada");
+      const targetMode: FlowMode = modeChoice === "n8n" ? "advanced" : "simple";
+      const baseCfg = defaultAdvancedConfig();
+      baseCfg.bots.linkedBots = [parsed.botId];
       const { data: flow, error } = await supabase
         .from("flows")
         .insert({
@@ -160,23 +167,27 @@ function FlowsPage() {
           bot_id: parsed.botId,
           user_id: userData.user.id,
           status: "draft",
-          mode: "simple",
-          simple_config: defaultSimpleConfig() as never,
+          mode: targetMode,
+          simple_config: baseCfg as never,
         })
         .select("id")
         .maybeSingle();
       if (error) throw error;
 
-      return flow?.id ?? null;
+      return { flowId: flow?.id ?? null, targetMode };
     },
-    onSuccess: (flowId) => {
+    onSuccess: (res) => {
       toast.success("Fluxo criado");
       setOpen(false);
       setName("");
       setDescription("");
       qc.invalidateQueries({ queryKey: ["flows-overview"] });
-      if (!flowId) return;
-      navigate({ to: "/app/flows/$flowId/simple", params: { flowId } });
+      if (!res?.flowId) return;
+      if (res.targetMode === "advanced") {
+        navigate({ to: "/app/flows/$flowId", params: { flowId: res.flowId } });
+      } else {
+        navigate({ to: "/app/flows/$flowId/simple", params: { flowId: res.flowId } });
+      }
     },
 
     onError: (e: Error) => toast.error(e.message),
@@ -373,153 +384,235 @@ function FlowsPage() {
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {flows.map((flow) => (
-              <div key={flow.id} className="panel flex flex-col justify-between p-5">
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-display text-lg font-bold">{flow.name}</p>
-                      <p className="text-xs text-muted-foreground">{flow.bots?.name ?? "Bot removido"}</p>
+            {flows.map((flow) => {
+              const flowLeads = (data?.leads ?? []).filter((l) => l.bot_id === flow.bot_id);
+              const flowPayments = (data?.payments ?? []).filter(
+                (p) => p.flow_id === flow.id || (!p.flow_id && p.bot_id === flow.bot_id),
+              );
+              const flowPaid = flowPayments.filter((p) => p.status === "approved");
+              const flowConversion =
+                flowPayments.length > 0 ? ((flowPaid.length / flowPayments.length) * 100).toFixed(1) : "0.0";
+              const flowRevenueCents = flowPaid.reduce((s, p) => s + (p.amount_cents || 0), 0);
+
+              return (
+                <div
+                  key={flow.id}
+                  className="panel flex flex-col justify-between p-5 border-white/10 bg-[#09090E]/90 hover:border-cyan-500/40 transition"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-display text-lg font-bold text-white">{flow.name}</p>
+                        <p className="text-xs text-cyan-400/90 font-medium">
+                          {flow.bots?.name ?? "Sem bot vinculado"}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <Badge variant={statusVariant[flow.status]}>{statusLabels[flow.status]}</Badge>
+                        <Badge variant={flow.mode === "simple" ? "secondary" : "outline"} className="text-[10px]">
+                          {flow.mode === "simple" ? "Básico · 13 Seções" : "Fluxo n8n"}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <Badge variant={statusVariant[flow.status]}>{statusLabels[flow.status]}</Badge>
-                      <Badge variant={flow.mode === "simple" ? "secondary" : "outline"}>
-                        {flow.mode === "simple" ? "Simples" : "Avançado"}
-                      </Badge>
+
+                    {/* Métricas do Fluxo (Estilo SharkBot) */}
+                    <div className="mt-4 grid grid-cols-4 gap-1.5 rounded-xl border border-white/5 bg-black/50 p-2.5 text-center">
+                      <div>
+                        <p className="text-[10px] uppercase text-zinc-500">Starts</p>
+                        <p className="font-bold text-xs text-white mt-0.5">{flowLeads.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-zinc-500">Pagos</p>
+                        <p className="font-bold text-xs text-emerald-400 mt-0.5">{flowPaid.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-zinc-500">Conv.</p>
+                        <p className="font-bold text-xs text-cyan-300 mt-0.5">{flowConversion}%</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-zinc-500">Receita</p>
+                        <p className="font-bold text-[11px] text-emerald-300 mt-0.5 truncate">
+                          {formatBRL(flowRevenueCents)}
+                        </p>
+                      </div>
                     </div>
+
+                    <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
+                      {flow.description ?? "Funil completo com boas-vindas, planos, PIX e automações."}
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Editado em {formatDate(flow.updated_at)}
+                      {flow.share_code ? ` · ${flow.share_code}` : ""}
+                    </p>
                   </div>
-                  <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-                    {flow.description ?? "Sem descrição."}
-                  </p>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Criado em {formatDate(flow.created_at)} · Editado em {formatDate(flow.updated_at)}
-                    {flow.share_code ? ` · ${flow.share_code}` : ""}
-                  </p>
-                </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  {flow.mode === "simple" ? (
-                    <Button asChild size="sm">
+                  <div className="mt-4 flex flex-wrap items-center gap-2 pt-3 border-t border-white/5">
+                    <Button
+                      asChild
+                      size="sm"
+                      className="bg-gradient-to-r from-[#1049B8] to-[#38BDF8] text-white font-bold"
+                    >
                       <Link to="/app/flows/$flowId/simple" params={{ flowId: flow.id }}>
-                        <LayoutList /> Editar páginas
+                        <LayoutList className="size-3.5 mr-1" /> Editar Fluxo
                       </Link>
                     </Button>
-                  ) : (
-                    <Button asChild size="sm" variant="secondary">
-                      <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
-                        <PencilLine /> Editor visual (legado)
+                    <Button asChild size="sm" variant="outline" className="border-white/10">
+                      <Link to="/app/remarketing">
+                        <Clock className="size-3.5 mr-1 text-amber-400" /> Remarketing
                       </Link>
                     </Button>
-                  )}
+                    {flow.mode !== "simple" ? (
+                      <Button asChild size="sm" variant="secondary">
+                        <Link to="/app/flows/$flowId" params={{ flowId: flow.id }}>
+                          <PencilLine /> Canvas
+                        </Link>
+                      </Button>
+                    ) : null}
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={duplicate.isPending}
-                    onClick={() => duplicate.mutate(flow.id)}
-                  >
-                    <Copy /> Duplicar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={exportOne.isPending}
-                    onClick={() => exportOne.mutate(flow)}
-                  >
-                    <Download /> Exportar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setShareFlowRow(flow);
-                      setShareCode(flow.share_code);
-                      setPublishTitle(flow.name);
-                    }}
-                  >
-                    <Share2 /> Compartilhar
-                  </Button>
-                  {flow.status === "archived" ? (
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => setStatus.mutate({ id: flow.id, status: "draft" })}
+                      disabled={duplicate.isPending}
+                      onClick={() => duplicate.mutate(flow.id)}
                     >
-                      <ArchiveRestore /> Restaurar
+                      <Copy /> Duplicar
                     </Button>
-                  ) : (
-                    <>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={exportOne.isPending}
+                      onClick={() => exportOne.mutate(flow)}
+                    >
+                      <Download /> Exportar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setShareFlowRow(flow);
+                        setShareCode(flow.share_code);
+                        setPublishTitle(flow.name);
+                      }}
+                    >
+                      <Share2 /> Compartilhar
+                    </Button>
+                    {flow.status === "archived" ? (
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() =>
-                          setStatus.mutate({
-                            id: flow.id,
-                            status: flow.status === "active" ? "draft" : "active",
-                          })
-                        }
+                        onClick={() => setStatus.mutate({ id: flow.id, status: "draft" })}
                       >
-                        {flow.status === "active" ? "Pausar" : "Ativar"}
+                        <ArchiveRestore /> Restaurar
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setStatus.mutate({ id: flow.id, status: "archived" })}
-                      >
-                        <Archive /> Arquivar
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(flow.id)}
-                    aria-label={`Excluir fluxo ${flow.name}`}
-                  >
-                    <Trash2 />
-                  </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            setStatus.mutate({
+                              id: flow.id,
+                              status: flow.status === "active" ? "draft" : "active",
+                            })
+                          }
+                        >
+                          {flow.status === "active" ? "Pausar" : "Ativar"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setStatus.mutate({ id: flow.id, status: "archived" })}
+                        >
+                          <Archive /> Arquivar
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(flow.id)}
+                      aria-label={`Excluir fluxo ${flow.name}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl bg-[#09090E] border-white/15 text-white">
           <DialogHeader>
-            <DialogTitle>Novo fluxo</DialogTitle>
-            <DialogDescription>
-              Todo fluxo é criado no modo simples (configuração por páginas) e roda dentro de um bot.
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-cyan-400" /> Criar Novo Fluxo
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              Escolha o nome, o bot conectado e o modo de construção do seu funil de vendas.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-
             <div className="space-y-2">
-              <Label htmlFor="flow-name">Nome</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="flow-name">Nome do fluxo *</Label>
+                <span className="text-[11px] font-mono text-zinc-500">{name.length}/30</span>
+              </div>
               <Input
                 id="flow-name"
-                maxLength={80}
+                maxLength={30}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Funil VIP mensal"
+                placeholder="Ex: Funil VIP Mensal"
+                className="bg-black/50 border-white/10"
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="flow-desc">Descrição</Label>
-              <Textarea
-                id="flow-desc"
-                maxLength={280}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Boas-vindas, oferta do plano mensal e liberação do grupo VIP."
-              />
+              <Label>Modo de Criação</Label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    {
+                      id: "simple",
+                      title: "Básico",
+                      desc: "Editor completo de 13 seções: planos, copy, downsells e PIX.",
+                    },
+                    {
+                      id: "n8n",
+                      title: "Fluxo n8n",
+                      desc: "Canvas visual por nós e conexões personalizadas.",
+                    },
+                    {
+                      id: "ia",
+                      title: "Modo IA",
+                      desc: "Funil rápido pré-configurado para atendimento e conversão.",
+                    },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setModeChoice(m.id)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      modeChoice === m.id
+                        ? "border-cyan-400 bg-cyan-500/15 shadow-sm"
+                        : "border-white/10 bg-black/40 hover:border-white/25"
+                    }`}
+                  >
+                    <p className="font-bold text-sm text-white">{m.title}</p>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{m.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Bot</Label>
+              <Label>Bot conectado *</Label>
               <Select value={botId} onValueChange={setBotId}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-black/50 border-white/10">
                   <SelectValue placeholder="Selecione um bot" />
                 </SelectTrigger>
                 <SelectContent>
@@ -531,12 +624,29 @@ function FlowsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="flow-desc">Descrição (opcional)</Label>
+              <Textarea
+                id="flow-desc"
+                rows={2}
+                maxLength={280}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Boas-vindas, oferta dos planos e liberação automática no grupo VIP."
+                className="bg-black/50 border-white/10"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button disabled={create.isPending} onClick={() => create.mutate()}>
+            <Button
+              disabled={create.isPending}
+              onClick={() => create.mutate()}
+              className="bg-gradient-to-r from-[#1049B8] to-[#38BDF8] text-white font-bold"
+            >
               Criar fluxo
             </Button>
           </DialogFooter>
