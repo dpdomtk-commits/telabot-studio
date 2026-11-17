@@ -135,6 +135,22 @@ export function editMessageText(
   });
 }
 
+export function editMessageCaption(
+  token: string,
+  chatId: number,
+  messageId: number,
+  caption: string,
+  replyMarkup?: unknown,
+) {
+  return callTelegram(token, "editMessageCaption", {
+    chat_id: chatId,
+    message_id: messageId,
+    caption,
+    parse_mode: "HTML",
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+}
+
 export function editMessageReplyMarkup(
   token: string,
   chatId: number,
@@ -146,6 +162,19 @@ export function editMessageReplyMarkup(
     message_id: messageId,
     reply_markup: replyMarkup,
   });
+}
+
+function resolveMediaTarget(m: { fileId?: string; url?: string }): string {
+  if (m.fileId && !m.fileId.startsWith("data:") && !m.fileId.startsWith("local_")) {
+    return m.fileId;
+  }
+  if (m.url && !m.url.startsWith("local_")) {
+    return m.url;
+  }
+  if (m.fileId && !m.fileId.startsWith("local_")) {
+    return m.fileId;
+  }
+  return "";
 }
 
 export async function sendPhoto(
@@ -166,7 +195,10 @@ export async function sendPhoto(
       const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
-      if (caption) form.append("caption", caption);
+      if (caption) {
+        form.append("caption", caption);
+        form.append("parse_mode", "HTML");
+      }
       if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
       const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
       const blob = new Blob([buffer], { type: mime });
@@ -220,7 +252,10 @@ export async function sendVideo(
       const buffer = Buffer.from(base64Data, "base64");
       const form = new FormData();
       form.append("chat_id", String(chatId));
-      if (caption) form.append("caption", caption);
+      if (caption) {
+        form.append("caption", caption);
+        form.append("parse_mode", "HTML");
+      }
       if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
       const blob = new Blob([buffer], { type: mime });
       form.append("video", blob, "video.mp4");
@@ -357,14 +392,24 @@ export async function notify(
   entity?: string,
   entityId?: string,
 ) {
-  await supabaseAdmin.from("notifications").insert({
-    user_id: userId,
-    type,
-    title,
-    body: body ?? null,
-    entity: entity ?? null,
-    entity_id: isUuid(entityId) ? entityId : null,
-  });
+  await Promise.allSettled([
+    supabaseAdmin.from("notifications").insert({
+      user_id: userId,
+      type,
+      title,
+      body: body ?? null,
+      entity: entity ?? null,
+      entity_id: isUuid(entityId) ? entityId : null,
+    }),
+    import("@/lib/webpush.server").then(({ sendWebPushToUser }) =>
+      sendWebPushToUser(userId, {
+        title,
+        body: body ?? title,
+        tag: entityId,
+        url: entity === "payment" ? "/app/payments" : "/app",
+      }),
+    ),
+  ]);
 }
 
 export async function logActivity(
@@ -494,7 +539,7 @@ export async function sendWelcomeMedia(
     const mediaList = welcomeMedia
       .map((m) => ({
         type: (m.kind === "video" ? "video" : "photo") as "photo" | "video",
-        url: (m.url && !m.url.startsWith("local_")) ? m.url : (m.fileId && !m.fileId.startsWith("local_")) ? m.fileId : (m.url || m.fileId || ""),
+        url: resolveMediaTarget(m),
         caption: m.caption || "",
       }))
       .filter((m) => Boolean(m.url));
@@ -505,7 +550,7 @@ export async function sendWelcomeMedia(
   }
 
   for (const m of welcomeMedia) {
-    const target = (m.url && !m.url.startsWith("local_")) ? m.url : (m.fileId && !m.fileId.startsWith("local_")) ? m.fileId : (m.url || m.fileId);
+    const target = resolveMediaTarget(m);
     if (target) {
       try {
         if (m.kind === "video") {
@@ -520,10 +565,49 @@ export async function sendWelcomeMedia(
   }
 }
 
+async function persistUpgradedMediaFileIds(
+  flow: { id?: string; simple_config?: unknown } | null,
+  cfg: any,
+  mediaTargets: Array<{ item: any; target: string }>,
+) {
+  if (!flow?.id || !Array.isArray(cfg?.welcome?.media)) return;
+  let changed = false;
+
+  for (const { item, target } of mediaTargets) {
+    if (!target.startsWith("data:")) continue;
+    const cachedId = telegramFileIdCache.get(target);
+    if (cachedId && !cachedId.startsWith("data:")) {
+      item.fileId = cachedId;
+      item.url = cachedId;
+      changed = true;
+    }
+  }
+
+  if (!changed || !flow.simple_config || typeof flow.simple_config !== "object") return;
+
+  try {
+    const sc = flow.simple_config as Record<string, any>;
+    const nextConfig = {
+      ...sc,
+      welcome: {
+        ...(sc["welcome"] || {}),
+        media: cfg.welcome.media,
+      },
+    };
+    flow.simple_config = nextConfig;
+    await Promise.race([
+      supabaseAdmin.from("flows").update({ simple_config: nextConfig as never }).eq("id", flow.id),
+      new Promise((resolve) => setTimeout(resolve, 900)),
+    ]);
+  } catch (err) {
+    console.warn("[persist-media-fileid-warn]", err);
+  }
+}
+
 /**
  * Fluxo de boas-vindas do Telegram (/start) ultra-otimizado (< 1s):
  * - Resolução instantânea via cache em memória (TTL 5min com stale-while-revalidate)
- * - Cache de file_id para zero upload/download repetido no Telegram
+ * - Prioridade absoluta para Telegram file_id e gravação automática no fluxo
  * - Disparo unificado (Foto/Vídeo + Copy + Botões de Idioma em 1 única requisição HTTP)
  */
 export async function handleTelegramStart(params: {
@@ -533,7 +617,7 @@ export async function handleTelegramStart(params: {
   leadId: string;
   chatId: number;
 }) {
-  const { cfg } = await getCachedBotConfig(params.botId);
+  const { cfg, flow } = await getCachedBotConfig(params.botId);
 
   const welcomeText =
     cfg.welcome?.startMessage?.trim() ||
@@ -549,18 +633,24 @@ export async function handleTelegramStart(params: {
     ],
   };
 
-  const mediaList = (cfg.welcome?.media ?? []).filter((m: any) => Boolean(m.url || m.fileId));
+  const mediaList = (cfg.welcome?.media ?? []).filter((m: any) => Boolean(m.fileId || m.url));
+  const usedTargets: Array<{ item: any; target: string }> = [];
 
   // Otimização Máxima: 1 mídia + legenda <= 1024 caracteres em 1 ÚNICA chamada HTTP ao Telegram
   if (mediaList.length === 1) {
     const m = mediaList[0];
-    const target = (m.url && !m.url.startsWith("local_")) ? m.url : (m.fileId && !m.fileId.startsWith("local_")) ? m.fileId : (m.url || m.fileId);
+    const target = resolveMediaTarget(m);
+    if (target) usedTargets.push({ item: m, target });
+
     if (target && welcomeText.length <= 1024) {
       const res =
         m.kind === "video"
           ? await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup)
           : await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
-      if (res.ok) return;
+      if (res.ok) {
+        await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
+        return;
+      }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
       return;
     }
@@ -572,21 +662,63 @@ export async function handleTelegramStart(params: {
         await sendPhoto(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
       }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
+      await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
       return;
     }
   }
 
   if (mediaList.length > 1) {
+    for (const m of mediaList) {
+      const target = resolveMediaTarget(m);
+      if (target) usedTargets.push({ item: m, target });
+    }
     await sendWelcomeMedia(params.token, params.chatId, mediaList, cfg.welcome?.mediaMode);
   }
 
   await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
+  if (usedTargets.length > 0) {
+    await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
+  }
+}
+
+export function buildBrlPlansPayload(cfg: any) {
+  const planItems = cfg.plans?.items?.length
+    ? cfg.plans.items
+    : [
+        {
+          id: "plan-1",
+          name: "VITALÍCIO",
+          price: 9.23,
+          duration: "Vitalício",
+          buttonColor: "blue",
+        },
+      ];
+
+  const text =
+    cfg.welcome?.messagePt?.trim() ||
+    cfg.welcome?.message?.trim() ||
+    "Olá! Seja muito bem-vindo(a) ao nosso atendimento VIP! 👋\n\nEscolha um dos nossos planos exclusivos abaixo para ter acesso imediato:";
+
+  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const plan of planItems) {
+    const priceStr = Number(plan.price || 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const emoji = plan.emoji ? `${plan.emoji} ` : "";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
+    inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
+  }
+
+  return { text, replyMarkup: { inline_keyboard } };
 }
 
 /**
- * Trata a escolha de idioma pelo lead:
- * - Em Português: exibe a copy em português e embaixo todos os planos diretamente via PIX.
- * - Em Inglês: exibe a copy em inglês e embaixo as opções de moedas: Dólar, Euro e Libra.
+ * Trata a escolha de idioma pelo lead PRESERVANDO o vídeo/foto da mensagem inicial:
+ * - Edita a legenda + botões no mesmo post de mídia (editMessageCaption) quando possível,
+ *   ou remove apenas os botões e envia o novo texto abaixo sem apagar a mídia.
  */
 export async function handleLanguageSelect(params: {
   userId: string;
@@ -594,40 +726,61 @@ export async function handleLanguageSelect(params: {
   token: string;
   leadId: string;
   chatId: number;
-  messageId?: number;
+  messageId?: number | undefined;
   language: "pt" | "en";
 }) {
-  // Mostra digitando imediatamente pro lead
-  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
-  setLeadPreferences(params.userId, params.leadId, { language: params.language });
-
-  // 1. Remove a mensagem de escolha de idioma anterior (mantendo apenas as mídias no topo)
-  if (params.messageId) {
-    deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
-  }
+  setLeadPreferences(params.userId, params.leadId, {
+    language: params.language,
+    ...(params.language === "pt" ? { currency: "BRL" } : {}),
+  });
 
   const { cfg } = await getCachedBotConfig(params.botId);
 
-  if (params.language === "pt") {
-    // Caso escolha português: vai aparecer a copy e embaixo todos os planos diretamente
-    setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
-    await sendBrlPlansMenu(params, cfg, true);
-  } else {
-    // Caso seja inglês: vai aparecer a copy em inglês e embaixo as opções de dólar, euro e libra
-    const textEn =
-      cfg.welcome?.messageEn ||
-      "Hello! Welcome to our VIP service. 👋\n\nPlease choose your preferred currency below to view our exclusive plans:";
+  const payload =
+    params.language === "pt"
+      ? buildBrlPlansPayload(cfg)
+      : {
+          text:
+            cfg.welcome?.messageEn?.trim() ||
+            "Hello! Welcome to our VIP service. 👋\n\nPlease choose your preferred currency below to view our exclusive plans:",
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                { text: "💵 USD ($)", callback_data: "curr:USD" },
+                { text: "💶 EUR (€)", callback_data: "curr:EUR" },
+                { text: "💷 GBP (£)", callback_data: "curr:GBP" },
+              ],
+            ],
+          },
+        };
 
-    await sendMessage(params.token, params.chatId, textEn, {
-      inline_keyboard: [
-        [
-          { text: "💵 USD ($)", callback_data: "curr:USD" },
-          { text: "💶 EUR (€)", callback_data: "curr:EUR" },
-          { text: "💷 GBP (£)", callback_data: "curr:GBP" },
-        ],
-      ],
-    });
+  if (params.messageId && payload.text.length <= 1024) {
+    const capRes = await editMessageCaption(
+      params.token,
+      params.chatId,
+      params.messageId,
+      payload.text,
+      payload.replyMarkup,
+    );
+    if (capRes.ok) return;
+
+    const txtRes = await editMessageText(
+      params.token,
+      params.chatId,
+      params.messageId,
+      payload.text,
+      payload.replyMarkup,
+    );
+    if (txtRes.ok) return;
   }
+
+  if (params.messageId) {
+    editMessageReplyMarkup(params.token, params.chatId, params.messageId, {
+      inline_keyboard: [],
+    }).catch(() => undefined);
+  }
+
+  await sendMessage(params.token, params.chatId, payload.text, payload.replyMarkup);
 }
 
 /**
@@ -642,7 +795,7 @@ export async function handleCurrencySelect(params: {
   token: string;
   leadId: string;
   chatId: number;
-  messageId?: number;
+  messageId?: number | undefined;
   currency: "BRL" | "USD" | "EUR" | "GBP";
 }) {
   // Mostra digitando imediatamente pro lead
@@ -740,7 +893,7 @@ export async function handleViewPlans(params: {
   token: string;
   leadId: string;
   chatId: number;
-  messageId?: number;
+  messageId?: number | undefined;
 }) {
   if (params.messageId) {
     deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
@@ -772,41 +925,10 @@ export async function sendBrlPlansMenu(
     chatId: number;
   },
   cfg: any,
-  isFirstGreeting = true
+  _isFirstGreeting = true
 ) {
-  const planItems = cfg.plans?.items?.length
-    ? cfg.plans.items
-    : [
-        {
-          id: "plan-1",
-          name: "VITALÍCIO",
-          price: 9.23,
-          duration: "Vitalício",
-          buttonColor: "blue",
-        },
-      ];
-
-  // Texto de apresentação em português (copy configurada no fluxo)
-  const text =
-    cfg.welcome?.messagePt?.trim() ||
-    cfg.welcome?.message?.trim() ||
-    "Olá! Seja muito bem-vindo(a) ao nosso atendimento VIP! 👋\n\nEscolha um dos nossos planos exclusivos abaixo para ter acesso imediato:";
-
-  const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
-
-  for (const plan of planItems) {
-    const priceStr = Number(plan.price || 0).toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    const emoji = plan.emoji ? `${plan.emoji} ` : "";
-    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
-    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
-    inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
-  }
-
-  // Uma única mensagem adicionada após as mídias: texto + botões de planos BRL
-  await sendMessage(params.token, params.chatId, text, { inline_keyboard });
+  const { text, replyMarkup } = buildBrlPlansPayload(cfg);
+  await sendMessage(params.token, params.chatId, text, replyMarkup);
 }
 
 
@@ -1254,6 +1376,7 @@ export async function handlePixPlanPurchase(params: {
 
   const { createPixCharge } = await import("@/lib/finance.server");
   let charge: { id: string; pix_code?: string | null };
+  let usedFallback = false;
 
   try {
     charge = await createPixCharge({
@@ -1271,6 +1394,7 @@ export async function handlePixPlanPurchase(params: {
       flowId: flow?.id || null,
     });
   } catch (error) {
+    usedFallback = true;
     console.warn("[pix-plan-warning] Falha ao criar cobrança no banco, tentando OmegaPay direto:", error);
     const directChargeId =
       typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function"
@@ -1307,18 +1431,7 @@ export async function handlePixPlanPurchase(params: {
 
   const priceFormatted = (amountCents / 100).toFixed(2).replace(".", ",");
 
-  await sendPixPaymentMessages({
-    token: params.token,
-    chatId: params.chatId,
-    chargeId: charge.id,
-    title: plan.name,
-    priceFormatted,
-    pixCode: charge.pix_code,
-    showBackToPlans: true,
-  });
-
-  // Registro em log e agendamento de downsells em background sem bloquear a resposta ao lead
-  void (async () => {
+  const sideEffectsPromise = (async () => {
     try {
       let leadName = "Lead";
       if (isUuid(params.leadId)) {
@@ -1335,35 +1448,62 @@ export async function handlePixPlanPurchase(params: {
         }
       }
 
-      await logActivity(
-        params.userId,
-        "pagamento",
-        `PIX gerado por ${leadName} - ${plan.name} (R$ ${priceFormatted})`,
-        charge.id,
-        {
-          lead_name: leadName,
-          lead_id: params.leadId,
-          plan_name: plan.name,
-          amount_cents: amountCents,
-        },
-      );
+      const bgTasks: Array<Promise<unknown>> = [
+        logActivity(
+          params.userId,
+          "pagamento",
+          `PIX gerado por ${leadName} - ${plan.name} (R$ ${priceFormatted})`,
+          charge.id,
+          {
+            lead_name: leadName,
+            lead_id: params.leadId,
+            plan_name: plan.name,
+            amount_cents: amountCents,
+          },
+        ),
+        import("@/lib/downsell.server").then(({ schedulePixDownsells }) =>
+          schedulePixDownsells({
+            userId: params.userId,
+            botId: params.botId,
+            leadId: params.leadId,
+            chatId: params.chatId,
+            orderId: charge.id,
+            flowId: flow?.id,
+          }),
+        ),
+      ];
+
+      if (usedFallback) {
+        bgTasks.push(
+          notify(
+            params.userId,
+            "info",
+            `⏳ Venda Gerada por ${leadName}!`,
+            `Novo pedido de R$ ${priceFormatted} aguardando pagamento por ${leadName} (${plan.name}).`,
+            "payment",
+            charge.id,
+          ),
+        );
+      }
+
+      await Promise.allSettled(bgTasks);
     } catch (bgErr) {
-      console.warn("[pix-plan-bg-log]", bgErr);
+      console.warn("[pix-plan-sideeffects-warn]", bgErr);
     }
   })();
 
-  import("@/lib/downsell.server")
-    .then(({ schedulePixDownsells }) =>
-      schedulePixDownsells({
-        userId: params.userId,
-        botId: params.botId,
-        leadId: params.leadId,
-        chatId: params.chatId,
-        orderId: charge.id,
-        flowId: flow?.id,
-      }),
-    )
-    .catch((e) => console.warn("[downsell-pix-schedule-bg]", e));
+  await Promise.allSettled([
+    sendPixPaymentMessages({
+      token: params.token,
+      chatId: params.chatId,
+      chargeId: charge.id,
+      title: plan.name,
+      priceFormatted,
+      pixCode: charge.pix_code,
+      showBackToPlans: true,
+    }),
+    sideEffectsPromise,
+  ]);
 }
 
 /**

@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { playCashRegisterSound, triggerSaleNotification, unlockAudio } from "@/lib/sound";
+import { playCashRegisterSound, subscribeDeviceToWebPush, triggerSaleNotification, unlockAudio } from "@/lib/sound";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -38,9 +38,13 @@ export function PwaInstallButton() {
     const isIosDevice = /iphone|ipad|ipod/.test(ua);
     setIsIos(isIosDevice);
 
-    // Verifica permissão de notificação
+    // Verifica permissão de notificação e mantém a assinatura Push sincronizada
     if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationsEnabled(Notification.permission === "granted");
+      const granted = Notification.permission === "granted";
+      setNotificationsEnabled(granted);
+      if (granted) {
+        subscribeDeviceToWebPush().catch(() => undefined);
+      }
     }
 
     // Captura evento de instalação PWA no Android/Chrome
@@ -84,7 +88,14 @@ export function PwaInstallButton() {
   const handleEnableNotifications = async () => {
     unlockAudio();
     if (typeof window === "undefined" || !("Notification" in window)) {
-      toast.error("Notificações não são suportadas neste navegador.");
+      if (isIos && !isInstalled) {
+        setShowIosModal(true);
+        toast.info(
+          "No iPhone, adicione o CASHBOT à Tela de Início e abra pelo ícone para receber notificações Push na tela bloqueada!",
+        );
+      } else {
+        toast.info("Alertas sonoros e visuais ativados no painel.");
+      }
       return;
     }
 
@@ -92,14 +103,16 @@ export function PwaInstallButton() {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
         setNotificationsEnabled(true);
-        toast.success("Notificações de vendas ativadas com sucesso!");
+        await subscribeDeviceToWebPush(undefined, true);
+        toast.success("Notificações Push de vendas ativadas no aparelho!");
         triggerSaleNotification({
+          id: `enable-${Date.now()}`,
           type: "approved",
           amountFormatted: "R$ 49,90",
           productName: "Notificações CASHBOT Ativadas",
         });
       } else {
-        toast.error("Permissão de notificação negada no navegador.");
+        toast.error("Permissão de notificação negada nas configurações do aparelho/navegador.");
       }
     } catch {
       toast.error("Erro ao solicitar permissão de notificações.");

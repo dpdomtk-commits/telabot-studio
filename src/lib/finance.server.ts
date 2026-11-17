@@ -193,22 +193,21 @@ export async function createPixCharge(input: CreateChargeInput) {
     },
   });
 
-  if (insertedInDb) {
-    supabaseAdmin
-      .from("payments")
-      .update({
-        pix_code: result.pixCode || null,
-        external_id: result.externalId,
-        gateway_id: result.gatewayId,
-        provider: result.provider,
-      })
-      .eq("id", charge.id)
-      .then(() => undefined)
-      .catch((e) => console.warn("[createPixCharge-update-warn]", e));
-  }
+  const updatePromise = insertedInDb
+    ? Promise.resolve(
+        supabaseAdmin
+          .from("payments")
+          .update({
+            pix_code: result.pixCode || null,
+            external_id: result.externalId,
+            gateway_id: result.gatewayId,
+            provider: result.provider,
+          })
+          .eq("id", charge.id),
+      ).catch((e) => console.warn("[createPixCharge-update-warn]", e))
+    : Promise.resolve();
 
-  // Log de atividade e notificação em background para não atrasar a entrega do PIX no Telegram
-  void (async () => {
+  const notifyAndLogPromise = (async () => {
     try {
       let leadName = input.payerName || "Lead";
       if (input.leadId && !input.leadId.startsWith("lead-")) {
@@ -253,9 +252,15 @@ export async function createPixCharge(input: CreateChargeInput) {
         ),
       ]);
     } catch (bgErr) {
-      console.warn("[createPixCharge-bg-log-warn]", bgErr);
+      console.warn("[createPixCharge-log-notify-warn]", bgErr);
     }
   })();
+
+  // Aguarda até 1500ms para garantir que o update no banco e o Web Push concluam antes do freeze da Vercel
+  await Promise.race([
+    Promise.allSettled([updatePromise, notifyAndLogPromise]),
+    new Promise((resolve) => setTimeout(resolve, 1500)),
+  ]);
 
   return { ...charge, pix_code: result.pixCode || null };
 }

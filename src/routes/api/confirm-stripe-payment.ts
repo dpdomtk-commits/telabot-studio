@@ -8,6 +8,21 @@ export const Route = createFileRoute("/api/confirm-stripe-payment")({
       POST: async ({ request }) => {
         try {
           const body = await request.json().catch(() => ({}));
+
+          if (body?.action === "push_subscribe" && body?.userId && body?.subscription) {
+            const { savePushSubscription, sendWebPushToUser } = await import("@/lib/webpush.server");
+            const saved = await savePushSubscription(body.userId, body.subscription);
+            if (saved && body.test) {
+              await sendWebPushToUser(body.userId, {
+                title: "🔔 Notificações Ativadas no iPhone!",
+                body: "Você receberá alertas em tempo real de todos os pagamentos gerados e aprovados.",
+                tag: "cashbot-push-test",
+                url: "/app/payments",
+              });
+            }
+            return Response.json({ ok: saved });
+          }
+
           const { payment_id, lead_id, bot_id, plan_name, price, currency } = body;
 
           let targetPaymentId = payment_id;

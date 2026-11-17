@@ -1,12 +1,12 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app/AppSidebar";
 import { NotificationBell } from "@/components/app/NotificationBell";
 import { PwaInstallButton } from "@/components/pwa/PwaInstallButton";
 import { supabase } from "@/integrations/supabase/client";
-import { playCashRegisterSound, triggerSaleNotification, unlockAudio } from "@/lib/sound";
+import { subscribeDeviceToWebPush, triggerSaleNotification, unlockAudio } from "@/lib/sound";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -30,12 +30,23 @@ export function useIsAdmin() {
   });
 }
 
+function formatPaymentAmount(currRaw: unknown, amountCents: unknown): string {
+  const curr = (typeof currRaw === "string" ? currRaw : "BRL").toUpperCase();
+  const symbol = curr === "EUR" ? "€" : curr === "GBP" ? "£" : curr === "USD" ? "$" : "R$";
+  const amountValue = (Number(amountCents) || 0) / 100;
+  return curr === "BRL" || curr === "EUR"
+    ? `${symbol} ${amountValue.toFixed(2).replace(".", ",")}`
+    : `${symbol} ${amountValue.toFixed(2)}`;
+}
+
 function AppLayout() {
   const { data: isAdmin } = useIsAdmin();
+  const qc = useQueryClient();
+  const seenPaymentStatesRef = useRef<Map<string, string>>(new Map());
+  const seededRef = useRef(false);
 
-  // Listener em tempo real (WebSocket/Realtime) para tocar som de caixa registradora e notificar a cada venda gerada ou paga
+  // Listener em tempo real (Realtime WebSocket + polling resiliente no iOS/PWA + Web Push VAPID)
   useEffect(() => {
-    // Desbloqueia áudio ao primeiro toque ou clique
     const handleFirstInteraction = () => {
       unlockAudio();
       window.removeEventListener("pointerdown", handleFirstInteraction);
@@ -43,6 +54,93 @@ function AppLayout() {
     };
     window.addEventListener("pointerdown", handleFirstInteraction, { once: true });
     window.addEventListener("keydown", handleFirstInteraction, { once: true });
+
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      subscribeDeviceToWebPush().catch(() => undefined);
+    }
+
+    const emitPaymentAlert = (rec: any) => {
+      if (!rec?.id) return;
+      const amountFormatted = formatPaymentAmount(rec.currency, rec.amount_cents);
+      const prodName = rec.product_name || rec.description || "Plano";
+
+      if (rec.status === "approved") {
+        const alerted = triggerSaleNotification({
+          id: rec.id,
+          type: "approved",
+          amountFormatted,
+          productName: prodName,
+        });
+        if (alerted) {
+          toast.success(`💸 Venda Aprovada! ${amountFormatted} (${prodName})`, { duration: 6000 });
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+        }
+        return;
+      }
+
+      if (rec.status === "pending") {
+        const alerted = triggerSaleNotification({
+          id: rec.id,
+          type: "generated",
+          amountFormatted,
+          productName: prodName,
+        });
+        if (alerted) {
+          toast.info(`⏳ Venda Gerada! ${amountFormatted} aguardando pagamento`, { duration: 5000 });
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+        }
+      }
+    };
+
+    const syncRecentPayments = async () => {
+      try {
+        const { data: rows } = await supabase
+          .from("payments")
+          .select("id,status,amount_cents,currency,product_name,description,created_at")
+          .order("created_at", { ascending: false })
+          .limit(12);
+
+        if (!rows) return;
+        const map = seenPaymentStatesRef.current;
+
+        if (!seededRef.current) {
+          for (const row of rows) {
+            map.set(row.id, row.status);
+          }
+          seededRef.current = true;
+          return;
+        }
+
+        for (const row of rows) {
+          const prevStatus = map.get(row.id);
+          if (prevStatus === undefined) {
+            map.set(row.id, row.status);
+            if (row.status === "pending" || row.status === "approved") {
+              emitPaymentAlert(row);
+            }
+          } else if (prevStatus !== row.status) {
+            map.set(row.id, row.status);
+            if (row.status === "approved") {
+              emitPaymentAlert(row);
+            }
+          }
+        }
+      } catch {
+        // polling silencioso em caso de queda temporária de rede móvel
+      }
+    };
+
+    syncRecentPayments();
+
+    const intervalId = window.setInterval(syncRecentPayments, 4000);
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        syncRecentPayments();
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
 
     const channel = supabase
       .channel("realtime-sales-notifications")
@@ -55,51 +153,55 @@ function AppLayout() {
         },
         (payload: any) => {
           const rec = payload.new;
+          if (!rec?.id) return;
+          const prevStatus = seenPaymentStatesRef.current.get(rec.id);
+          seenPaymentStatesRef.current.set(rec.id, rec.status);
+
+          if (rec.status === "approved" && prevStatus !== "approved") {
+            emitPaymentAlert(rec);
+          } else if (rec.status === "pending" && payload.eventType === "INSERT") {
+            emitPaymentAlert(rec);
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+        },
+        (payload: any) => {
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+          const rec = payload.new;
           if (!rec) return;
-
-          const curr = (rec.currency || "BRL").toUpperCase();
-          const symbol = curr === "EUR" ? "€" : curr === "GBP" ? "£" : curr === "USD" ? "$" : "R$";
-          const amountValue = (rec.amount_cents || 0) / 100;
-          const amountFormatted =
-            curr === "BRL" || curr === "EUR"
-              ? `${symbol} ${amountValue.toFixed(2).replace(".", ",")}`
-              : `${symbol} ${amountValue.toFixed(2)}`;
-
-          const prodName = rec.product_name || rec.description || "Plano";
-
-          // Evento: Venda Paga (Aprovada)
-          if (rec.status === "approved" && (payload.eventType === "UPDATE" || payload.eventType === "INSERT")) {
-            playCashRegisterSound();
-            triggerSaleNotification({
-              type: "approved",
-              amountFormatted,
-              productName: prodName,
+          if (rec.entity === "payment" && rec.entity_id) {
+            const type = rec.type === "success" ? "approved" : "generated";
+            const alerted = triggerSaleNotification({
+              id: rec.entity_id,
+              type,
+              amountFormatted: rec.title || "Novo pagamento",
+              productName: rec.body || undefined,
             });
-            toast.success(`💸 Venda Aprovada! ${amountFormatted} (${prodName})`, {
-              duration: 6000,
-            });
+            if (alerted) {
+              if (type === "approved") {
+                toast.success(rec.body || rec.title, { duration: 6000 });
+              } else {
+                toast.info(rec.body || rec.title, { duration: 5000 });
+              }
+            }
           }
-
-          // Evento: Venda Gerada (Novo PIX/pedido pendente nacional ou internacional)
-          if (rec.status === "pending" && payload.eventType === "INSERT") {
-            playCashRegisterSound();
-            triggerSaleNotification({
-              type: "generated",
-              amountFormatted,
-              productName: prodName,
-            });
-            toast.info(`⏳ Venda Gerada! ${amountFormatted} aguardando pagamento`, {
-              duration: 5000,
-            });
-          }
-        }
+        },
       )
       .subscribe();
 
     return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [qc]);
 
   return (
     <SidebarProvider>
