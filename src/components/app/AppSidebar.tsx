@@ -35,7 +35,6 @@ const items = [
   { title: "Fluxos", url: "/app/flows", icon: GitBranch },
   { title: "Remarketing", url: "/app/remarketing", icon: Clock },
   { title: "Financeiro", url: "/app/finance", icon: Wallet },
-  { title: "Gateways", url: "/app/gateways", icon: Network },
   { title: "Marketplace", url: "/app/marketplace", icon: Store },
   { title: "Leads", url: "/app/leads", icon: Users },
   { title: "Pagamentos", url: "/app/payments", icon: CreditCard },

@@ -137,27 +137,6 @@ function SettingsPage() {
 
       <Separator className="my-6" />
 
-      <div className="panel space-y-3 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-semibold flex items-center gap-2">
-              <CreditCard className="size-4 text-cyan-400" /> Gateways & Meios de Pagamento
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Configure suas credenciais da Stripe (cartões internacionais) e SyncPay / PIX.
-            </p>
-          </div>
-          <Link
-            to="/app/gateways"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition shrink-0"
-          >
-            Abrir Gateways <ExternalLink className="size-3.5" />
-          </Link>
-        </div>
-      </div>
-
-      <Separator className="my-6" />
-
       {mediaCache}
 
       <Separator className="my-6" />
