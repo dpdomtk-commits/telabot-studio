@@ -91,6 +91,25 @@ const statusLabels: Record<string, string> = {
   converted: "Convertido",
 };
 
+const msgKindLabels: Record<string, string> = {
+  command: "Comando",
+  flow_welcome: "Boas-vindas (Fluxo)",
+  plan_select: "Escolha de Plano",
+  pix_generated: "PIX Gerado",
+  payment_approved: "Pago · VIP Liberado",
+  callback: "Clique em Botão",
+  view_plans_button: "Botão Ver Planos",
+  trigger_plans_menu: "Cardápio Planos",
+  specific_plan: "Plano Direto",
+  resend_pending_pix: "PIX Reenviado",
+  custom_pix_offer: "Oferta PIX",
+  vip_link: "Link VIP",
+  photo: "Foto",
+  video: "Vídeo",
+  audio: "Áudio",
+  document: "Arquivo",
+};
+
 function cleanTelegramDisplayText(raw: string | null): string {
   if (!raw) return "";
   return raw.replace(/<\/?(?:b|strong|i|em|code|pre|u|s)>/gi, "");
@@ -98,7 +117,16 @@ function cleanTelegramDisplayText(raw: string | null): string {
 
 function formatChatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+    const hhmm = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return hhmm;
+    const ddmm = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    return `${ddmm} ${hhmm}`;
   } catch {
     return "";
   }
@@ -255,7 +283,9 @@ function LeadsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">{lead.telegram_id ?? "—"}</TableCell>
-                  <TableCell className="text-xs">{lead.bots?.name ?? "—"}</TableCell>
+                  <TableCell className="text-xs">
+                    {lead.bots?.name ?? bots?.[0]?.name ?? "Bot Principal"}
+                  </TableCell>
                   <TableCell>
                     {sum && sum.paidCount > 0 ? (
                       <div>
@@ -286,7 +316,7 @@ function LeadsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{formatDate(lead.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    {lead.telegram_id && lead.bot_id ? (
+                    {lead.telegram_id ? (
                       <Button
                         type="button"
                         size="sm"
@@ -303,7 +333,7 @@ function LeadsPage() {
                         )}
                       </Button>
                     ) : (
-                      <span className="text-[11px] text-zinc-500">Sem vínculo</span>
+                      <span className="text-[11px] text-zinc-500">Sem Telegram ID</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -482,6 +512,7 @@ function LeadsPage() {
 
       <LeadGuidedChatSheet
         lead={activeChatLead}
+        bots={bots ?? []}
         paymentSummary={activeChatLead ? paymentSummaryByLead.get(activeChatLead.id) : undefined}
         onClose={() => setActiveChatLead(null)}
       />
@@ -489,18 +520,28 @@ function LeadsPage() {
   );
 }
 
+type BotSummary = {
+  id: string;
+  name: string;
+  telegram_username: string | null;
+  status: "active" | "inactive";
+};
+
 function LeadGuidedChatSheet({
   lead,
+  bots,
   paymentSummary,
   onClose,
 }: {
   lead: Lead | null;
+  bots: BotSummary[];
   paymentSummary: { paidCents: number; paidCount: number; pendingCount: number } | undefined;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
 
+  const [selectedBotId, setSelectedBotId] = useState("");
   const [guidedMode, setGuidedMode] = useState<GuidedMode>("text");
   const [messageText, setMessageText] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
@@ -518,13 +559,41 @@ function LeadGuidedChatSheet({
     setSelectedPlanId("");
     setShowMediaBox(false);
     setMediaUrl("");
-  }, [lead?.id]);
+    const preferredBot =
+      lead?.bot_id ||
+      bots.find((b) => b.status === "active")?.id ||
+      bots[0]?.id ||
+      "";
+    setSelectedBotId(preferredBot);
+  }, [lead?.id, lead?.bot_id]);
+
+  useEffect(() => {
+    if (!selectedBotId && lead && bots.length > 0) {
+      const preferredBot =
+        lead.bot_id ||
+        bots.find((b) => b.status === "active")?.id ||
+        bots[0]?.id ||
+        "";
+      if (preferredBot) setSelectedBotId(preferredBot);
+    }
+  }, [bots, lead, selectedBotId]);
 
   const { data: chatData, isLoading: loadingChat } = useQuery({
-    queryKey: ["lead-chat-context", lead?.id],
+    queryKey: ["lead-chat-context", lead?.id, selectedBotId],
     enabled: Boolean(lead?.id),
-    refetchInterval: 3500,
-    queryFn: () => getLeadChatContext({ data: { leadId: lead!.id } }),
+    refetchInterval: 2000,
+    queryFn: () => {
+      const req: {
+        leadId: string;
+        botId?: string;
+        telegramId?: number;
+        leadName?: string;
+      } = { leadId: lead!.id };
+      if (selectedBotId) req.botId = selectedBotId;
+      if (typeof lead?.telegram_id === "number") req.telegramId = lead.telegram_id;
+      if (lead?.name) req.leadName = lead.name;
+      return getLeadChatContext({ data: req });
+    },
   });
 
   const conversationId = chatData?.ok ? chatData.conversationId : null;
@@ -543,10 +612,37 @@ function LeadGuidedChatSheet({
   }, [flowPlans, selectedPlanId]);
 
   useEffect(() => {
-    if (!lead?.id || !conversationId) return;
+    if (!lead?.id) return;
     const channel = supabase
-      .channel(`lead-chat-${conversationId}`)
+      .channel(`lead-live-${lead.id}-${conversationId ?? "no-conv"}`)
       .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
+          filter: `lead_id=eq.${lead.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead.id, selectedBotId] });
+          void qc.invalidateQueries({ queryKey: ["leads"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "activity_logs",
+          filter: `entity_id=eq.${lead.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead.id, selectedBotId] });
+        },
+      );
+
+    if (conversationId) {
+      channel.on(
         "postgres_changes",
         {
           event: "INSERT",
@@ -555,16 +651,18 @@ function LeadGuidedChatSheet({
           filter: `conversation_id=eq.${conversationId}`,
         },
         () => {
-          void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead.id] });
+          void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead.id, selectedBotId] });
           void qc.invalidateQueries({ queryKey: ["leads"] });
         },
-      )
-      .subscribe();
+      );
+    }
+
+    channel.subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [lead?.id, conversationId, qc]);
+  }, [lead?.id, conversationId, selectedBotId, qc]);
 
   useEffect(() => {
     if (scrollEndRef.current) {
@@ -580,6 +678,9 @@ function LeadGuidedChatSheet({
 
       const payload: {
         leadId: string;
+        botId?: string;
+        telegramId?: number;
+        leadName?: string;
         message: string;
         guidedMode: GuidedMode;
         mediaUrl?: string;
@@ -597,6 +698,10 @@ function LeadGuidedChatSheet({
         message: messageText,
         guidedMode,
       };
+
+      if (selectedBotId) payload.botId = selectedBotId;
+      if (typeof lead.telegram_id === "number") payload.telegramId = lead.telegram_id;
+      if (lead.name) payload.leadName = lead.name;
 
       const cleanMediaUrl = mediaUrl.trim();
       if (showMediaBox && cleanMediaUrl) {
@@ -628,11 +733,23 @@ function LeadGuidedChatSheet({
       }
       return res;
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       setMessageText("");
       setShowMediaBox(false);
       setMediaUrl("");
-      void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead?.id] });
+      if (res.messageRow && lead?.id) {
+        const addedMsg = res.messageRow;
+        qc.setQueryData(["lead-chat-context", lead.id, selectedBotId], (old: any) => {
+          if (!old || !old.ok) return old;
+          const prevList = (old.messages ?? []) as LeadChatMessageRow[];
+          if (prevList.some((m) => m.id === addedMsg.id)) return old;
+          return {
+            ...old,
+            messages: [...prevList, addedMsg],
+          };
+        });
+      }
+      void qc.invalidateQueries({ queryKey: ["lead-chat-context", lead?.id, selectedBotId] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
     },
     onError: (err: unknown) => {
@@ -736,10 +853,27 @@ function LeadGuidedChatSheet({
               )}
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-emerald-300 font-medium">
               <Zap className="size-3" /> Conversa Guiada pelo Bot · Sem interferir nos fluxos automáticos
             </span>
+            {bots.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400">Responder via:</span>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger className="h-6 text-[11px] w-44 bg-black/50 border-white/15">
+                    <SelectValue placeholder="Selecionar bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bots.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name} {b.status === "active" ? "• Online" : "• Offline"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </SheetHeader>
 
@@ -789,7 +923,7 @@ function LeadGuidedChatSheet({
                       </span>
                       {msg.kind !== "text" && (
                         <span className="rounded bg-black/25 px-1.5 py-0.5 uppercase tracking-wide text-[9px]">
-                          {msg.kind}
+                          {msgKindLabels[msg.kind] ?? msg.kind}
                         </span>
                       )}
                     </div>

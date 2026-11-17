@@ -21,6 +21,35 @@ const botConfigInFlight = new Map<string, Promise<BotConfigCacheEntry>>();
 // Cache temporário em memória de códigos PIX gerados (garante fallback de cópia mesmo se DB falhar)
 export const pixCodeCache = new Map<string, { code: string; expiresAt: number }>();
 
+export interface CachedChatMessage {
+  id: string;
+  direction: "in" | "out";
+  kind: string;
+  body: string;
+  file_id: string | null;
+  file_name: string | null;
+  telegram_message_id: number | null;
+  created_at: string;
+}
+
+export const leadChatMemoryCache = new Map<string, CachedChatMessage[]>();
+
+export function appendLeadChatMemory(
+  keys: Array<string | number | null | undefined>,
+  msg: CachedChatMessage,
+) {
+  for (const rawKey of keys) {
+    if (rawKey === null || rawKey === undefined || rawKey === "") continue;
+    const k = String(rawKey);
+    const list = leadChatMemoryCache.get(k) ?? [];
+    if (!list.some((m) => m.id === msg.id)) {
+      list.push(msg);
+      if (list.length > 200) list.shift();
+      leadChatMemoryCache.set(k, list);
+    }
+  }
+}
+
 export function invalidateBotCache(botId: string) {
   botConfigCache.delete(botId);
 }

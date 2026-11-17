@@ -237,27 +237,230 @@ export type LeadChatFlowPlan = {
   duration: string;
 };
 
+type ResolvedBotRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  token: string;
+  telegram_username: string | null;
+  status: string;
+};
+
+type ResolvedLeadRow = {
+  id: string;
+  user_id: string;
+  bot_id: string | null;
+  name: string | null;
+  telegram_id: number | null;
+  telegram_username: string | null;
+  status: string;
+  created_at: string;
+};
+
+async function resolveLeadAndBot(
+  context: { supabase: any; userId: string },
+  supabaseAdmin: any,
+  opts: {
+    leadId: string;
+    botId?: string | undefined;
+    telegramId?: number | undefined;
+    leadName?: string | undefined;
+  },
+): Promise<{ lead: ResolvedLeadRow | null; bot: ResolvedBotRow | null }> {
+  let lead: ResolvedLeadRow | null = null;
+
+  const authLeadRes = await context.supabase
+    .from("leads")
+    .select("id,user_id,bot_id,name,telegram_id,telegram_username,status,created_at")
+    .eq("id", opts.leadId)
+    .maybeSingle();
+  if (authLeadRes?.data) {
+    lead = authLeadRes.data as ResolvedLeadRow;
+  } else {
+    const adminLeadRes = await supabaseAdmin
+      .from("leads")
+      .select("id,user_id,bot_id,name,telegram_id,telegram_username,status,created_at")
+      .eq("id", opts.leadId)
+      .maybeSingle();
+    if (adminLeadRes?.data) {
+      lead = adminLeadRes.data as ResolvedLeadRow;
+    } else if (opts.telegramId) {
+      lead = {
+        id: opts.leadId,
+        user_id: context.userId,
+        bot_id: opts.botId ?? null,
+        name: opts.leadName ?? null,
+        telegram_id: opts.telegramId,
+        telegram_username: null,
+        status: "engaged",
+        created_at: new Date().toISOString(),
+      };
+    }
+  }
+
+  const findBotById = async (targetBotId: string | null | undefined): Promise<ResolvedBotRow | null> => {
+    if (!targetBotId) return null;
+    const authBot = await context.supabase
+      .from("bots")
+      .select("id,user_id,name,token,telegram_username,status")
+      .eq("id", targetBotId)
+      .maybeSingle();
+    if (authBot?.data?.token) return authBot.data as ResolvedBotRow;
+    const adminBot = await supabaseAdmin
+      .from("bots")
+      .select("id,user_id,name,token,telegram_username,status")
+      .eq("id", targetBotId)
+      .maybeSingle();
+    if (adminBot?.data?.token) return adminBot.data as ResolvedBotRow;
+    return null;
+  };
+
+  let bot = await findBotById(opts.botId);
+  if (!bot) bot = await findBotById(lead?.bot_id);
+
+  if (!bot) {
+    const activeAuth = await context.supabase
+      .from("bots")
+      .select("id,user_id,name,token,telegram_username,status")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activeAuth?.data?.token) {
+      bot = activeAuth.data as ResolvedBotRow;
+    } else {
+      const anyAuth = await context.supabase
+        .from("bots")
+        .select("id,user_id,name,token,telegram_username,status")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (anyAuth?.data?.token) bot = anyAuth.data as ResolvedBotRow;
+    }
+  }
+
+  if (!bot) {
+    const ownerId = lead?.user_id || context.userId;
+    const activeAdmin = await supabaseAdmin
+      .from("bots")
+      .select("id,user_id,name,token,telegram_username,status")
+      .eq("user_id", ownerId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activeAdmin?.data?.token) {
+      bot = activeAdmin.data as ResolvedBotRow;
+    } else {
+      const anyAdmin = await supabaseAdmin
+        .from("bots")
+        .select("id,user_id,name,token,telegram_username,status")
+        .eq("user_id", ownerId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (anyAdmin?.data?.token) bot = anyAdmin.data as ResolvedBotRow;
+    }
+  }
+
+  if (lead && bot && !lead.id.startsWith("lead-") && lead.bot_id !== bot.id) {
+    lead = { ...lead, bot_id: bot.id };
+    Promise.allSettled([
+      context.supabase.from("leads").update({ bot_id: bot.id }).eq("id", lead.id),
+      supabaseAdmin.from("leads").update({ bot_id: bot.id }).eq("id", lead.id),
+    ]).catch(() => undefined);
+  }
+
+  return { lead, bot };
+}
+
+async function ensureLeadConversation(
+  context: { supabase: any; userId: string },
+  supabaseAdmin: any,
+  params: {
+    userId: string;
+    botId: string | null;
+    leadId: string;
+    preview: string;
+    lastMessageAt: string;
+    resetUnread?: boolean;
+  },
+): Promise<string | null> {
+  if (params.leadId.startsWith("lead-")) return null;
+
+  const findExisting = async (client: any) => {
+    const res = await client
+      .from("conversations")
+      .select("id,unread_count")
+      .eq("lead_id", params.leadId)
+      .maybeSingle();
+    return (res?.data as { id: string; unread_count: number } | null) ?? null;
+  };
+
+  let existing = (await findExisting(context.supabase)) ?? (await findExisting(supabaseAdmin));
+  if (existing?.id) {
+    if (params.resetUnread) {
+      if ((existing.unread_count ?? 0) > 0) {
+        await Promise.allSettled([
+          context.supabase.from("conversations").update({ unread_count: 0 }).eq("id", existing.id),
+          supabaseAdmin.from("conversations").update({ unread_count: 0 }).eq("id", existing.id),
+        ]);
+      }
+    }
+    return existing.id;
+  }
+
+  const insertPayload = {
+    user_id: params.userId,
+    bot_id: params.botId,
+    lead_id: params.leadId,
+    status: "open",
+    last_message_at: params.lastMessageAt,
+    last_message_preview: params.preview.slice(0, 160),
+    unread_count: 0,
+  };
+
+  const authCreated = await context.supabase
+    .from("conversations")
+    .insert(insertPayload)
+    .select("id")
+    .maybeSingle();
+  if (authCreated?.data?.id) return authCreated.data.id as string;
+
+  const adminCreated = await supabaseAdmin
+    .from("conversations")
+    .insert(insertPayload)
+    .select("id")
+    .maybeSingle();
+  return (adminCreated?.data?.id as string | undefined) ?? null;
+}
+
 const leadChatContextSchema = z.object({
   leadId: z.string().min(1),
+  botId: z.string().optional(),
+  telegramId: z.number().optional(),
+  leadName: z.string().optional(),
 });
 
 export const getLeadChatContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => leadChatContextSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const [{ supabaseAdmin }, { normalizeAdvancedConfig }] = await Promise.all([
-      import("@/integrations/supabase/client.server"),
-      import("@/lib/flow-advanced"),
-    ]);
+    const [{ supabaseAdmin }, { normalizeAdvancedConfig }, { leadChatMemoryCache }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/flow-advanced"),
+        import("@/lib/telegram.server"),
+      ]);
 
-    const { data: lead, error: leadErr } = await supabaseAdmin
-      .from("leads")
-      .select("id,user_id,bot_id,name,telegram_id,telegram_username,status,created_at,bots(id,name,telegram_username,status)")
-      .eq("id", data.leadId)
-      .eq("user_id", context.userId)
-      .maybeSingle();
+    const { lead, bot } = await resolveLeadAndBot(context, supabaseAdmin, {
+      leadId: data.leadId,
+      botId: data.botId,
+      telegramId: data.telegramId,
+      leadName: data.leadName,
+    });
 
-    if (leadErr || !lead) {
+    if (!lead) {
       return {
         ok: false as const,
         error: "Lead não encontrado.",
@@ -269,100 +472,272 @@ export const getLeadChatContext = createServerFn({ method: "POST" })
       };
     }
 
-    const { data: existingConv } = await supabaseAdmin
-      .from("conversations")
-      .select("id,unread_count")
-      .eq("lead_id", lead.id)
-      .maybeSingle();
+    const ownerId = lead.user_id || context.userId;
+    const conversationId = await ensureLeadConversation(context, supabaseAdmin, {
+      userId: ownerId,
+      botId: bot?.id ?? lead.bot_id,
+      leadId: lead.id,
+      preview: "Conversa iniciada",
+      lastMessageAt: lead.created_at,
+      resetUnread: true,
+    });
 
-    let conversationId = existingConv?.id ?? null;
-    if (conversationId) {
-      if ((existingConv?.unread_count ?? 0) > 0) {
-        await supabaseAdmin
-          .from("conversations")
-          .update({ unread_count: 0 })
-          .eq("id", conversationId);
-      }
-    } else {
-      const { data: createdConv } = await supabaseAdmin
-        .from("conversations")
-        .insert({
-          user_id: context.userId,
-          bot_id: lead.bot_id,
-          lead_id: lead.id,
-          status: "open",
-          last_message_at: lead.created_at,
-          last_message_preview: "Conversa iniciada",
-          unread_count: 0,
-        })
-        .select("id")
-        .maybeSingle();
-      conversationId = createdConv?.id ?? null;
-    }
+    const fetchWithFallback = async <T>(
+      queryFn: (client: any) => Promise<{ data: T[] | null }>,
+    ): Promise<T[]> => {
+      const r1 = await queryFn(context.supabase);
+      if (r1?.data && r1.data.length > 0) return r1.data;
+      const r2 = await queryFn(supabaseAdmin);
+      return r2?.data ?? r1?.data ?? [];
+    };
 
-    const [messagesRes, paymentsRes, flowRes] = await Promise.all([
+    const [dbMessages, activityMsgLogs, payments, flowRows] = await Promise.all([
       conversationId
-        ? supabaseAdmin
-            .from("messages")
-            .select("id,conversation_id,direction,kind,body,file_id,file_name,telegram_message_id,created_at")
-            .eq("conversation_id", conversationId)
-            .order("created_at", { ascending: true })
-            .limit(200)
-        : Promise.resolve({ data: [] as LeadChatMessageRow[] }),
-      supabaseAdmin
-        .from("payments")
-        .select("id,amount_cents,status,product_name,pix_code,created_at,paid_at")
-        .eq("lead_id", lead.id)
-        .eq("user_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      lead.bot_id
-        ? supabaseAdmin
-            .from("flows")
-            .select("id,name,simple_config,status,is_active")
-            .eq("bot_id", lead.bot_id)
-            .eq("user_id", context.userId)
+        ? fetchWithFallback<LeadChatMessageRow>((c) =>
+            c
+              .from("messages")
+              .select("id,conversation_id,direction,kind,body,file_id,file_name,telegram_message_id,created_at")
+              .eq("conversation_id", conversationId)
+              .order("created_at", { ascending: true })
+              .limit(200),
+          )
+        : Promise.resolve([] as LeadChatMessageRow[]),
+      fetchWithFallback<{ id: string; action: string; metadata: any; created_at: string }>((c) =>
+        c
+          .from("activity_logs")
+          .select("id,action,metadata,created_at")
+          .eq("entity", "lead_chat_msg")
+          .eq("entity_id", lead.id)
+          .order("created_at", { ascending: true })
+          .limit(200),
+      ),
+      fetchWithFallback<LeadChatPaymentRow>((c) =>
+        c
+          .from("payments")
+          .select("id,amount_cents,status,product_name,pix_code,created_at,paid_at")
+          .eq("lead_id", lead.id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ),
+      fetchWithFallback<{ id: string; bot_id: string; name: string; simple_config: unknown; status: string; is_active: boolean }>(
+        (c) =>
+          (bot?.id
+            ? c
+                .from("flows")
+                .select("id,bot_id,name,simple_config,status,is_active")
+                .eq("bot_id", bot.id)
+            : c.from("flows").select("id,bot_id,name,simple_config,status,is_active")
+          )
             .order("is_active", { ascending: false })
             .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+            .limit(1),
+      ),
     ]);
 
     let flowPlans: LeadChatFlowPlan[] = [];
-    if (flowRes?.data?.simple_config) {
+    let welcomeCopy = "";
+    const activeFlow = flowRows[0];
+    if (activeFlow?.simple_config) {
       try {
-        const cfg = normalizeAdvancedConfig(flowRes.data.simple_config as Record<string, unknown>);
+        const cfg = normalizeAdvancedConfig(activeFlow.simple_config as Record<string, unknown>);
         flowPlans = (cfg.plans?.items ?? []).map((p) => ({
           id: p.id,
           name: p.name,
           price: Number(p.price) || 0,
           duration: p.duration || "Acesso",
         }));
+        welcomeCopy = (
+          cfg.welcome?.messagePt ||
+          cfg.welcome?.message ||
+          cfg.gate?.messagePt ||
+          cfg.gate?.message ||
+          ""
+        ).trim();
       } catch {
         flowPlans = [];
       }
     }
 
-    const botRel = lead.bots as unknown as {
-      id: string;
-      name: string;
-      telegram_username: string | null;
-      status: string;
-    } | null;
+    const fromActivityLogs: LeadChatMessageRow[] = activityMsgLogs
+      .map((row) => {
+        const meta = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<
+          string,
+          unknown
+        >;
+        const body = typeof meta["body"] === "string" ? meta["body"] : "";
+        if (!body) return null;
+        return {
+          id: typeof meta["id"] === "string" ? meta["id"] : `log-${row.id}`,
+          conversation_id: conversationId ?? lead.id,
+          direction: meta["direction"] === "out" || row.action === "out" ? "out" : "in",
+          kind: typeof meta["kind"] === "string" ? meta["kind"] : "text",
+          body,
+          file_id: typeof meta["file_id"] === "string" ? meta["file_id"] : null,
+          file_name: typeof meta["file_name"] === "string" ? meta["file_name"] : null,
+          telegram_message_id:
+            typeof meta["telegram_message_id"] === "number" ? meta["telegram_message_id"] : null,
+          created_at: typeof meta["created_at"] === "string" ? meta["created_at"] : row.created_at,
+        };
+      })
+      .filter((x): x is LeadChatMessageRow => x !== null);
+
+    const memoryKeys = [
+      lead.id,
+      lead.telegram_id ? String(lead.telegram_id) : null,
+      bot?.id && lead.telegram_id ? `${bot.id}:${lead.telegram_id}` : null,
+    ].filter((k): k is string => Boolean(k));
+
+    const fromMemory: LeadChatMessageRow[] = [];
+    for (const key of memoryKeys) {
+      for (const m of leadChatMemoryCache.get(key) ?? []) {
+        fromMemory.push({
+          id: m.id,
+          conversation_id: conversationId ?? lead.id,
+          direction: m.direction,
+          kind: m.kind,
+          body: m.body,
+          file_id: m.file_id,
+          file_name: m.file_name,
+          telegram_message_id: m.telegram_message_id,
+          created_at: m.created_at,
+        });
+      }
+    }
+
+    const realMessagesRaw = [...dbMessages, ...fromActivityLogs, ...fromMemory];
+    const hasRealStart = realMessagesRaw.some(
+      (m) => m.direction === "in" && (m.body ?? "").trim().startsWith("/start"),
+    );
+
+    const leadStartMs = new Date(lead.created_at).getTime();
+    const leadDisplayName =
+      lead.name || (lead.telegram_username ? `@${lead.telegram_username}` : "Cliente");
+    const synthesized: LeadChatMessageRow[] = [];
+
+    if (!hasRealStart) {
+      synthesized.push({
+        id: `synth-start-${lead.id}`,
+        conversation_id: conversationId ?? lead.id,
+        direction: "in",
+        kind: "command",
+        body: "/start",
+        file_id: null,
+        file_name: null,
+        telegram_message_id: null,
+        created_at: lead.created_at,
+      });
+
+      const resolvedWelcome = (
+        welcomeCopy ||
+        `Olá ${leadDisplayName}! Bem-vindo ao atendimento automático. Veja nossos planos e escolha a melhor opção abaixo.`
+      ).replace(/\{nome\}/gi, leadDisplayName);
+
+      synthesized.push({
+        id: `synth-welcome-${lead.id}`,
+        conversation_id: conversationId ?? lead.id,
+        direction: "out",
+        kind: "flow_welcome",
+        body: resolvedWelcome,
+        file_id: null,
+        file_name: null,
+        telegram_message_id: null,
+        created_at: new Date(leadStartMs + 1000).toISOString(),
+      });
+    }
+
+    const chronologicalPayments = [...payments].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+
+    for (const p of chronologicalPayments) {
+      const pMs = new Date(p.created_at).getTime();
+      const planTitle = p.product_name || "Plano VIP";
+      const priceFormatted = ((p.amount_cents || 0) / 100).toFixed(2).replace(".", ",");
+
+      synthesized.push({
+        id: `synth-pay-select-${p.id}`,
+        conversation_id: conversationId ?? lead.id,
+        direction: "in",
+        kind: "plan_select",
+        body: `🛍️ Selecionou o plano: ${planTitle} (R$ ${priceFormatted})`,
+        file_id: null,
+        file_name: null,
+        telegram_message_id: null,
+        created_at: new Date(pMs).toISOString(),
+      });
+
+      synthesized.push({
+        id: `synth-pay-pix-${p.id}`,
+        conversation_id: conversationId ?? lead.id,
+        direction: "out",
+        kind: "pix_generated",
+        body: p.pix_code
+          ? `💠 Cobrança PIX gerada: ${planTitle} — R$ ${priceFormatted}\n\n${p.pix_code}`
+          : `💠 Cobrança gerada: ${planTitle} — R$ ${priceFormatted}`,
+        file_id: null,
+        file_name: null,
+        telegram_message_id: null,
+        created_at: new Date(pMs + 1000).toISOString(),
+      });
+
+      if (p.status === "approved") {
+        const paidAt = p.paid_at || new Date(pMs + 5000).toISOString();
+        synthesized.push({
+          id: `synth-pay-approved-${p.id}`,
+          conversation_id: conversationId ?? lead.id,
+          direction: "out",
+          kind: "payment_approved",
+          body: `✅ Pagamento confirmado (${planTitle} — R$ ${priceFormatted}) e entrega VIP liberada para o cliente.`,
+          file_id: null,
+          file_name: null,
+          telegram_message_id: null,
+          created_at: paidAt,
+        });
+      }
+    }
+
+    const combined = [...synthesized, ...realMessagesRaw].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+
+    const deduped: LeadChatMessageRow[] = [];
+    const seenIds = new Set<string>();
+    for (const msg of combined) {
+      if (seenIds.has(msg.id)) continue;
+      const msgTime = new Date(msg.created_at).getTime();
+      const duplicateByContent = deduped.some(
+        (existing) =>
+          existing.direction === msg.direction &&
+          (existing.body ?? "").trim() === (msg.body ?? "").trim() &&
+          Math.abs(new Date(existing.created_at).getTime() - msgTime) < 10_000,
+      );
+      if (duplicateByContent) continue;
+      seenIds.add(msg.id);
+      deduped.push(msg);
+    }
 
     return {
       ok: true as const,
       conversationId,
-      messages: (messagesRes.data ?? []) as LeadChatMessageRow[],
-      payments: (paymentsRes.data ?? []) as LeadChatPaymentRow[],
+      messages: deduped,
+      payments,
       flowPlans,
-      botInfo: botRel,
+      botInfo: bot
+        ? {
+            id: bot.id,
+            name: bot.name,
+            telegram_username: bot.telegram_username,
+            status: bot.status,
+          }
+        : null,
     };
   });
 
 const leadChatSendSchema = z.object({
   leadId: z.string().min(1),
+  botId: z.string().optional(),
+  telegramId: z.number().optional(),
+  leadName: z.string().optional(),
   message: z.string().trim().max(4000).default(""),
   mediaUrl: z.string().trim().optional(),
   mediaKind: z.enum(["image", "video"]).optional(),
@@ -388,75 +763,114 @@ const leadChatSendSchema = z.object({
 });
 
 async function recordOutboundLeadMessage(params: {
+  contextSupabase: any;
   supabaseAdmin: any;
   userId: string;
   botId: string;
   leadId: string;
+  telegramId: number | null;
   leadStatus: string;
   kind: string;
   body: string;
   fileId?: string | null;
   telegramMessageId?: number | null;
-}): Promise<LeadChatMessageRow | null> {
+}): Promise<LeadChatMessageRow> {
   const nowIso = new Date().toISOString();
-  const { data: existingConv } = await params.supabaseAdmin
-    .from("conversations")
-    .select("id")
-    .eq("lead_id", params.leadId)
-    .maybeSingle();
+  const msgId = `out-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  let convId = existingConv?.id ?? null;
+  const convId = await ensureLeadConversation(
+    { supabase: params.contextSupabase, userId: params.userId },
+    params.supabaseAdmin,
+    {
+      userId: params.userId,
+      botId: params.botId,
+      leadId: params.leadId,
+      preview: params.body,
+      lastMessageAt: nowIso,
+    },
+  );
+
   if (convId) {
-    await params.supabaseAdmin
-      .from("conversations")
-      .update({
-        bot_id: params.botId,
-        status: "open",
-        last_message_at: nowIso,
-        last_message_preview: params.body.slice(0, 160),
-        unread_count: 0,
-      })
-      .eq("id", convId);
-  } else {
-    const { data: createdConv } = await params.supabaseAdmin
-      .from("conversations")
-      .insert({
-        user_id: params.userId,
-        bot_id: params.botId,
-        lead_id: params.leadId,
-        status: "open",
-        last_message_at: nowIso,
-        last_message_preview: params.body.slice(0, 160),
-        unread_count: 0,
-      })
-      .select("id")
-      .maybeSingle();
-    convId = createdConv?.id ?? null;
+    await Promise.allSettled([
+      params.contextSupabase
+        .from("conversations")
+        .update({
+          bot_id: params.botId,
+          status: "open",
+          last_message_at: nowIso,
+          last_message_preview: params.body.slice(0, 160),
+          unread_count: 0,
+        })
+        .eq("id", convId),
+      params.supabaseAdmin
+        .from("conversations")
+        .update({
+          bot_id: params.botId,
+          status: "open",
+          last_message_at: nowIso,
+          last_message_preview: params.body.slice(0, 160),
+          unread_count: 0,
+        })
+        .eq("id", convId),
+    ]);
   }
 
-  let messageRow: LeadChatMessageRow | null = null;
-  if (convId) {
-    const { data: insertedMsg } = await params.supabaseAdmin
-      .from("messages")
-      .insert({
-        conversation_id: convId,
-        user_id: params.userId,
-        direction: "out",
-        kind: params.kind,
-        body: params.body,
-        file_id: params.fileId ?? null,
-        telegram_message_id: params.telegramMessageId ?? null,
-      })
-      .select("id,conversation_id,direction,kind,body,file_id,file_name,telegram_message_id,created_at")
-      .maybeSingle();
-    messageRow = (insertedMsg as LeadChatMessageRow | null) ?? null;
+  const chatMsg = {
+    id: msgId,
+    direction: "out" as const,
+    kind: params.kind,
+    body: params.body,
+    file_id: params.fileId ?? null,
+    file_name: null,
+    telegram_message_id: params.telegramMessageId ?? null,
+    created_at: nowIso,
+  };
+
+  const { appendLeadChatMemory } = await import("@/lib/telegram.server");
+  appendLeadChatMemory(
+    [params.leadId, params.telegramId, `${params.botId}:${params.telegramId ?? ""}`],
+    chatMsg,
+  );
+
+  await Promise.allSettled([
+    params.contextSupabase.from("activity_logs").insert({
+      user_id: params.userId,
+      entity: "lead_chat_msg",
+      entity_id: params.leadId,
+      action: "out",
+      metadata: chatMsg as never,
+    }),
+    convId
+      ? params.supabaseAdmin.from("messages").insert({
+          conversation_id: convId,
+          user_id: params.userId,
+          direction: "out",
+          kind: params.kind,
+          body: params.body,
+          file_id: params.fileId ?? null,
+          telegram_message_id: params.telegramMessageId ?? null,
+        })
+      : Promise.resolve(),
+  ]);
+
+  if (params.leadStatus === "new" && !params.leadId.startsWith("lead-")) {
+    await Promise.allSettled([
+      params.contextSupabase.from("leads").update({ status: "engaged" }).eq("id", params.leadId),
+      params.supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", params.leadId),
+    ]);
   }
 
-  if (params.leadStatus === "new") {
-    await params.supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", params.leadId);
-  }
-
-  return messageRow;
+  return {
+    id: msgId,
+    conversation_id: convId ?? params.leadId,
+    direction: "out",
+    kind: params.kind,
+    body: params.body,
+    file_id: params.fileId ?? null,
+    file_name: null,
+    telegram_message_id: params.telegramMessageId ?? null,
+    created_at: nowIso,
+  };
 }
 
 export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
@@ -476,52 +890,69 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
       logActivity,
     } = telegramMod;
 
-    const { data: lead } = await supabaseAdmin
-      .from("leads")
-      .select("id,user_id,bot_id,name,telegram_id,telegram_username,status")
-      .eq("id", data.leadId)
-      .eq("user_id", context.userId)
-      .maybeSingle();
+    const { lead, bot } = await resolveLeadAndBot(context, supabaseAdmin, {
+      leadId: data.leadId,
+      botId: data.botId,
+      telegramId: data.telegramId,
+      leadName: data.leadName,
+    });
 
-    if (!lead || !lead.telegram_id || !lead.bot_id) {
-      return { ok: false as const, error: "Lead sem Telegram ID ou sem bot vinculado.", messageRow: null };
+    const targetTelegramId = lead?.telegram_id ?? data.telegramId ?? null;
+    if (!lead || !targetTelegramId) {
+      return {
+        ok: false as const,
+        error: "Este lead ainda não possui um Telegram ID válido para receber mensagens.",
+        messageRow: null,
+      };
     }
-
-    const { data: bot } = await supabaseAdmin
-      .from("bots")
-      .select("id,name,token,status")
-      .eq("id", lead.bot_id)
-      .eq("user_id", context.userId)
-      .maybeSingle();
 
     if (!bot || !bot.token) {
-      return { ok: false as const, error: "Bot vinculado não encontrado.", messageRow: null };
+      return {
+        ok: false as const,
+        error: "Nenhum bot com token configurado foi encontrado na sua conta.",
+        messageRow: null,
+      };
     }
 
-    const { data: latestPending } = await supabaseAdmin
+    const ownerId = lead.user_id || context.userId;
+
+    const pendingAuth = await context.supabase
       .from("payments")
       .select("id,pix_code,product_name,amount_cents")
       .eq("lead_id", lead.id)
-      .eq("user_id", context.userId)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    const latestPending =
+      pendingAuth?.data ??
+      (
+        await supabaseAdmin
+          .from("payments")
+          .select("id,pix_code,product_name,amount_cents")
+          .eq("lead_id", lead.id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )?.data ??
+      null;
+
     const targetPayment =
       data.paymentId && latestPending?.id !== data.paymentId
         ? (
-            await supabaseAdmin
+            await context.supabase
               .from("payments")
               .select("id,pix_code,product_name,amount_cents")
               .eq("id", data.paymentId)
               .eq("lead_id", lead.id)
-              .eq("user_id", context.userId)
               .maybeSingle()
-          ).data ?? latestPending
+          )?.data ?? latestPending
         : latestPending;
 
-    const leadName = lead.name || (lead.telegram_username ? `@${lead.telegram_username}` : "Cliente");
+    const leadName =
+      lead.name || (lead.telegram_username ? `@${lead.telegram_username}` : data.leadName || "Cliente");
     const planLabel = data.planName || data.offerTitle || targetPayment?.product_name || "Plano VIP";
     const pixCode = targetPayment?.pix_code || "";
 
@@ -532,7 +963,7 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
         .replace(/\{pix_copia_cola\}/gi, pixCode);
 
     let textToSend = renderVars(data.message || "");
-    const chatId = Number(lead.telegram_id);
+    const chatId = Number(targetTelegramId);
     let replyMarkup:
       | {
           inline_keyboard: Array<
@@ -658,7 +1089,7 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
       const { cfg } = await getCachedBotConfig(bot.id);
       await sendBrlPlansMenu(
         {
-          userId: context.userId,
+          userId: ownerId,
           botId: bot.id,
           token: bot.token,
           leadId: lead.id,
@@ -673,10 +1104,12 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
         : "🚀 [Cardápio oficial de Planos exibido no Telegram]";
 
       const messageRow = await recordOutboundLeadMessage({
+        contextSupabase: context.supabase,
         supabaseAdmin,
-        userId: context.userId,
+        userId: ownerId,
         botId: bot.id,
         leadId: lead.id,
+        telegramId: targetTelegramId,
         leadStatus: lead.status,
         kind: "trigger_plans_menu",
         body: loggedBody,
@@ -684,7 +1117,7 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
       });
 
       await logActivity(
-        context.userId,
+        ownerId,
         "lead_chat",
         `cardápio de planos enviado para ${leadName}`,
         lead.id,
@@ -730,10 +1163,12 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
         : data.guidedMode;
 
     const messageRow = await recordOutboundLeadMessage({
+      contextSupabase: context.supabase,
       supabaseAdmin,
-      userId: context.userId,
+      userId: ownerId,
       botId: bot.id,
       leadId: lead.id,
+      telegramId: targetTelegramId,
       leadStatus: lead.status,
       kind: msgKind,
       body: loggedBody,
@@ -742,7 +1177,7 @@ export const sendLeadGuidedMessage = createServerFn({ method: "POST" })
     });
 
     await logActivity(
-      context.userId,
+      ownerId,
       "lead_chat",
       `mensagem guiada (${data.guidedMode}) enviada para ${leadName}`,
       lead.id,

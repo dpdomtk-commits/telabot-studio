@@ -151,7 +151,6 @@ async function recordInboundLeadMessage(
     if (!realLeadId) {
       realLeadId = await resolveOrCreateLead(supabaseAdmin, bot, fromUser);
     }
-    if (!realLeadId || realLeadId.startsWith("lead-")) return;
 
     const rawText = (message.text ?? message.caption ?? "").trim();
     let kind = "text";
@@ -184,6 +183,22 @@ async function recordInboundLeadMessage(
 
     const nowIso = new Date().toISOString();
     const preview = (body || "Mídia recebida").slice(0, 160);
+    const { appendLeadChatMemory } = await import("@/lib/telegram.server");
+
+    const chatMsg = {
+      id: `in-${message.message_id ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      direction: "in" as const,
+      kind,
+      body: body || "",
+      file_id: fileId,
+      file_name: fileName,
+      telegram_message_id: message.message_id ?? null,
+      created_at: nowIso,
+    };
+
+    appendLeadChatMemory([realLeadId, fromUser.id, `${bot.id}:${fromUser.id}`], chatMsg);
+
+    if (!realLeadId || realLeadId.startsWith("lead-")) return;
 
     const { data: existingConv } = await supabaseAdmin
       .from("conversations")
@@ -222,21 +237,88 @@ async function recordInboundLeadMessage(
       convId = createdConv?.id ?? null;
     }
 
-    if (convId) {
-      await supabaseAdmin.from("messages").insert({
-        conversation_id: convId,
+    await Promise.allSettled([
+      supabaseAdmin.from("activity_logs").insert({
         user_id: bot.user_id,
-        direction: "in",
-        kind,
-        body: body || null,
-        file_id: fileId,
-        file_name: fileName,
-        telegram_message_id: message.message_id ?? null,
-      });
-    }
+        entity: "lead_chat_msg",
+        entity_id: realLeadId,
+        action: "in",
+        metadata: chatMsg as never,
+      }),
+      convId
+        ? supabaseAdmin.from("messages").insert({
+            conversation_id: convId,
+            user_id: bot.user_id,
+            direction: "in",
+            kind,
+            body: body || null,
+            file_id: fileId,
+            file_name: fileName,
+            telegram_message_id: message.message_id ?? null,
+          })
+        : Promise.resolve(),
+    ]);
   } catch (err) {
     console.warn("[recordInboundLeadMessage-warn]", err);
   }
+}
+
+function formatCallbackActionLabel(data: string): string {
+  if (data === "lang:pt") return "🇧🇷 Clicou no botão: Português";
+  if (data === "lang:en") return "🇺🇸 Clicou no botão: English";
+  if (data.startsWith("curr:")) return `💱 Selecionou moeda: ${data.slice(5)}`;
+  if (data === "view_plans" || data === "nav:plans") return "📋 Clicou em: Ver Planos";
+  if (data === "nav:lang") return "🌐 Clicou em: Alterar Idioma";
+  if (data === "nav:curr") return "💱 Clicou em: Alterar Moeda";
+  if (data.startsWith("pix_plan:")) return "💠 Selecionou plano no bot (gerando PIX)";
+  if (data.startsWith("intl_plan:")) return "💳 Selecionou plano internacional (Stripe)";
+  if (data.startsWith("copy_pix:")) return "📋 Clicou em: Copiar Código PIX";
+  if (data.startsWith("check_payment:")) return "✅ Clicou em: Já Paguei";
+  if (data.startsWith("downsell_pay:")) return "🔥 Clicou na oferta de Downsell";
+  if (data.startsWith("rmk_pix:")) return "🎁 Clicou na oferta promocional";
+  if (data.startsWith("offer:")) return "✨ Clicou em oferta adicional";
+  return `🔘 Clicou no botão: ${data.slice(0, 60)}`;
+}
+
+function logCallbackChatActionBg(
+  supabaseAdmin: any,
+  bot: BotCacheItem,
+  leadId: string | null,
+  fromUser: { id: number; username?: string | undefined; first_name?: string | undefined },
+  cbData: string,
+) {
+  if (!cbData) return;
+  const label = formatCallbackActionLabel(cbData);
+  const nowIso = new Date().toISOString();
+  const chatMsg = {
+    id: `cb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    direction: "in" as const,
+    kind: "callback",
+    body: label,
+    file_id: null,
+    file_name: null,
+    telegram_message_id: null,
+    created_at: nowIso,
+  };
+
+  import("@/lib/telegram.server")
+    .then(async ({ appendLeadChatMemory }) => {
+      const realLeadId =
+        leadId && !leadId.startsWith("lead-")
+          ? leadId
+          : await resolveOrCreateLead(supabaseAdmin, bot, fromUser);
+      appendLeadChatMemory([realLeadId, fromUser.id, `${bot.id}:${fromUser.id}`], chatMsg);
+      if (realLeadId && !realLeadId.startsWith("lead-")) {
+        await supabaseAdmin.from("activity_logs").insert({
+          user_id: bot.user_id,
+          entity: "lead_chat_msg",
+          entity_id: realLeadId,
+          action: "in",
+          metadata: chatMsg as never,
+        });
+      }
+    })
+    .catch(() => undefined);
 }
 
 export const Route = createFileRoute("/api/public/telegram/$botId")({
@@ -382,6 +464,10 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           import("@/lib/downsell.server")
             .then(({ processScheduledDownsells }) => processScheduledDownsells())
             .catch(() => undefined);
+
+          if (data) {
+            logCallbackChatActionBg(supabaseAdmin, bot, leadId, fromUser, data);
+          }
 
           // Botão fallback de cópia do Código PIX enviado isoladamente
           if (data.startsWith("copy_pix:")) {
