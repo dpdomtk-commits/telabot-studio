@@ -62,6 +62,7 @@ export async function getUserCredentials(
   if (!data?.client_id || !data.client_secret || data.status !== "connected") return null;
   return { clientId: data.client_id, clientSecret: data.client_secret };
 }
+
 export type GatewayChargeResult = {
   gatewayId: string | null;
   provider: string;
@@ -69,10 +70,13 @@ export type GatewayChargeResult = {
   pixCode: string;
 };
 
-
 /**
  * Tenta criar a cobrança percorrendo a fila de gateways (fallback inteligente).
  * Cada tentativa é registrada em gateway_attempts para alimentar as estatísticas.
+ *
+ * NOTA DE ARQUITETURA:
+ * O provedor Omega Payments oficial da plataforma é priorizado como gateway global padrão de PIX,
+ * dispensando qualquer configuração manual por parte dos vendedores.
  */
 export async function createChargeWithFallback(args: {
   userId: string;
@@ -81,10 +85,46 @@ export async function createChargeWithFallback(args: {
   fallbackConfig: { pixReceiverKey: string | null; pixReceiverName: string; pixReceiverCity: string };
   fallbackProvider: string;
 }): Promise<GatewayChargeResult> {
+  // 1. Provedor OmegaPay oficial da plataforma (PIX automático centralizado para todos os clientes sem necessidade de conta própria)
+  const omegaStarted = Date.now();
+  try {
+    const { createOmegaPixCharge } = await import("@/lib/payments/omegapay.server");
+    const result = await createOmegaPixCharge(args.input);
+    if (result.pixCode) {
+      await logAttempt({
+        userId: args.userId,
+        gatewayId: null,
+        paymentId: args.input.chargeId,
+        provider: "omegapay",
+        success: true,
+        amountCents: args.input.amountCents,
+        latencyMs: Date.now() - omegaStarted,
+      });
+      return {
+        gatewayId: null,
+        provider: "omegapay",
+        externalId: result.externalId,
+        pixCode: result.pixCode,
+      };
+    }
+  } catch (omegaErr: any) {
+    console.warn("[omegapay-platform-charge-failed-fallback]", omegaErr?.message);
+    await logAttempt({
+      userId: args.userId,
+      gatewayId: null,
+      paymentId: args.input.chargeId,
+      provider: "omegapay",
+      success: false,
+      amountCents: args.input.amountCents,
+      latencyMs: Date.now() - omegaStarted,
+      error: omegaErr?.message || "Falha OmegaPay",
+    });
+  }
+
+  // 2. Fallback: Fila de gateways customizados do usuário (se houver)
   const queue = await selectGateways(args.userId, args.input.amountCents, args.preferredGatewayId);
   const userCredentials = await getUserCredentials(args.userId);
 
-  // Credenciais SyncPay próprias do usuário têm prioridade sobre a fila.
   if (userCredentials) {
     const started = Date.now();
     try {
@@ -164,43 +204,7 @@ export async function createChargeWithFallback(args: {
     }
   }
 
-  // Provedor OmegaPay oficial da plataforma (PIX automático para todos os clientes sem necessidade de conta própria)
-  const omegaStarted = Date.now();
-  try {
-    const { createOmegaPixCharge } = await import("@/lib/payments/omegapay.server");
-    const result = await createOmegaPixCharge(args.input);
-    if (result.pixCode) {
-      await logAttempt({
-        userId: args.userId,
-        gatewayId: null,
-        paymentId: args.input.chargeId,
-        provider: "omegapay",
-        success: true,
-        amountCents: args.input.amountCents,
-        latencyMs: Date.now() - omegaStarted,
-      });
-      return {
-        gatewayId: null,
-        provider: "omegapay",
-        externalId: result.externalId,
-        pixCode: result.pixCode,
-      };
-    }
-  } catch (omegaErr: any) {
-    console.warn("[omegapay-platform-charge-failed-fallback-to-internal]", omegaErr?.message);
-    await logAttempt({
-      userId: args.userId,
-      gatewayId: null,
-      paymentId: args.input.chargeId,
-      provider: "omegapay",
-      success: false,
-      amountCents: args.input.amountCents,
-      latencyMs: Date.now() - omegaStarted,
-      error: omegaErr?.message || "Falha OmegaPay",
-    });
-  }
-
-  // Última linha de defesa: gateway interna com a chave global da plataforma.
+  // 3. Última linha de defesa: gateway interna com a chave global da plataforma.
   const started = Date.now();
   try {
     const result = await getProvider(args.fallbackProvider).createPixCharge(args.input, args.fallbackConfig);
@@ -216,7 +220,6 @@ export async function createChargeWithFallback(args: {
     });
     return { gatewayId: null, provider: result.provider || "internal", externalId: result.externalId, pixCode: result.pixCode };
   } catch (error) {
-    // Se o provedor configurado falhou e não era internal, aciona o internal imediatamente como garantia
     if (args.fallbackProvider !== "internal") {
       try {
         const internalResult = await getProvider("internal").createPixCharge(args.input, args.fallbackConfig);
@@ -255,7 +258,6 @@ export async function createChargeWithFallback(args: {
     });
     throw new Error(message);
   }
-
 }
 
 async function logAttempt(a: {
