@@ -52,6 +52,18 @@ export const Route = createFileRoute("/api/create-checkout-session")({
             }
           }
 
+          // Validação clara da chave secreta antes de disparar a requisição
+          const secretKey = (stripe as any)?._apiKey || process.env.STRIPE_SECRET_KEY || "";
+          if (!secretKey || secretKey === "sk_test_placeholder" || secretKey.length < 10) {
+            return Response.json(
+              {
+                error:
+                  "Credenciais Stripe não configuradas. Acesse o Painel CASH BOT > Gateways > Stripe e cadastre suas chaves de API (Publishable Key e Secret Key).",
+              },
+              { status: 400 }
+            );
+          }
+
           // TODO: Set mode to "subscription" if selling recurring products.
           const mode: "payment" | "subscription" = body?.mode === "subscription" ? "subscription" : "payment";
 

@@ -24,6 +24,7 @@ interface BotCacheItem {
   expiresAt: number;
 }
 const botDbCache = new Map<string, BotCacheItem>();
+const leadCache = new Map<string, { id: string; expiresAt: number }>();
 
 export const Route = createFileRoute("/api/public/telegram/$botId")({
   server: {
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             deliverForPayment,
             sendOfferCharge,
             sendMessage,
+            sendChatAction,
           } = await import("@/lib/telegram.server");
 
           // 1. Resolução ultrarrápida do bot via cache em memória (60s TTL)
@@ -93,6 +95,9 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           const from = update.message?.from ?? cb?.from;
           const chatId = update.message?.chat?.id ?? cb?.message?.chat?.id;
           if (!from?.id || !chatId) return Response.json({ ok: true, ignored: true });
+
+          // Dispara imediatamente o status "digitando..." para o lead
+          sendChatAction(bot.token, chatId, "typing").catch(() => undefined);
 
           // Encerra o "loading" do botão imediatamente (sem aguardar)
           if (cb?.id) {
@@ -158,31 +163,40 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             return Response.json({ ok: true });
           }
 
-          // Para callbacks ou outras mensagens, garante leadId no banco
-          const { data: existing } = await supabaseAdmin
-            .from("leads")
-            .select("id,status")
-            .eq("bot_id", bot.id)
-            .eq("telegram_id", from.id)
-            .maybeSingle();
+          // Para callbacks ou outras mensagens, garante leadId via cache em memória (zero latency)
+          const leadKey = `${bot.id}:${from.id}`;
+          let leadId = leadCache.get(leadKey)?.id ?? null;
 
-          let leadId = existing?.id ?? null;
           if (!leadId) {
-            const { data: created } = await supabaseAdmin
+            const { data: existing } = await supabaseAdmin
               .from("leads")
-              .insert({
-                user_id: bot.user_id,
-                bot_id: bot.id,
-                telegram_id: from.id,
-                telegram_username: from.username ?? null,
-                name: from.first_name ?? null,
-                status: "new",
-              })
-              .select("id")
+              .select("id,status")
+              .eq("bot_id", bot.id)
+              .eq("telegram_id", from.id)
               .maybeSingle();
-            leadId = created?.id ?? null;
-          } else if (existing?.status === "new") {
-            supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", leadId).then(() => undefined);
+
+            leadId = existing?.id ?? null;
+            if (!leadId) {
+              const { data: created } = await supabaseAdmin
+                .from("leads")
+                .insert({
+                  user_id: bot.user_id,
+                  bot_id: bot.id,
+                  telegram_id: from.id,
+                  telegram_username: from.username ?? null,
+                  name: from.first_name ?? null,
+                  status: "new",
+                })
+                .select("id")
+                .maybeSingle();
+              leadId = created?.id ?? null;
+            } else if (existing?.status === "new") {
+              supabaseAdmin.from("leads").update({ status: "engaged" }).eq("id", leadId).then(() => undefined);
+            }
+
+            if (leadId) {
+              leadCache.set(leadKey, { id: leadId, expiresAt: Date.now() + 300000 });
+            }
           }
 
           if (!leadId) return Response.json({ ok: true });

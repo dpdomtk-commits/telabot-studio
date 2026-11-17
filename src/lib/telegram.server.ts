@@ -19,6 +19,40 @@ export function invalidateBotCache(botId: string) {
   botConfigCache.delete(botId);
 }
 
+export async function getCachedBotConfig(botId: string): Promise<BotConfigCacheEntry> {
+  const now = Date.now();
+  let cached = botConfigCache.get(botId);
+  if (!cached || cached.expiresAt < now) {
+    const flow = await resolveBotFlow(botId);
+    const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+    const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+    cached = { flow, cfg, expiresAt: now + 60000 };
+    botConfigCache.set(botId, cached);
+  }
+  return cached;
+}
+
+export const userCredsCache = new Map<string, { pk?: string; expiresAt: number }>();
+
+export async function sendChatAction(
+  token: string,
+  chatId: number,
+  action: "typing" | "upload_photo" | "record_video" | "upload_video" | "choose_sticker" = "typing"
+) {
+  try {
+    return await fetch(`${API}/bot${token}/sendChatAction`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Connection: "keep-alive",
+      },
+      body: JSON.stringify({ chat_id: chatId, action }),
+    });
+  } catch (err) {
+    console.warn("[sendChatAction-err]", err);
+  }
+}
+
 async function callTelegram(token: string, method: string, body: unknown): Promise<TelegramSendResult> {
   try {
     const res = await fetch(`${API}/bot${token}/${method}`, {
@@ -361,7 +395,11 @@ export type LeadPreferences = {
   country?: string;
 };
 
+export const leadPrefsCache = new Map<string, LeadPreferences>();
+
 export async function getLeadPreferences(leadId: string): Promise<LeadPreferences> {
+  const cached = leadPrefsCache.get(leadId);
+  if (cached) return cached;
   try {
     const { data } = await supabaseAdmin
       .from("activity_logs")
@@ -372,7 +410,9 @@ export async function getLeadPreferences(leadId: string): Promise<LeadPreference
       .limit(1)
       .maybeSingle();
 
-    return (data?.metadata as LeadPreferences) ?? {};
+    const result = (data?.metadata as LeadPreferences) ?? {};
+    leadPrefsCache.set(leadId, result);
+    return result;
   } catch {
     return {};
   }
@@ -384,15 +424,23 @@ export async function setLeadPreferences(
   prefs: Partial<LeadPreferences>
 ) {
   try {
-    const current = await getLeadPreferences(leadId);
+    const current = leadPrefsCache.get(leadId) ?? (await getLeadPreferences(leadId));
     const updated = { ...current, ...prefs };
-    await supabaseAdmin.from("activity_logs").insert({
-      user_id: userId,
-      entity: "lead_preference",
-      action: "update_preferences",
-      entity_id: leadId,
-      metadata: updated as Record<string, unknown>,
-    });
+    leadPrefsCache.set(leadId, updated);
+
+    // Gravação assíncrona em background sem bloquear o envio de mensagens para o lead
+    supabaseAdmin
+      .from("activity_logs")
+      .insert({
+        user_id: userId,
+        entity: "lead_preference",
+        action: "update_preferences",
+        entity_id: leadId,
+        metadata: updated as Record<string, unknown>,
+      })
+      .then(() => undefined)
+      .catch((e) => console.warn("Falha ao salvar preferência do lead:", e));
+
     return updated;
   } catch (e) {
     console.warn("Falha ao salvar preferência do lead:", e);
@@ -455,16 +503,8 @@ export async function handleTelegramStart(params: {
   leadId: string;
   chatId: number;
 }) {
-  const now = Date.now();
-  let cached = botConfigCache.get(params.botId);
-  if (!cached || cached.expiresAt < now) {
-    const flow = await resolveBotFlow(params.botId);
-    const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-    const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
-    cached = { flow, cfg, expiresAt: now + 60000 };
-    botConfigCache.set(params.botId, cached);
-  }
-  const cfg = cached.cfg;
+  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
+  const { cfg } = await getCachedBotConfig(params.botId);
 
   const welcomeText =
     cfg.welcome?.startMessage?.trim() ||
@@ -517,20 +557,20 @@ export async function handleLanguageSelect(params: {
   messageId?: number;
   language: "pt" | "en";
 }) {
-  await setLeadPreferences(params.userId, params.leadId, { language: params.language });
+  // Mostra digitando imediatamente pro lead
+  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
+  setLeadPreferences(params.userId, params.leadId, { language: params.language });
 
   // 1. Remove a mensagem de escolha de idioma anterior (mantendo apenas as mídias no topo)
   if (params.messageId) {
-    await deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
+    deleteMessage(params.token, params.chatId, params.messageId).catch(() => undefined);
   }
 
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+  const { cfg } = await getCachedBotConfig(params.botId);
 
   if (params.language === "pt") {
     // Caso escolha português: vai aparecer a copy e embaixo todos os planos diretamente
-    await setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
+    setLeadPreferences(params.userId, params.leadId, { currency: "BRL" });
     await sendBrlPlansMenu(params, cfg, true);
   } else {
     // Caso seja inglês: vai aparecer a copy em inglês e embaixo as opções de dólar, euro e libra
@@ -565,11 +605,12 @@ export async function handleCurrencySelect(params: {
   messageId?: number;
   currency: "BRL" | "USD" | "EUR" | "GBP";
 }) {
-  await setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
+  // Mostra digitando imediatamente pro lead
+  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
+  setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
 
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig, formatCurrencyPrice } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+  const { cfg } = await getCachedBotConfig(params.botId);
+  const { formatCurrencyPrice } = await import("@/lib/flow-advanced");
 
   const planItems = cfg.plans?.items?.length
     ? cfg.plans.items
@@ -813,19 +854,24 @@ export async function handleInternationalPlanPurchase(params: {
   planId: string;
   currency: "USD" | "EUR" | "GBP";
 }) {
-  await setLeadPreferences(params.userId, params.leadId, {
+  // Mostra digitando imediatamente pro lead
+  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
+
+  // Background updates sem bloquear o envio da mensagem
+  setLeadPreferences(params.userId, params.leadId, {
     selectedPlanId: params.planId,
     currency: params.currency,
   });
 
-  await supabaseAdmin
+  supabaseAdmin
     .from("leads")
     .update({ status: "engaged" })
-    .eq("id", params.leadId);
+    .eq("id", params.leadId)
+    .then(() => undefined)
+    .catch(() => undefined);
 
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig, formatCurrencyPrice } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+  const { cfg } = await getCachedBotConfig(params.botId);
+  const { formatCurrencyPrice } = await import("@/lib/flow-advanced");
 
   const plan =
     cfg.plans?.items?.find((p: any) => p.id === params.planId) ||
@@ -863,16 +909,23 @@ export async function handleInternationalPlanPurchase(params: {
     checkoutParams.set("mode", plan.stripeMode);
   }
 
-  // Busca se o dono do bot configurou chave própria no painel
-  const { data: creds } = await supabaseAdmin
-    .from("user_gateway_credentials")
-    .select("client_id")
-    .eq("user_id", params.userId)
-    .eq("provider", "stripe")
-    .maybeSingle();
+  // Tenta recuperar a publishable key do usuário em memória
+  const creds = userCredsCache.get(params.userId);
+  if (creds?.pk) {
+    checkoutParams.set("pk", creds.pk);
+  } else {
+    // Busca do banco e armazena em cache
+    const { data: dbCreds } = await supabaseAdmin
+      .from("user_gateway_credentials")
+      .select("client_id")
+      .eq("user_id", params.userId)
+      .eq("provider", "stripe")
+      .maybeSingle();
 
-  if (creds?.client_id) {
-    checkoutParams.set("pk", creds.client_id);
+    if (dbCreds?.client_id) {
+      userCredsCache.set(params.userId, { pk: dbCreds.client_id, expiresAt: Date.now() + 300000 });
+      checkoutParams.set("pk", dbCreds.client_id);
+    }
   }
 
   const checkoutUrl = `${domain}/checkout?${checkoutParams.toString()}`;
@@ -917,14 +970,15 @@ export async function handlePixPlanPurchase(params: {
   chatId: number;
   planId: string;
 }) {
-  await setLeadPreferences(params.userId, params.leadId, {
+  // Mostra digitando imediatamente pro lead
+  sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
+
+  setLeadPreferences(params.userId, params.leadId, {
     selectedPlanId: params.planId,
     currency: "BRL",
   });
 
-  const flow = await resolveBotFlow(params.botId);
-  const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-  const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+  const { cfg, flow } = await getCachedBotConfig(params.botId);
 
   const plan =
     cfg.plans?.items?.find((p: any) => p.id === params.planId) ||
