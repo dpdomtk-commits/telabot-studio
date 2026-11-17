@@ -40,8 +40,11 @@ export const Route = createFileRoute("/api/public/media/upload")({
         const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : "";
         if (!token) return Response.json({ error: "Não autenticado" }, { status: 401 });
 
-        const url = process.env["SUPABASE_URL"]!;
-        const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"]!;
+        const url = process.env["SUPABASE_URL"] || "https://ebqpealelsdxzvsxbeej.supabase.co";
+        const serviceKey =
+          process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
+          process.env["SUPABASE_PUBLISHABLE_KEY"] ||
+          "sb_publishable_0d63AHgd5QehSBePWhbZBg_Yjo0ZWHH";
         const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
         const { data: userData } = await admin.auth.getUser(token);

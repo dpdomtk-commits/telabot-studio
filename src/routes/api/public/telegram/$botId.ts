@@ -351,15 +351,8 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           // 6. Confirmação manual de pagamento PIX
           if (data.startsWith("check_payment:")) {
             const paymentId = data.slice(14);
-            await supabaseAdmin
-              .from("payments")
-              .update({ status: "approved", approved_at: new Date().toISOString() })
-              .eq("id", paymentId);
-            await deliverForPayment(paymentId);
-            // Cancela downsells pendentes deste lead
-            import("@/lib/downsell.server").then(({ cancelPendingDownsells }) => {
-              cancelPendingDownsells({ leadId, orderId: paymentId });
-            }).catch(() => undefined);
+            const { approvePayment } = await import("@/lib/finance.server");
+            await approvePayment(paymentId);
             return Response.json({ ok: true });
           }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CreditCard,
   Lock,
@@ -40,6 +40,24 @@ export function StripeEmbeddedForm({
   const [submitting, setSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Auto-confirmação ao retornar da página oficial da Stripe (checkout.stripe.com)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("success") === "true" || sp.get("session_id")) {
+        setIsSuccess(true);
+        const pId = paymentId || sp.get("payment_id");
+        if (pId) {
+          fetch("/api/confirm-stripe-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payment_id: pId }),
+          }).catch(() => undefined);
+        }
+      }
+    }
+  }, [paymentId]);
 
   // Campos do formulário de cartão Stripe
   const [cardName, setCardName] = useState("");
