@@ -452,6 +452,50 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             return Response.json({ ok: true });
           }
 
+          // 6.2 Oferta PIX promocional enviada via Disparo/Campanha de Remarketing
+          if (data.startsWith("rmk_pix:")) {
+            const rawPayload = data.slice(8);
+            const sepIdx = rawPayload.indexOf(":");
+            const rawCents = sepIdx >= 0 ? rawPayload.slice(0, sepIdx) : rawPayload;
+            const rawTitle = sepIdx >= 0 ? rawPayload.slice(sepIdx + 1) : "Oferta Especial VIP";
+            const amountCents = Math.max(100, Number.parseInt(rawCents || "1990", 10) || 1990);
+            const offerTitle = (rawTitle || "Oferta Especial VIP").trim();
+
+            try {
+              const [{ createPixCharge }, { sendPixPaymentMessages }] = await Promise.all([
+                import("@/lib/finance.server"),
+                import("@/lib/telegram.server"),
+              ]);
+
+              const charge = await createPixCharge({
+                userId: bot.user_id,
+                botId: bot.id,
+                leadId,
+                amountCents,
+                description: offerTitle,
+                productName: offerTitle,
+              });
+
+              await sendPixPaymentMessages({
+                token: bot.token,
+                chatId,
+                chargeId: charge.id,
+                title: offerTitle,
+                priceFormatted: (amountCents / 100).toFixed(2).replace(".", ","),
+                pixCode: charge.pix_code,
+                showBackToPlans: true,
+              });
+            } catch (rmkErr) {
+              console.error("[telegram-webhook-rmk-pix-error]", rmkErr);
+              await sendMessage(
+                bot.token,
+                chatId,
+                "❌ Não foi possível gerar o PIX promocional agora. Tente novamente em instantes ou clique em <b>Ver Planos</b>.",
+              );
+            }
+            return Response.json({ ok: true });
+          }
+
           // 7. Ofertas / Bump / Upsell
           if (data.startsWith("offer:")) {
             await sendOfferCharge({

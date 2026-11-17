@@ -1,8 +1,9 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/routes/_authenticated/app";
 import { validatePixKey } from "@/lib/payments/pix";
 import {
   adjustWallet,
@@ -43,11 +44,13 @@ export const Route = createFileRoute("/_authenticated/app/admin-finance")({
 });
 
 function AdminFinancePage() {
+  const { data: isAdmin, isLoading: checkingAdmin } = useIsAdmin();
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-finance"] });
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-finance"],
+    enabled: !!isAdmin,
     queryFn: async () => {
       const [wallets, profiles, charges, withdrawals, settings] = await Promise.all([
         supabase.from("wallets").select("*").limit(200),
@@ -104,6 +107,20 @@ function AdminFinancePage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (checkingAdmin) return <Skeleton className="h-64 w-full" />;
+
+  if (!isAdmin) {
+    return (
+      <div className="panel p-8 text-center space-y-4">
+        <h2 className="text-xl font-bold text-white">Acesso restrito</h2>
+        <p className="text-sm text-zinc-400">Esta área administrativa é exclusiva do proprietário da plataforma.</p>
+        <Button asChild>
+          <Link to="/app/dashboard">Voltar ao Painel</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 

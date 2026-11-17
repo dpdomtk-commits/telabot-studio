@@ -103,10 +103,18 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={path.startsWith("/app/admin")} tooltip="Admin">
+                  <SidebarMenuButton asChild isActive={path === "/app/admin"} tooltip="Painel Admin & Saques">
                     <Link to="/app/admin">
                       <ShieldCheck className="size-4 text-red-500" />
-                      <span>Painel Admin</span>
+                      <span>Painel Admin & Saques</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={path.startsWith("/app/admin-finance")} tooltip="Financeiro Admin">
+                    <Link to="/app/admin-finance">
+                      <Wallet className="size-4 text-amber-400" />
+                      <span>Financeiro Admin</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

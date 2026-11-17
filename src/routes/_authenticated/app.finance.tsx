@@ -1,9 +1,9 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
-import { Copy, Wallet, Clock, ArrowDownToLine, TrendingUp } from "lucide-react";
+import { Copy, Wallet, Clock, ArrowDownToLine, TrendingUp, Flame, Search, Percent, CheckCircle2, Receipt } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { getFinanceFees, requestWithdrawal } from "@/lib/finance.functions";
@@ -58,6 +58,7 @@ function toCents(value: string) {
 
 function FinancePage() {
   const qc = useQueryClient();
+  const [periodFilter, setPeriodFilter] = useState<"today" | "7d" | "30d" | "all">("30d");
 
   const { data, isLoading } = useQuery({
     queryKey: ["finance"],
@@ -75,7 +76,7 @@ function FinancePage() {
           .from("payments")
           .select("id,amount_cents,fee_cents,net_cents,status,description,product_name,pix_code,expires_at,created_at,paid_at")
           .order("created_at", { ascending: false })
-          .limit(100),
+          .limit(400),
         supabase
           .from("withdrawals")
           .select("id,amount_cents,fee_cents,net_cents,status,pix_key,pix_key_type,rejection_reason,created_at")
@@ -143,6 +144,32 @@ function FinancePage() {
     { label: "Recebido no mês", value: formatBRL(monthTotal), icon: TrendingUp },
   ];
 
+  // Engrenagem de Conversão PIX (Métricas SharkBot)
+  const chargesList = data?.charges ?? [];
+  const periodCutoffMs =
+    periodFilter === "today"
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+      : periodFilter === "7d"
+      ? Date.now() - 7 * 86400000
+      : periodFilter === "30d"
+      ? Date.now() - 30 * 86400000
+      : 0;
+  const periodCharges =
+    periodFilter === "all"
+      ? chargesList
+      : chargesList.filter((c) => new Date(c.created_at).getTime() >= periodCutoffMs);
+  const generatedCount = periodCharges.length;
+  const generatedGrossCents = periodCharges.reduce((s, c) => s + (c.amount_cents || 0), 0);
+  const paidCharges = periodCharges.filter((c) => c.status === "approved");
+  const paidCount = paidCharges.length;
+  const paidGrossCents = paidCharges.reduce((s, c) => s + (c.amount_cents || 0), 0);
+  const paidNetCents = paidCharges.reduce((s, c) => s + (c.net_cents ?? c.amount_cents ?? 0), 0);
+  const pendingCharges = periodCharges.filter((c) => c.status === "pending");
+  const pendingCount = pendingCharges.length;
+  const pendingGrossCents = pendingCharges.reduce((s, c) => s + (c.amount_cents || 0), 0);
+  const pixConversionRate = generatedCount > 0 ? (paidCount / generatedCount) * 100 : 0;
+  const averageTicketCents = paidCount > 0 ? Math.round(paidGrossCents / paidCount) : 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -185,6 +212,104 @@ function FinancePage() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Engrenagem de Conversão PIX (Métricas SharkBot) */}
+      <div className="rounded-2xl border border-[#1049B8]/35 bg-[#09090E]/90 p-5 backdrop-blur space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Flame className="size-4 text-amber-400" />
+              Engrenagem de Conversão PIX & Recuperação
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Acompanhe em tempo real PIX gerados, taxa de aprovação, ticket médio e saldo recuperável.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: "today", label: "Hoje" },
+                { id: "7d", label: "7 dias" },
+                { id: "30d", label: "30 dias" },
+                { id: "all", label: "Tudo" },
+              ] as const
+            ).map((opt) => (
+              <Button
+                key={opt.id}
+                type="button"
+                size="sm"
+                variant={periodFilter === opt.id ? "default" : "outline"}
+                onClick={() => setPeriodFilter(opt.id)}
+                className={
+                  periodFilter === opt.id
+                    ? "bg-gradient-to-r from-[#1049B8] to-[#38BDF8] text-white text-xs h-7 px-3"
+                    : "border-white/10 text-zinc-400 hover:text-white text-xs h-7 px-3"
+                }
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-black/50 p-4 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-zinc-400">PIX Gerados vs. Pagos</span>
+              <Receipt className="size-4 text-[#38BDF8]" />
+            </div>
+            <p className="font-display text-xl font-black text-white">
+              {paidCount}{" "}
+              <span className="text-xs font-normal text-zinc-400">pagos / {generatedCount} gerados</span>
+            </p>
+            <p className="text-[11px] text-zinc-400">Volume gerado: {formatBRL(generatedGrossCents)}</p>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/50 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-zinc-400">Taxa de Conversão PIX</span>
+              <Percent className="size-4 text-emerald-400" />
+            </div>
+            <p className="font-display text-xl font-black text-emerald-400">{pixConversionRate.toFixed(1)}%</p>
+            <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#1049B8] to-emerald-400 transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, pixConversionRate))}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/50 p-4 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-zinc-400">Ticket Médio Aprovado</span>
+              <CheckCircle2 className="size-4 text-emerald-400" />
+            </div>
+            <p className="font-display text-xl font-black text-white">{formatBRL(averageTicketCents)}</p>
+            <p className="text-[11px] text-zinc-400">
+              Bruto {formatBRL(paidGrossCents)} · Líq. {formatBRL(paidNetCents)}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-amber-300">PIX Pendente Recuperável</span>
+              <Clock className="size-4 text-amber-400" />
+            </div>
+            <p className="font-display text-xl font-black text-amber-400">
+              {formatBRL(pendingGrossCents)}
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-zinc-400">{pendingCount} aguardando</span>
+              <Link
+                to="/app/remarketing"
+                className="text-[11px] font-bold text-[#38BDF8] hover:underline whitespace-nowrap"
+              >
+                Recuperar no Remarketing →
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* PEDIR SAQUE VIA PIX NA MESMA TELA */}
@@ -384,13 +509,58 @@ type Charge = {
 
 function ChargesTable({ charges }: { charges: Charge[] }) {
   const [selected, setSelected] = useState<Charge | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   if (charges.length === 0) {
     return <EmptyState title="Nenhuma cobrança" description="Cobranças PIX geradas pelos fluxos aparecem aqui." />;
   }
 
+  const paidTotal = charges.filter((c) => c.status === "approved").length;
+  const pendingTotal = charges.filter((c) => c.status === "pending").length;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const visibleCharges = charges.filter((c) => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (!normalizedQuery) return true;
+    const text = `${c.product_name ?? ""} ${c.description ?? ""} ${c.id}`.toLowerCase();
+    return text.includes(normalizedQuery);
+  });
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { id: "all", label: `Todas (${charges.length})` },
+              { id: "approved", label: `Pagas (${paidTotal})` },
+              { id: "pending", label: `Pendentes (${pendingTotal})` },
+            ] as const
+          ).map((pill) => (
+            <Button
+              key={pill.id}
+              type="button"
+              size="sm"
+              variant={statusFilter === pill.id ? "default" : "outline"}
+              onClick={() => setStatusFilter(pill.id)}
+              className="text-xs h-8"
+            >
+              {pill.label}
+            </Button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-72">
+          <Search className="size-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar produto, descrição ou ID..."
+            className="pl-8 h-8 text-xs"
+          />
+        </div>
+      </div>
+
       <div className="panel overflow-x-auto">
         <Table>
           <TableHeader>
@@ -405,29 +575,51 @@ function ChargesTable({ charges }: { charges: Charge[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {charges.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.product_name ?? c.description ?? "—"}</TableCell>
-                <TableCell>{formatBRL(c.amount_cents)}</TableCell>
-                <TableCell>{formatBRL(c.fee_cents ?? 0)}</TableCell>
-                <TableCell>{formatBRL(c.net_cents ?? 0)}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      c.status === "approved" ? "default" : c.status === "pending" ? "secondary" : "outline"
-                    }
-                  >
-                    {paymentStatusLabels[c.status] ?? c.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(c.created_at)}</TableCell>
-                <TableCell className="text-right">
-                  <Button size="sm" variant="secondary" disabled={!c.pix_code} onClick={() => setSelected(c)}>
-                    Ver QR Code
-                  </Button>
+            {visibleCharges.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-8">
+                  Nenhuma cobrança encontrada com este filtro.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              visibleCharges.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.product_name ?? c.description ?? "—"}</TableCell>
+                  <TableCell>{formatBRL(c.amount_cents)}</TableCell>
+                  <TableCell>{formatBRL(c.fee_cents ?? 0)}</TableCell>
+                  <TableCell>{formatBRL(c.net_cents ?? 0)}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        c.status === "approved" ? "default" : c.status === "pending" ? "secondary" : "outline"
+                      }
+                    >
+                      {paymentStatusLabels[c.status] ?? c.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(c.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      {c.pix_code ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(c.pix_code ?? "");
+                            toast.success("Código PIX copiado!");
+                          }}
+                        >
+                          <Copy className="size-3.5 mr-1" /> Copiar PIX
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="secondary" disabled={!c.pix_code} onClick={() => setSelected(c)}>
+                        Ver QR Code
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
