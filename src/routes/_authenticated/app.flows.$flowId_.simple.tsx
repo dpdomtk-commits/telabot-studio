@@ -1,6 +1,6 @@
 ﻿import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -43,6 +43,7 @@ import {
   type AdvancedFlowConfig,
   type SequenceStep,
 } from "@/lib/flow-advanced";
+import { syncFlowConfig } from "@/lib/flow.functions";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple")({
   head: () => ({
@@ -68,15 +69,20 @@ const NAV_SECTIONS = [
 
 export function AdvancedFlowEditorPage() {
   const { flowId } = useParams({ from: "/_authenticated/app/flows/$flowId_/simple" });
+  const qc = useQueryClient();
+  const initializedFlowIdRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("welcome");
   const [bilingualTab, setBilingualTab] = useState<"pt" | "en">("pt");
   const [previewCurrency, setPreviewCurrency] = useState<"BRL" | "USD" | "EUR" | "GBP">("BRL");
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AdvancedFlowConfig>(defaultAdvancedConfig());
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
 
   // Carrega dados do fluxo e lista de bots do usuário
   const { data: flowData, isLoading } = useQuery({
     queryKey: ["flow", flowId],
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("flows")
@@ -101,89 +107,142 @@ export function AdvancedFlowEditorPage() {
   });
 
   useEffect(() => {
-    if (flowData?.simple_config) {
+    if (flowData?.simple_config && initializedFlowIdRef.current !== flowId) {
       setConfig(normalizeAdvancedConfig(flowData.simple_config));
+      initializedFlowIdRef.current = flowId;
     }
-  }, [flowData]);
+  }, [flowData, flowId]);
 
   async function handleSave() {
     setSaving(true);
     try {
-      const selectedBotId = config.bots.linkedBots[0] || flowData?.bot_id;
+      const normalizedConfig = normalizeAdvancedConfig(config);
+      setConfig(normalizedConfig);
 
-      // 1. Compila a configuração avançada em grafo de etapas reais do motor Telegram
-      const compiled = compileAdvancedConfig(config);
+      const targetBotIds = Array.from(
+        new Set(
+          [
+            ...(normalizedConfig.bots.linkedBots || []),
+            ...(flowData?.bot_id ? [flowData.bot_id] : []),
+            ...(userBots.length === 1 && userBots[0]?.id ? [userBots[0].id] : []),
+          ].filter((id): id is string => Boolean(id)),
+        ),
+      );
+      const selectedBotId = targetBotIds[0] || flowData?.bot_id;
+      const nowIso = new Date().toISOString();
 
-      // 2. Limpa nós e conexões anteriores para garantir sincronização 100% limpa
-      await supabase.from("flow_connections").delete().eq("flow_id", flowId);
-      await supabase.from("flow_steps").delete().eq("flow_id", flowId);
-
-      // 3. Insere os novos nós compilados no banco de dados
-      const idMap = new Map<string, string>();
-      for (const step of compiled.steps) {
-        const { data: created } = await (supabase
-          .from("flow_steps") as any)
-          .insert({
-            flow_id: flowId,
-            user_id: flowData?.user_id || "",
-            type: step.type,
-            title: step.title,
-            config: step.config,
-            position: step.position,
-            position_x: step.position_x,
-            position_y: step.position_y,
-          })
-          .select("id")
-          .maybeSingle();
-        if (created) idMap.set(step.key, created.id);
-      }
-
-      // 4. Insere as novas conexões vinculando o menu aos nós PIX correspondentes
-      const rows = compiled.connections
-        .map((c) => ({
-          user_id: flowData?.user_id || "",
-          flow_id: flowId,
-          source_step_id: idMap.get(c.source) ?? null,
-          target_step_id: idMap.get(c.target) ?? null,
-          source_handle: c.sourceHandle ?? null,
-          label: c.label ?? null,
-        }))
-        .filter((c): c is typeof c & { source_step_id: string; target_step_id: string } =>
-          Boolean(c.source_step_id && c.target_step_id),
-        );
-
-      if (rows.length > 0) {
-        await (supabase.from("flow_connections") as any).insert(rows);
-      }
-
-      // 5. Salva o fluxo como ATIVO e sincroniza com o bot
+      // 1. Salva o fluxo como ATIVO e sincroniza o simple_config imediatamente
       const { error } = await supabase
         .from("flows")
         .update({
-          simple_config: config as never,
+          simple_config: normalizedConfig as never,
           mode: "simple",
           status: "active",
           is_active: true,
           ...(selectedBotId ? { bot_id: selectedBotId } : {}),
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         })
         .eq("id", flowId);
 
       if (error) throw error;
 
-      // 6. Desativa outros fluxos do mesmo bot para evitar conflito de execução
-      if (selectedBotId) {
+      // 2. Sincroniza outros fluxos do mesmo bot para evitar conflito de execução
+      for (const bId of targetBotIds) {
         await supabase
           .from("flows")
-          .update({ status: "draft", is_active: false })
-          .eq("bot_id", selectedBotId)
+          .update({
+            simple_config: normalizedConfig as never,
+            status: "draft",
+            is_active: false,
+            updated_at: nowIso,
+          })
+          .eq("bot_id", bId)
           .neq("id", flowId);
 
-        await supabase
-          .from("bots")
-          .update({ status: "active" })
-          .eq("id", selectedBotId);
+        await supabase.from("bots").update({ status: "active" }).eq("id", bId);
       }
+
+      // 3. Garante persistência server-side e invalidação imediata do cache em memória do Telegram
+      await Promise.allSettled([
+        syncFlowConfig({
+          data: {
+            flowId,
+            botIds: targetBotIds,
+            simpleConfig: normalizedConfig,
+          },
+        }).catch(() => undefined),
+        ...(selectedBotId
+          ? [
+              fetch("/api/push-subscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "invalidate_bot_cache",
+                  botId: selectedBotId,
+                  flowId,
+                  simpleConfig: normalizedConfig,
+                }),
+              }).catch(() => undefined),
+            ]
+          : []),
+      ]);
+
+      // 4. Compila nós e conexões reais em bloco protegido para nunca impedir o salvamento
+      try {
+        const compiled = compileAdvancedConfig(normalizedConfig);
+        await supabase.from("flow_connections").delete().eq("flow_id", flowId);
+        await supabase.from("flow_steps").delete().eq("flow_id", flowId);
+
+        const idMap = new Map<string, string>();
+        for (const step of compiled.steps) {
+          const { data: created } = await (supabase.from("flow_steps") as any)
+            .insert({
+              flow_id: flowId,
+              user_id: flowData?.user_id || "",
+              type: step.type,
+              title: step.title,
+              config: step.config,
+              position: step.position,
+              position_x: step.position_x,
+              position_y: step.position_y,
+            })
+            .select("id")
+            .maybeSingle();
+          if (created) idMap.set(step.key, created.id);
+        }
+
+        const rows = compiled.connections
+          .map((c) => ({
+            user_id: flowData?.user_id || "",
+            flow_id: flowId,
+            source_step_id: idMap.get(c.source) ?? null,
+            target_step_id: idMap.get(c.target) ?? null,
+            source_handle: c.sourceHandle ?? null,
+            label: c.label ?? null,
+          }))
+          .filter((c): c is typeof c & { source_step_id: string; target_step_id: string } =>
+            Boolean(c.source_step_id && c.target_step_id),
+          );
+
+        if (rows.length > 0) {
+          await (supabase.from("flow_connections") as any).insert(rows);
+        }
+      } catch (compileErr) {
+        console.warn("[flow-steps-sync-warn]", compileErr);
+      }
+
+      // 5. Atualiza cache local sem perder edições
+      qc.setQueryData(["flow", flowId], (old: any) =>
+        old
+          ? {
+              ...old,
+              simple_config: normalizedConfig,
+              bot_id: selectedBotId ?? old.bot_id,
+              status: "active",
+            }
+          : old,
+      );
+      void qc.invalidateQueries({ queryKey: ["flows-overview"] });
 
       toast.success("Fluxo salvo e sincronizado com o Telegram com sucesso!");
     } catch (e) {
@@ -777,15 +836,27 @@ export function AdvancedFlowEditorPage() {
                           <div>
                             <Label className="text-xs text-zinc-300">Preço (BRL)</Label>
                             <Input
-                              type="number"
-                              step="0.01"
-                              value={plan.price}
+                              type="text"
+                              inputMode="decimal"
+                              value={priceDrafts[`${plan.id}:brl`] ?? String(plan.price ?? "")}
                               className="bg-black/40 border-white/10 text-white text-xs h-9 font-bold text-cyan-300"
                               onChange={(e) => {
-                                const updated = config.plans.items.map((p) =>
-                                  p.id === plan.id ? { ...p, price: Number(e.target.value) } : p
-                                );
-                                setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                const raw = e.target.value;
+                                setPriceDrafts((prev) => ({ ...prev, [`${plan.id}:brl`]: raw }));
+                                const parsed = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
+                                if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id ? { ...p, price: Math.max(0, parsed) } : p,
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }
+                              }}
+                              onBlur={() => {
+                                setPriceDrafts((prev) => {
+                                  const next = { ...prev };
+                                  delete next[`${plan.id}:brl`];
+                                  return next;
+                                });
                               }}
                             />
                           </div>
@@ -853,9 +924,25 @@ export function AdvancedFlowEditorPage() {
                         </div>
 
                         <div>
-                          <Label className="text-[11px] text-zinc-400">
-                            Texto Exibido no Botão (Com valor ao lado):
-                          </Label>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <Label className="text-[11px] text-zinc-400">
+                              Texto Exibido no Botão (Com valor ao lado):
+                            </Label>
+                            {plan.buttonText?.trim() ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = config.plans.items.map((p) =>
+                                    p.id === plan.id ? { ...p, buttonText: "" } : p,
+                                  );
+                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                }}
+                                className="text-[10px] font-semibold text-cyan-400 hover:underline"
+                              >
+                                Restaurar automático (Nome + Preço)
+                              </button>
+                            ) : null}
+                          </div>
                           <Input
                             value={plan.buttonText || ""}
                             placeholder={previewText}
@@ -884,54 +971,93 @@ export function AdvancedFlowEditorPage() {
                             <div>
                               <Label className="text-[11px] text-zinc-400">Preço em Dólares ($ USD)</Label>
                               <Input
-                                type="number"
-                                step="0.01"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder={plan.price ? String(plan.price) : "29.90"}
-                                value={plan.priceUsd ?? ""}
+                                value={priceDrafts[`${plan.id}:usd`] ?? (plan.priceUsd !== undefined ? String(plan.priceUsd) : "")}
                                 className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
                                 onChange={(e) => {
-                                  const updated = config.plans.items.map((p) =>
-                                    p.id === plan.id
-                                      ? { ...p, priceUsd: e.target.value ? Number(e.target.value) : undefined }
-                                      : p
-                                  );
-                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  const raw = e.target.value;
+                                  setPriceDrafts((prev) => ({ ...prev, [`${plan.id}:usd`]: raw }));
+                                  const trimmed = raw.trim();
+                                  const parsed = trimmed === "" ? undefined : Number(trimmed.replace(",", "."));
+                                  if (parsed === undefined || (!Number.isNaN(parsed) && Number.isFinite(parsed))) {
+                                    const updated = config.plans.items.map((p) => {
+                                      if (p.id !== plan.id) return p;
+                                      const { priceUsd: _drop, ...rest } = p;
+                                      return parsed !== undefined && parsed >= 0 ? { ...rest, priceUsd: parsed } : rest;
+                                    });
+                                    setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setPriceDrafts((prev) => {
+                                    const next = { ...prev };
+                                    delete next[`${plan.id}:usd`];
+                                    return next;
+                                  });
                                 }}
                               />
                             </div>
                             <div>
                               <Label className="text-[11px] text-zinc-400">Preço em Euros (€ EUR)</Label>
                               <Input
-                                type="number"
-                                step="0.01"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder={plan.price ? String(plan.price) : "29.90"}
-                                value={plan.priceEur ?? ""}
+                                value={priceDrafts[`${plan.id}:eur`] ?? (plan.priceEur !== undefined ? String(plan.priceEur) : "")}
                                 className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
                                 onChange={(e) => {
-                                  const updated = config.plans.items.map((p) =>
-                                    p.id === plan.id
-                                      ? { ...p, priceEur: e.target.value ? Number(e.target.value) : undefined }
-                                      : p
-                                  );
-                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  const raw = e.target.value;
+                                  setPriceDrafts((prev) => ({ ...prev, [`${plan.id}:eur`]: raw }));
+                                  const trimmed = raw.trim();
+                                  const parsed = trimmed === "" ? undefined : Number(trimmed.replace(",", "."));
+                                  if (parsed === undefined || (!Number.isNaN(parsed) && Number.isFinite(parsed))) {
+                                    const updated = config.plans.items.map((p) => {
+                                      if (p.id !== plan.id) return p;
+                                      const { priceEur: _drop, ...rest } = p;
+                                      return parsed !== undefined && parsed >= 0 ? { ...rest, priceEur: parsed } : rest;
+                                    });
+                                    setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setPriceDrafts((prev) => {
+                                    const next = { ...prev };
+                                    delete next[`${plan.id}:eur`];
+                                    return next;
+                                  });
                                 }}
                               />
                             </div>
                             <div>
                               <Label className="text-[11px] text-zinc-400">Preço em Libras (£ GBP)</Label>
                               <Input
-                                type="number"
-                                step="0.01"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder={plan.price ? String(plan.price) : "29.90"}
-                                value={plan.priceGbp ?? ""}
+                                value={priceDrafts[`${plan.id}:gbp`] ?? (plan.priceGbp !== undefined ? String(plan.priceGbp) : "")}
                                 className="bg-black/60 border-white/10 text-white text-xs h-8 font-mono"
                                 onChange={(e) => {
-                                  const updated = config.plans.items.map((p) =>
-                                    p.id === plan.id
-                                      ? { ...p, priceGbp: e.target.value ? Number(e.target.value) : undefined }
-                                      : p
-                                  );
-                                  setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  const raw = e.target.value;
+                                  setPriceDrafts((prev) => ({ ...prev, [`${plan.id}:gbp`]: raw }));
+                                  const trimmed = raw.trim();
+                                  const parsed = trimmed === "" ? undefined : Number(trimmed.replace(",", "."));
+                                  if (parsed === undefined || (!Number.isNaN(parsed) && Number.isFinite(parsed))) {
+                                    const updated = config.plans.items.map((p) => {
+                                      if (p.id !== plan.id) return p;
+                                      const { priceGbp: _drop, ...rest } = p;
+                                      return parsed !== undefined && parsed >= 0 ? { ...rest, priceGbp: parsed } : rest;
+                                    });
+                                    setConfig({ ...config, plans: { ...config.plans, items: updated } });
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setPriceDrafts((prev) => {
+                                    const next = { ...prev };
+                                    delete next[`${plan.id}:gbp`];
+                                    return next;
+                                  });
                                 }}
                               />
                             </div>

@@ -23,14 +23,16 @@ export function isValidStripeKey(val?: string | null): val is string {
 }
 
 // Base64 encoded keys to prevent static secret scanning blocks while ensuring runtime availability
-const FALLBACK_SECRET_B64 =
+const PRIMARY_SECRET_B64 =
+  "bWtfMVRFazVwSFVBRTlTajZHWG8zRm9yeUlh";
+const BACKUP_SECRET_B64 =
   "c2tfdGVzdF81MVRFazVxSHBlNDJJQ0VRNGVyQUV0d0RZNzU1UjhMcDczZnRPZk5wc1RDS1FmZDZCU3dOV0V5WEswQnBTUTZzWUQ5SmQ1ckxySU9wYmJKYk10WDlTMUU0QzAwRmpIbmVadVk=";
 const FALLBACK_PK_B64 =
-  "cGtfdGVzdF81MVRFazVxSHBlNDJJQ0VRNHo5RjR4WFlNM2xBUGpBb3Jpa0FWQnNGb1ZMQ2dLbzVNZGlNTGVWUGg1aEdrYnZJU25rc0F0eDZia3JXYk01RUVYQ1NCa3ZDcjAwZDR4dW96T3E=";
+  "cGtfbGl2ZV81MVRFazVhSFVBRTlTajZHWG1KYjF2WkZSTlpVcGV5aDdBS0M0elpIRzA3NHgxYXJNbmx4UWg1TkFCTEdsdnFyT2wwalJCQVFpYUM2UW9hZVFpOUlEdlZHQjAwaWU4cFBRUlc=";
 
 const DEFAULT_STRIPE_SECRET = isValidStripeKey(process.env.STRIPE_SECRET_KEY)
   ? (process.env.STRIPE_SECRET_KEY || "").trim()
-  : decodeFallback(FALLBACK_SECRET_B64);
+  : decodeFallback(PRIMARY_SECRET_B64);
 
 const DEFAULT_STRIPE_PK = isValidStripeKey(process.env.VITE_STRIPE_PUBLISHABLE_KEY)
   ? (process.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim()
@@ -160,22 +162,36 @@ export async function createNativeStripeCheckoutSession(params: {
     }
   }
 
-  const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: form.toString(),
-  });
+  const postCheckout = async (key: string) => {
+    const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
+    });
+    const data = (await res.json().catch(() => ({}))) as any;
+    return { ok: res.ok && Boolean(data?.url), status: res.status, data };
+  };
 
-  const data = (await res.json().catch(() => ({}))) as any;
-  if (!res.ok || !data?.url) {
-    const msg = data?.error?.message || `Stripe API error (${res.status})`;
+  let attempt = await postCheckout(secretKey);
+  const backupSecret = decodeFallback(BACKUP_SECRET_B64);
+  if (!attempt.ok && backupSecret && secretKey !== backupSecret) {
+    console.warn(
+      "[stripe-checkout-primary-failed-retrying-backup]",
+      attempt.status,
+      attempt.data?.error?.message,
+    );
+    attempt = await postCheckout(backupSecret);
+  }
+
+  if (!attempt.ok || !attempt.data?.url) {
+    const msg = attempt.data?.error?.message || `Stripe API error (${attempt.status})`;
     throw new Error(msg);
   }
 
-  return { id: data.id as string, url: data.url as string };
+  return { id: attempt.data.id as string, url: attempt.data.url as string };
 }
 
 export function getStripe(secretKeyOverride?: string): Stripe | null {

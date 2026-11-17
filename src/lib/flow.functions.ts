@@ -82,3 +82,97 @@ export const duplicateFlow = createServerFn({ method: "POST" })
     return { ok: true, message: "Fluxo duplicado", flowId: copy.id };
   });
 
+const syncFlowSchema = z.object({
+  flowId: z.string().uuid(),
+  botIds: z.array(z.string().uuid()).default([]),
+  simpleConfig: z.unknown(),
+});
+
+/**
+ * Sincroniza a configuração salva do fluxo no servidor (via service_role / fallback autenticado)
+ * e atualiza imediatamente o cache em memória dos bots vinculados para refletir novos planos/preços.
+ */
+export const syncFlowConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => syncFlowSchema.parse(data))
+  .handler(async ({ data, context }): Promise<FlowActionResult> => {
+    const [{ supabaseAdmin }, { setCachedBotConfig, invalidateBotCache }, { normalizeAdvancedConfig }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/telegram.server"),
+        import("@/lib/flow-advanced"),
+      ]);
+
+    const normalized = normalizeAdvancedConfig(data.simpleConfig);
+    const nowIso = new Date().toISOString();
+    const targetBotIds = Array.from(new Set(data.botIds.filter(Boolean)));
+    const primaryBotId = targetBotIds[0];
+
+    const flowPatch = {
+      simple_config: normalized as never,
+      mode: "simple" as const,
+      status: "active" as const,
+      is_active: true,
+      ...(primaryBotId ? { bot_id: primaryBotId } : {}),
+      updated_at: nowIso,
+    };
+
+    const [authUpd] = await Promise.all([
+      context.supabase
+        .from("flows")
+        .update(flowPatch)
+        .eq("id", data.flowId)
+        .eq("user_id", context.userId),
+      supabaseAdmin
+        .from("flows")
+        .update(flowPatch)
+        .eq("id", data.flowId)
+        .eq("user_id", context.userId),
+    ]);
+
+    if (authUpd.error) {
+      return { ok: false, message: authUpd.error.message };
+    }
+
+    for (const botId of targetBotIds) {
+      await Promise.allSettled([
+        context.supabase
+          .from("flows")
+          .update({
+            simple_config: normalized as never,
+            status: "draft",
+            is_active: false,
+            updated_at: nowIso,
+          })
+          .eq("bot_id", botId)
+          .eq("user_id", context.userId)
+          .neq("id", data.flowId),
+        supabaseAdmin
+          .from("flows")
+          .update({
+            simple_config: normalized as never,
+            status: "draft",
+            is_active: false,
+            updated_at: nowIso,
+          })
+          .eq("bot_id", botId)
+          .eq("user_id", context.userId)
+          .neq("id", data.flowId),
+        context.supabase
+          .from("bots")
+          .update({ status: "active" })
+          .eq("id", botId)
+          .eq("user_id", context.userId),
+      ]);
+
+      invalidateBotCache(botId);
+      setCachedBotConfig(
+        botId,
+        { id: data.flowId, is_active: true, simple_config: normalized },
+        normalized,
+      );
+    }
+
+    return { ok: true, message: "Configuração sincronizada com sucesso!", flowId: data.flowId };
+  });
+

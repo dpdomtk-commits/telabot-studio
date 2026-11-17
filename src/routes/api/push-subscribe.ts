@@ -10,10 +10,34 @@ export const Route = createFileRoute("/api/push-subscribe")({
       POST: async ({ request }) => {
         try {
           const body = (await request.json().catch(() => ({}))) as {
+            action?: string;
+            botId?: string;
+            flowId?: string;
+            simpleConfig?: unknown;
             userId?: string;
             subscription?: unknown;
             test?: boolean;
           };
+
+          if (body.action === "invalidate_bot_cache") {
+            const [{ invalidateBotCache, setCachedBotConfig }, { normalizeAdvancedConfig }] =
+              await Promise.all([
+                import("@/lib/telegram.server"),
+                import("@/lib/flow-advanced"),
+              ]);
+            if (body.botId) {
+              invalidateBotCache(body.botId);
+              if (body.simpleConfig) {
+                const normalized = normalizeAdvancedConfig(body.simpleConfig);
+                setCachedBotConfig(
+                  body.botId,
+                  { id: body.flowId || body.botId, is_active: true, simple_config: normalized },
+                  normalized,
+                );
+              }
+            }
+            return Response.json({ ok: true });
+          }
 
           if (!body.userId || !body.subscription) {
             return Response.json(

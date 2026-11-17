@@ -230,7 +230,10 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               )
               .catch((e) => console.warn("[downsell-start-schedule-bg]", e));
 
-            leadUpsertPromise.catch(() => undefined);
+            await Promise.race([
+              leadUpsertPromise,
+              new Promise((resolve) => setTimeout(resolve, 350)),
+            ]).catch(() => undefined);
             return Response.json({ ok: true });
           }
 

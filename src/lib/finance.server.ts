@@ -55,6 +55,11 @@ export type CreateChargeInput = {
 
 
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(val?: string | null): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val);
+}
+
 /**
  * Cria uma cobrança PIX através da camada PaymentProvider.
  * A chave de idempotência evita cobranças duplicadas para o mesmo evento.
@@ -76,6 +81,44 @@ export async function createPixCharge(input: CreateChargeInput) {
         existing.provider === "omegapay" &&
         existing.amount_cents === input.amountCents
       ) {
+        try {
+          const { logActivity, notify } = await import("@/lib/telegram.server");
+          const amountFormatted = (existing.amount_cents / 100).toFixed(2).replace(".", ",");
+          const desc =
+            existing.product_name ||
+            existing.description ||
+            input.productName ||
+            input.description ||
+            "Plano";
+
+          await Promise.race([
+            Promise.allSettled([
+              logActivity(
+                input.userId,
+                "pagamento",
+                `PIX gerado - R$ ${amountFormatted} (${desc})`,
+                existing.id,
+                {
+                  lead_id: input.leadId ?? null,
+                  amount_cents: existing.amount_cents,
+                  description: desc,
+                  status: "pending",
+                },
+              ),
+              notify(
+                input.userId,
+                "info",
+                `⏳ Venda Gerada!`,
+                `Novo pedido de R$ ${amountFormatted} aguardando pagamento (${desc}).`,
+                "payment",
+                existing.id,
+              ),
+            ]),
+            new Promise((resolve) => setTimeout(resolve, 1200)),
+          ]);
+        } catch (reuseNotifyErr) {
+          console.warn("[createPixCharge-reuse-notify-warn]", reuseNotifyErr);
+        }
         return existing;
       }
       if (existing) {
@@ -142,8 +185,8 @@ export async function createPixCharge(input: CreateChargeInput) {
       .insert({
         user_id: input.userId,
         bot_id: input.botId ?? null,
-        lead_id: input.leadId ?? null,
-        flow_id: input.flowId ?? null,
+        lead_id: isUuid(input.leadId) ? input.leadId : null,
+        flow_id: isUuid(input.flowId) ? input.flowId : null,
         amount_cents: input.amountCents,
         description: input.description,
         product_name: input.productName ?? null,
@@ -210,16 +253,15 @@ export async function createPixCharge(input: CreateChargeInput) {
   const notifyAndLogPromise = (async () => {
     try {
       let leadName = input.payerName || "Lead";
-      if (input.leadId && !input.leadId.startsWith("lead-")) {
+      if (isUuid(input.leadId)) {
         const { data: lead } = await supabaseAdmin
           .from("leads")
-          .select("name,telegram_username,first_name,last_name")
+          .select("name,telegram_username")
           .eq("id", input.leadId)
           .maybeSingle();
         if (lead) {
           leadName =
             lead.name ||
-            [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
             (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
         }
       }
@@ -328,16 +370,15 @@ export async function approvePayment(paymentId: string, ip?: string | null) {
 
   // Busca o NOME DO LEAD QUE PAGOU
   let leadName = "Lead";
-  if (payment.lead_id) {
+  if (isUuid(payment.lead_id)) {
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("name,telegram_username,first_name,last_name")
+      .select("name,telegram_username")
       .eq("id", payment.lead_id)
       .maybeSingle();
     if (lead) {
       leadName =
         lead.name ||
-        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
         (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
     }
   }

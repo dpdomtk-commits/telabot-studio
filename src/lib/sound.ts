@@ -250,11 +250,18 @@ export function triggerSaleNotification(params: {
 
   playCashRegisterSound().catch(() => undefined);
 
+  const isRawTitle = /^(⏳|💸|🛒)/.test(params.amountFormatted.trim());
   const isApproved = params.type === "approved";
-  const title = isApproved ? "💸 Venda Aprovada!" : "⏳ Venda Gerada!";
-  const body = isApproved
-    ? `Você recebeu ${params.amountFormatted} no CASHBOT!${params.productName ? ` (${params.productName})` : ""}`
-    : `Novo pedido de ${params.amountFormatted}${params.productName ? ` (${params.productName})` : ""} aguardando pagamento.`;
+  const title = isRawTitle
+    ? params.amountFormatted
+    : isApproved
+      ? "💸 Venda Aprovada!"
+      : "⏳ Venda Gerada!";
+  const body = isRawTitle
+    ? params.productName || "Novo evento de pagamento no CASHBOT"
+    : isApproved
+      ? `Você recebeu ${params.amountFormatted} no CASHBOT!${params.productName ? ` (${params.productName})` : ""}`
+      : `Novo pedido de ${params.amountFormatted}${params.productName ? ` (${params.productName})` : ""} aguardando pagamento.`;
   const tag = params.id ? `cashbot-${params.type}-${params.id}` : `cashbot-${params.type}-${Date.now()}`;
 
   if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {

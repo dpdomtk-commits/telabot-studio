@@ -6,7 +6,12 @@ import { AppSidebar } from "@/components/app/AppSidebar";
 import { NotificationBell } from "@/components/app/NotificationBell";
 import { PwaInstallButton } from "@/components/pwa/PwaInstallButton";
 import { supabase } from "@/integrations/supabase/client";
-import { subscribeDeviceToWebPush, triggerSaleNotification, unlockAudio } from "@/lib/sound";
+import {
+  playCashRegisterSound,
+  subscribeDeviceToWebPush,
+  triggerSaleNotification,
+  unlockAudio,
+} from "@/lib/sound";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -38,6 +43,8 @@ function AppLayout() {
   const qc = useQueryClient();
   const seenPaymentStatesRef = useRef<Map<string, string>>(new Map());
   const seededRef = useRef(false);
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+  const seededNotificationsRef = useRef(false);
 
   // Listener em tempo real (Realtime WebSocket + polling resiliente no iOS/PWA + Web Push VAPID)
   useEffect(() => {
@@ -68,6 +75,8 @@ function AppLayout() {
         if (alerted) {
           toast.success(`💸 Venda Aprovada! ${amountFormatted} (${prodName})`, { duration: 6000 });
           qc.invalidateQueries({ queryKey: ["notifications"] });
+          qc.invalidateQueries({ queryKey: ["finance"] });
+          qc.invalidateQueries({ queryKey: ["payments"] });
         }
         return;
       }
@@ -82,40 +91,86 @@ function AppLayout() {
         if (alerted) {
           toast.info(`⏳ Venda Gerada! ${amountFormatted} aguardando pagamento`, { duration: 5000 });
           qc.invalidateQueries({ queryKey: ["notifications"] });
+          qc.invalidateQueries({ queryKey: ["finance"] });
+          qc.invalidateQueries({ queryKey: ["payments"] });
         }
       }
     };
 
     const syncRecentPayments = async () => {
       try {
-        const { data: rows } = await supabase
-          .from("payments")
-          .select("id,status,amount_cents,currency,product_name,description,created_at")
-          .order("created_at", { ascending: false })
-          .limit(12);
+        const [{ data: rows }, { data: notifRows }] = await Promise.all([
+          supabase
+            .from("payments")
+            .select("id,status,amount_cents,currency,product_name,description,created_at")
+            .order("created_at", { ascending: false })
+            .limit(15),
+          supabase
+            .from("notifications")
+            .select("id,type,title,body,entity,entity_id,created_at")
+            .order("created_at", { ascending: false })
+            .limit(15),
+        ]);
 
-        if (!rows) return;
-        const map = seenPaymentStatesRef.current;
+        if (rows) {
+          const map = seenPaymentStatesRef.current;
 
-        if (!seededRef.current) {
-          for (const row of rows) {
-            map.set(row.id, row.status);
+          if (!seededRef.current) {
+            for (const row of rows) {
+              map.set(row.id, row.status);
+            }
+            seededRef.current = true;
+          } else {
+            for (const row of rows) {
+              const prevStatus = map.get(row.id);
+              if (prevStatus === undefined) {
+                map.set(row.id, row.status);
+                if (row.status === "pending" || row.status === "approved") {
+                  emitPaymentAlert(row);
+                }
+              } else if (prevStatus !== row.status) {
+                map.set(row.id, row.status);
+                if (row.status === "approved") {
+                  emitPaymentAlert(row);
+                }
+              }
+            }
           }
-          seededRef.current = true;
-          return;
         }
 
-        for (const row of rows) {
-          const prevStatus = map.get(row.id);
-          if (prevStatus === undefined) {
-            map.set(row.id, row.status);
-            if (row.status === "pending" || row.status === "approved") {
-              emitPaymentAlert(row);
+        if (notifRows) {
+          const seenSet = seenNotificationIdsRef.current;
+          if (!seededNotificationsRef.current) {
+            for (const n of notifRows) {
+              seenSet.add(n.id);
             }
-          } else if (prevStatus !== row.status) {
-            map.set(row.id, row.status);
-            if (row.status === "approved") {
-              emitPaymentAlert(row);
+            seededNotificationsRef.current = true;
+          } else {
+            for (const n of notifRows) {
+              if (seenSet.has(n.id)) continue;
+              seenSet.add(n.id);
+              const isPaymentEvent =
+                n.entity === "payment" ||
+                /venda|pedido|pagamento|pix|stripe/i.test(`${n.title} ${n.body ?? ""}`);
+              if (isPaymentEvent) {
+                const notifType = n.type === "success" ? "approved" : "generated";
+                const alerted = triggerSaleNotification({
+                  id: n.entity_id || n.id,
+                  type: notifType,
+                  amountFormatted: n.title,
+                  productName: n.body ?? undefined,
+                });
+                if (alerted) {
+                  if (notifType === "approved") {
+                    toast.success(n.body || n.title, { duration: 6000 });
+                  } else {
+                    toast.info(n.body || n.title, { duration: 5000 });
+                  }
+                  qc.invalidateQueries({ queryKey: ["notifications"] });
+                  qc.invalidateQueries({ queryKey: ["finance"] });
+                  qc.invalidateQueries({ queryKey: ["payments"] });
+                }
+              }
             }
           }
         }
@@ -126,7 +181,7 @@ function AppLayout() {
 
     syncRecentPayments();
 
-    const intervalId = window.setInterval(syncRecentPayments, 4000);
+    const intervalId = window.setInterval(syncRecentPayments, 3000);
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === "visible") {
         syncRecentPayments();
@@ -135,6 +190,22 @@ function AppLayout() {
     };
     document.addEventListener("visibilitychange", handleVisibilityOrFocus);
     window.addEventListener("focus", handleVisibilityOrFocus);
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "PUSH_SALE_RECEIVED") {
+        playCashRegisterSound().catch(() => undefined);
+        const p = event.data.payload as { title?: string; body?: string } | undefined;
+        if (p?.title || p?.body) {
+          toast.info(p.body || p.title || "Novo evento de pagamento no CASHBOT", { duration: 5000 });
+        }
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+        qc.invalidateQueries({ queryKey: ["finance"] });
+        qc.invalidateQueries({ queryKey: ["payments"] });
+      }
+    };
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleSwMessage);
+    }
 
     const channel = supabase
       .channel("realtime-sales-notifications")
@@ -167,12 +238,18 @@ function AppLayout() {
         },
         (payload: any) => {
           qc.invalidateQueries({ queryKey: ["notifications"] });
+          qc.invalidateQueries({ queryKey: ["finance"] });
+          qc.invalidateQueries({ queryKey: ["payments"] });
           const rec = payload.new;
           if (!rec) return;
-          if (rec.entity === "payment" && rec.entity_id) {
+          if (rec.id) seenNotificationIdsRef.current.add(rec.id);
+          const isPaymentEvent =
+            rec.entity === "payment" ||
+            /venda|pedido|pagamento|pix|stripe/i.test(`${rec.title ?? ""} ${rec.body ?? ""}`);
+          if (isPaymentEvent) {
             const type = rec.type === "success" ? "approved" : "generated";
             const alerted = triggerSaleNotification({
-              id: rec.entity_id,
+              id: rec.entity_id || rec.id,
               type,
               amountFormatted: rec.title || "Novo pagamento",
               productName: rec.body || undefined,
@@ -193,6 +270,9 @@ function AppLayout() {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("focus", handleVisibilityOrFocus);
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+      }
       supabase.removeChannel(channel);
     };
   }, [qc]);

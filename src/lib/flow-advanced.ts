@@ -385,6 +385,51 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
   const rawWelcome = (value.welcome ?? {}) as Partial<AdvancedFlowConfig["welcome"]>;
   const welcomeMessage = rawWelcome.message ?? base.welcome.message;
 
+  const parseOptionalPrice = (rawVal: unknown): number | undefined => {
+    if (rawVal === undefined || rawVal === null || rawVal === "") return undefined;
+    const parsed = Number(String(rawVal).replace(",", "."));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  };
+
+  const rawItems = Array.isArray(value.plans?.items) && value.plans.items.length > 0
+    ? value.plans.items
+    : base.plans.items;
+
+  const normalizedPlanItems: AdvancedFlowConfig["plans"]["items"] = rawItems.map((item, idx) => {
+    const rawAny = item as Record<string, unknown>;
+    const rawPrice =
+      typeof item.price === "number" && !Number.isNaN(item.price)
+        ? item.price
+        : Number(String(item.price ?? 12.99).replace(",", "."));
+    const parsedUsd = parseOptionalPrice(item.priceUsd);
+    const parsedEur = parseOptionalPrice(item.priceEur);
+    const parsedGbp = parseOptionalPrice(item.priceGbp);
+    const rawInterval = rawAny["intervalDays"];
+    const duration =
+      item.duration ||
+      (rawInterval ? `${rawInterval} dias` : "Vitalício");
+
+    return {
+      id: String(item.id || `plan-${idx + 1}`),
+      name: String(item.name ?? "PLANO VIP"),
+      price: Number.isFinite(rawPrice) ? rawPrice : 12.99,
+      duration: String(duration),
+      ...(parsedUsd !== undefined ? { priceUsd: parsedUsd } : {}),
+      ...(parsedEur !== undefined ? { priceEur: parsedEur } : {}),
+      ...(parsedGbp !== undefined ? { priceGbp: parsedGbp } : {}),
+      ...(item.buttonText !== undefined ? { buttonText: String(item.buttonText) } : {}),
+      ...(item.emoji !== undefined ? { emoji: String(item.emoji) } : {}),
+      ...(item.buttonColor !== undefined ? { buttonColor: item.buttonColor } : {}),
+      ...(item.deliveryType !== undefined ? { deliveryType: item.deliveryType } : {}),
+      ...(item.deliveryCustomDestination !== undefined
+        ? { deliveryCustomDestination: item.deliveryCustomDestination }
+        : {}),
+      ...(item.hasCustomOrderBump !== undefined ? { hasCustomOrderBump: item.hasCustomOrderBump } : {}),
+      ...(item.stripePriceId !== undefined ? { stripePriceId: String(item.stripePriceId) } : {}),
+      ...(item.stripeMode !== undefined ? { stripeMode: item.stripeMode } : {}),
+    };
+  });
+
   return {
     ...base,
     ...value,
@@ -407,7 +452,11 @@ export function normalizeAdvancedConfig(raw: unknown): AdvancedFlowConfig {
       messageEn: rawWelcome.messageEn || base.welcome.messageEn,
       ctaEn: rawWelcome.ctaEn || base.welcome.ctaEn,
     },
-    plans: { ...base.plans, ...(value.plans ?? {}) },
+    plans: {
+      ...base.plans,
+      ...(value.plans ?? {}),
+      items: normalizedPlanItems,
+    },
     upsell: { ...base.upsell, ...(value.upsell ?? {}) },
     downsell: {
       ...base.downsell,
@@ -523,15 +572,20 @@ export function compileAdvancedConfig(config: AdvancedFlowConfig): CompiledFlow 
     return key;
   };
 
-  const link = (source: string, target: string, handle: string | null = null, label: string | null = null) =>
+  const seenLinks = new Set<string>();
+  const link = (source: string, target: string, handle: string | null = null, label: string | null = null) => {
+    const dedupKey = `${source}::${target}::${handle ?? ""}`;
+    if (seenLinks.has(dedupKey)) return;
+    seenLinks.add(dedupKey);
     connections.push({ source, target, sourceHandle: handle, label });
+  };
 
   let previous = add("start", "start", "Início", { trigger: "/start" });
 
   // 1. Mídias de boas-vindas
   if (config.welcome.media && config.welcome.media.length > 0) {
     if (config.welcome.mediaMode === "grouped" && config.welcome.media.length > 1) {
-      const albumKey = add("welcome-media-album", "media_group", "Álbum de Mídias", {
+      const albumKey = add("welcome-media-album", "image", "Álbum de Mídias", {
         media: config.welcome.media.map((m) => ({
           type: m.kind === "video" ? "video" : "photo",
           url: m.fileId || m.url || "",

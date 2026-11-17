@@ -7,8 +7,8 @@ export type TelegramSendResult = { ok: boolean; error?: string; result?: any };
 // Cache em memória de file_id do Telegram para evitar downloads/uploads repetidos
 export const telegramFileIdCache = new Map<string, string>();
 
-// Cache em memória de fluxo e configurações ativas do bot (TTL 5 min com stale-while-revalidate)
-const BOT_CONFIG_TTL_MS = 300_000;
+// Cache curto em memória de fluxo e configurações ativas do bot (TTL 2s para refletir edições imediatamente)
+const BOT_CONFIG_TTL_MS = 2_000;
 interface BotConfigCacheEntry {
   flow: any;
   cfg: any;
@@ -23,6 +23,15 @@ export const pixCodeCache = new Map<string, { code: string; expiresAt: number }>
 
 export function invalidateBotCache(botId: string) {
   botConfigCache.delete(botId);
+}
+
+export function setCachedBotConfig(botId: string, flow: any, cfg: any) {
+  botConfigCache.set(botId, {
+    flow,
+    cfg,
+    expiresAt: Date.now() + BOT_CONFIG_TTL_MS,
+    refreshing: false,
+  });
 }
 
 async function fetchBotConfigEntry(botId: string): Promise<BotConfigCacheEntry> {
@@ -52,13 +61,7 @@ async function fetchBotConfigEntry(botId: string): Promise<BotConfigCacheEntry> 
 export async function getCachedBotConfig(botId: string): Promise<BotConfigCacheEntry> {
   const now = Date.now();
   const cached = botConfigCache.get(botId);
-  if (cached) {
-    if (cached.expiresAt < now && !cached.refreshing) {
-      cached.refreshing = true;
-      fetchBotConfigEntry(botId).catch(() => {
-        cached.refreshing = false;
-      });
-    }
+  if (cached && cached.expiresAt > now) {
     return cached;
   }
   return fetchBotConfigEntry(botId);
@@ -405,7 +408,7 @@ export async function notify(
       sendWebPushToUser(userId, {
         title,
         body: body ?? title,
-        tag: entityId,
+        tag: `${entityId || "sale"}-${Date.now()}`,
         url: entity === "payment" ? "/app/payments" : "/app",
       }),
     ),
@@ -708,7 +711,10 @@ export function buildBrlPlansPayload(cfg: any) {
     });
     const emoji = plan.emoji ? `${plan.emoji} ` : "";
     const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
-    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
+    const rawBtn = plan.buttonText?.trim();
+    const label = rawBtn
+      ? rawBtn.replace(/\{nome\}/gi, plan.name).replace(/\{preco\}/gi, `R$ ${priceStr}`)
+      : `${emoji}${plan.name}${emojiRight} por R$ ${priceStr}`;
     inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
   }
 
@@ -825,7 +831,11 @@ export async function handleCurrencySelect(params: {
     const conv = formatCurrencyPrice(plan.price, params.currency, customPrice);
     const emoji = plan.emoji ? `${plan.emoji} ` : "";
     const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
-    const label = plan.buttonText?.trim() || `${emoji}${plan.name}${emojiRight} — ${conv.formatted}`;
+    const rawBtn = plan.buttonText?.trim();
+    const label =
+      rawBtn && !rawBtn.includes("R$")
+        ? rawBtn.replace(/\{nome\}/gi, plan.name).replace(/\{preco\}/gi, conv.formatted)
+        : `${emoji}${plan.name}${emojiRight} — ${conv.formatted}`;
     inline_keyboard.push([
       {
         text: label,
@@ -962,10 +972,25 @@ export async function sendIntlPlansMenu(
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
   for (const plan of planItems) {
-    const conv = formatCurrencyPrice(plan.price, currency);
+    const customPrice =
+      currency === "USD"
+        ? plan.priceUsd
+        : currency === "EUR"
+        ? plan.priceEur
+        : currency === "GBP"
+        ? plan.priceGbp
+        : undefined;
+    const conv = formatCurrencyPrice(plan.price, currency, customPrice);
+    const emoji = plan.emoji ? `${plan.emoji} ` : "⭐ ";
+    const emojiRight = plan.emoji ? ` ${plan.emoji}` : "";
+    const rawBtn = plan.buttonText?.trim();
+    const label =
+      rawBtn && !rawBtn.includes("R$")
+        ? rawBtn.replace(/\{nome\}/gi, plan.name).replace(/\{preco\}/gi, conv.formatted)
+        : `${emoji}${plan.name}${emojiRight} — ${conv.formatted}`;
     inline_keyboard.push([
       {
-        text: `⭐ ${plan.name} — ${conv.formatted} [ GET ACCESS ]`,
+        text: label,
         callback_data: `intl_plan:${plan.id}:${currency}`,
       },
     ]);
@@ -1056,20 +1081,21 @@ export async function handleInternationalPlanPurchase(params: {
 
   // Busca o nome do lead para salvar explicitamente no log de atividades e notificações
   let leadName = "Lead";
-  try {
-    const { data: lead } = await supabaseAdmin
-      .from("leads")
-      .select("name,telegram_username,first_name,last_name")
-      .eq("id", params.leadId)
-      .maybeSingle();
-    if (lead) {
-      leadName =
-        lead.name ||
-        [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
-        (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+  if (isUuid(params.leadId)) {
+    try {
+      const { data: lead } = await supabaseAdmin
+        .from("leads")
+        .select("name,telegram_username")
+        .eq("id", params.leadId)
+        .maybeSingle();
+      if (lead) {
+        leadName =
+          lead.name ||
+          (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
+      }
+    } catch {
+      // fallback
     }
-  } catch {
-    // fallback
   }
 
   // Registra IMEDIATAMENTE o pedido pendente em `payments` (dispara Realtime push notification + som de caixa registradora no celular)
@@ -1080,7 +1106,7 @@ export async function handleInternationalPlanPurchase(params: {
       .insert({
         user_id: params.userId,
         bot_id: params.botId,
-        lead_id: params.leadId,
+        lead_id: isUuid(params.leadId) ? params.leadId : null,
         amount_cents: amountCents,
         currency: params.currency,
         method: "card",
@@ -1390,7 +1416,7 @@ export async function handlePixPlanPurchase(params: {
         cfg.plans?.deliveryFallback ||
         "Pagamento confirmado com sucesso! Liberando seu acesso VIP...",
       expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-      idempotencyKey: `plan:${plan.id}:lead:${params.leadId}`,
+      idempotencyKey: `plan:${plan.id}:${amountCents}:lead:${params.leadId}`,
       flowId: flow?.id || null,
     });
   } catch (error) {
@@ -1437,13 +1463,12 @@ export async function handlePixPlanPurchase(params: {
       if (isUuid(params.leadId)) {
         const { data: lead } = await supabaseAdmin
           .from("leads")
-          .select("name,telegram_username,first_name,last_name")
+          .select("name,telegram_username")
           .eq("id", params.leadId)
           .maybeSingle();
         if (lead) {
           leadName =
             lead.name ||
-            [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
             (lead.telegram_username ? `@${lead.telegram_username}` : "Lead");
         }
       }
