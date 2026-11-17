@@ -8,6 +8,7 @@ import { validatePixKey, type PixKeyType } from "@/lib/payments/pix";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { UserSyncpayCard } from "@/components/app/UserSyncpayCard";
 import { UserStripeCard } from "@/components/app/UserStripeCard";
+import { OmegaPayCard } from "@/components/app/OmegaPayCard";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -295,8 +296,9 @@ function GatewaysPage() {
       />
 
       <div className="grid gap-6">
-        <UserSyncpayCard />
+        <OmegaPayCard />
         <UserStripeCard />
+        <UserSyncpayCard />
       </div>
 
 

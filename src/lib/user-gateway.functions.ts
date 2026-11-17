@@ -35,14 +35,41 @@ export const getMySyncpay = createServerFn({ method: "GET" })
       .eq("provider", "syncpay")
       .maybeSingle();
 
-    if (!data) return empty(webhookUrl);
-    const clientId = data.client_id ?? "";
+    let clientId = data?.client_id ?? "";
+    let clientSecret = data?.client_secret ?? "";
+    let status = (data?.status as UserGatewayStatus["status"]) ?? "disconnected";
+    let lastError = data?.last_error ?? null;
+    let lastCheckedAt = data?.last_checked_at ?? null;
+
+    if (!clientId || !clientSecret) {
+      try {
+        const { data: gw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("credentials, updated_at")
+          .eq("user_id", context.userId)
+          .eq("name", "SyncPay")
+          .maybeSingle();
+
+        if (gw?.credentials && typeof gw.credentials === "object") {
+          const c = gw.credentials as any;
+          if (c.clientId && c.clientSecret) {
+            clientId = c.clientId;
+            clientSecret = c.clientSecret;
+            status = c.status || "connected";
+            lastError = c.last_error || null;
+            lastCheckedAt = c.last_checked_at || gw.updated_at || null;
+          }
+        }
+      } catch {}
+    }
+
+    if (!clientId && !clientSecret) return empty(webhookUrl);
     return {
-      configured: Boolean(clientId && data.client_secret),
+      configured: Boolean(clientId && clientSecret),
       clientIdMasked: clientId ? `${clientId.slice(0, 8)}••••${clientId.slice(-4)}` : "",
-      status: (data.status as UserGatewayStatus["status"]) ?? "disconnected",
-      lastError: data.last_error ?? null,
-      lastCheckedAt: data.last_checked_at ?? null,
+      status,
+      lastError,
+      lastCheckedAt,
       webhookUrl,
     };
   });
@@ -67,6 +94,7 @@ export const saveMySyncpay = createServerFn({ method: "POST" })
       clientSecret: data.clientSecret,
     });
 
+    let saved = false;
     const { error } = await supabaseAdmin.from("user_gateway_credentials").upsert(
       {
         user_id: context.userId,
@@ -79,7 +107,49 @@ export const saveMySyncpay = createServerFn({ method: "POST" })
       },
       { onConflict: "user_id,provider" },
     );
-    if (error) return { ok: false, message: error.message };
+    if (!error) {
+      saved = true;
+    } else {
+      console.warn("[saveMySyncpay-fallback-to-payment_gateways]", error.message);
+      try {
+        const payload = {
+          clientId: data.clientId,
+          clientSecret: data.clientSecret,
+          status: check.ok ? "connected" : "error",
+          last_error: check.ok ? null : check.message,
+          last_checked_at: new Date().toISOString(),
+        };
+        const { data: existingGw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("id")
+          .eq("user_id", context.userId)
+          .eq("name", "SyncPay")
+          .maybeSingle();
+
+        if (existingGw?.id) {
+          const { error: updErr } = await supabaseAdmin
+            .from("payment_gateways")
+            .update({ credentials: payload, is_active: true, updated_at: new Date().toISOString() })
+            .eq("id", existingGw.id);
+          if (!updErr) saved = true;
+        } else {
+          const { error: insErr } = await supabaseAdmin
+            .from("payment_gateways")
+            .insert({
+              user_id: context.userId,
+              name: "SyncPay",
+              provider: "custom",
+              is_active: true,
+              credentials: payload,
+            });
+          if (!insErr) saved = true;
+        }
+      } catch (fbErr) {
+        console.warn("[saveMySyncpay-fallback-failed]", fbErr);
+      }
+    }
+
+    if (!saved && error) return { ok: false, message: error.message };
 
     return {
       ok: check.ok,
@@ -171,16 +241,18 @@ export const getMyStripe = createServerFn({ method: "GET" })
       .eq("provider", "stripe")
       .maybeSingle();
 
-    if (!data) return emptyStripe(webhookUrl);
-    const pk = data.client_id ?? "";
-    let sk = data.client_secret ?? "";
+    let pk = data?.client_id ?? "";
+    let sk = data?.client_secret ?? "";
     let wh = "";
+    let status = (data?.status as UserStripeStatus["status"]) ?? "disconnected";
+    let lastError = data?.last_error ?? null;
+    let lastCheckedAt = data?.last_checked_at ?? null;
 
     if (sk.includes(":::")) {
       const parts = sk.split(":::");
       sk = parts[0];
       wh = parts[1] || "";
-    } else {
+    } else if (sk) {
       try {
         const parsed = JSON.parse(sk);
         if (parsed.secretKey) {
@@ -190,14 +262,39 @@ export const getMyStripe = createServerFn({ method: "GET" })
       } catch {}
     }
 
+    if (!pk || !sk) {
+      try {
+        const { data: gw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("credentials, updated_at")
+          .eq("user_id", context.userId)
+          .eq("name", "Stripe")
+          .maybeSingle();
+
+        if (gw?.credentials && typeof gw.credentials === "object") {
+          const c = gw.credentials as any;
+          if (c.publishableKey || c.secretKey) {
+            pk = c.publishableKey || pk;
+            sk = c.secretKey || sk;
+            wh = c.webhookSecret || wh;
+            status = c.status || "connected";
+            lastError = c.last_error || null;
+            lastCheckedAt = c.last_checked_at || gw.updated_at || null;
+          }
+        }
+      } catch {}
+    }
+
+    if (!pk && !sk) return emptyStripe(webhookUrl);
+
     return {
       configured: Boolean(pk && sk),
       publishableKeyMasked: pk ? `${pk.slice(0, 7)}••••${pk.slice(-4)}` : "",
       secretKeyMasked: sk ? `${sk.slice(0, 7)}••••${sk.slice(-4)}` : "",
       webhookSecretMasked: wh ? `${wh.slice(0, 6)}••••${wh.slice(-4)}` : "",
-      status: (data.status as UserStripeStatus["status"]) ?? "disconnected",
-      lastError: data.last_error ?? null,
-      lastCheckedAt: data.last_checked_at ?? null,
+      status,
+      lastError,
+      lastCheckedAt,
       webhookUrl,
     };
   });
@@ -233,6 +330,7 @@ export const saveMyStripe = createServerFn({ method: "POST" })
 
     const secretValue = `${data.secretKey}:::${data.webhookSecret || ""}`;
 
+    let saved = false;
     const { error } = await supabaseAdmin.from("user_gateway_credentials").upsert(
       {
         user_id: context.userId,
@@ -246,7 +344,50 @@ export const saveMyStripe = createServerFn({ method: "POST" })
       { onConflict: "user_id,provider" },
     );
 
-    if (error) return { ok: false, message: error.message };
+    if (!error) {
+      saved = true;
+    } else {
+      console.warn("[saveMyStripe-fallback-to-payment_gateways]", error.message);
+      try {
+        const payload = {
+          publishableKey: data.publishableKey,
+          secretKey: data.secretKey,
+          webhookSecret: data.webhookSecret || "",
+          status: testOk ? "connected" : "error",
+          last_error: testOk ? null : errorMsg,
+          last_checked_at: new Date().toISOString(),
+        };
+        const { data: existingGw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("id")
+          .eq("user_id", context.userId)
+          .eq("name", "Stripe")
+          .maybeSingle();
+
+        if (existingGw?.id) {
+          const { error: updErr } = await supabaseAdmin
+            .from("payment_gateways")
+            .update({ credentials: payload, is_active: true, updated_at: new Date().toISOString() })
+            .eq("id", existingGw.id);
+          if (!updErr) saved = true;
+        } else {
+          const { error: insErr } = await supabaseAdmin
+            .from("payment_gateways")
+            .insert({
+              user_id: context.userId,
+              name: "Stripe",
+              provider: "custom",
+              is_active: true,
+              credentials: payload,
+            });
+          if (!insErr) saved = true;
+        }
+      } catch (fbErr) {
+        console.warn("[saveMyStripe-fallback-failed]", fbErr);
+      }
+    }
+
+    if (!saved && error) return { ok: false, message: error.message };
 
     return {
       ok: testOk,
@@ -270,11 +411,26 @@ export const testMyStripe = createServerFn({ method: "POST" })
       .eq("provider", "stripe")
       .maybeSingle();
 
-    if (!data?.client_secret) {
+    let sk = data?.client_secret || "";
+
+    if (!sk) {
+      try {
+        const { data: gw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("credentials")
+          .eq("user_id", context.userId)
+          .eq("name", "Stripe")
+          .maybeSingle();
+        if (gw?.credentials && typeof gw.credentials === "object") {
+          sk = (gw.credentials as any).secretKey || "";
+        }
+      } catch {}
+    }
+
+    if (!sk) {
       return { ok: false, message: "Nenhuma credencial Stripe salva" };
     }
 
-    let sk = data.client_secret;
     if (sk.includes(":::")) {
       sk = sk.split(":::")[0];
     } else {
@@ -322,13 +478,18 @@ export const disconnectMyStripe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ ok: boolean; message: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
+    await supabaseAdmin
       .from("user_gateway_credentials")
       .delete()
       .eq("user_id", context.userId)
       .eq("provider", "stripe");
 
-    if (error) return { ok: false, message: error.message };
+    await supabaseAdmin
+      .from("payment_gateways")
+      .delete()
+      .eq("user_id", context.userId)
+      .eq("name", "Stripe");
+
     return { ok: true, message: "Stripe desconectada com sucesso" };
   });
 

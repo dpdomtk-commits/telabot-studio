@@ -37,20 +37,37 @@ export async function getStripeForUser(userId?: string): Promise<{
         .eq("provider", "stripe")
         .maybeSingle();
 
-      if (data?.client_secret) {
-        let secretKey = data.client_secret;
-        let webhookSecret: string | undefined;
+      let secretKey = data?.client_secret || "";
+      let publishableKey = data?.client_id || "";
+      let webhookSecret: string | undefined;
 
+      if (!secretKey) {
+        const { data: gw } = await supabaseAdmin
+          .from("payment_gateways")
+          .select("credentials")
+          .eq("user_id", userId)
+          .eq("name", "Stripe")
+          .maybeSingle();
+
+        if (gw?.credentials && typeof gw.credentials === "object") {
+          const c = gw.credentials as any;
+          secretKey = c.secretKey || "";
+          publishableKey = c.publishableKey || publishableKey;
+          webhookSecret = c.webhookSecret || undefined;
+        }
+      }
+
+      if (secretKey) {
         if (secretKey.includes(":::")) {
           const parts = secretKey.split(":::");
           secretKey = parts[0];
-          webhookSecret = parts[1] || undefined;
+          webhookSecret = parts[1] || webhookSecret;
         } else {
           try {
             const parsed = JSON.parse(secretKey);
             if (parsed.secretKey) {
               secretKey = parsed.secretKey;
-              webhookSecret = parsed.webhookSecret || undefined;
+              webhookSecret = parsed.webhookSecret || webhookSecret;
             }
           } catch {}
         }
@@ -58,7 +75,7 @@ export async function getStripeForUser(userId?: string): Promise<{
         if (secretKey && secretKey !== "sk_test_placeholder" && secretKey.length >= 10) {
           return {
             stripe: new Stripe(secretKey, { apiVersion: "2026-03-25.dahlia" as any }),
-            publishableKey: data.client_id || undefined,
+            publishableKey: publishableKey || undefined,
             webhookSecret: webhookSecret || process.env.STRIPE_WEBHOOK_SECRET,
           };
         }

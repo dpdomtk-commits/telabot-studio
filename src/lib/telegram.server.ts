@@ -1008,6 +1008,7 @@ export async function handleInternationalPlanPurchase(params: {
     checkoutParams.set("pk", creds.pk);
   } else {
     // Busca do banco e armazena em cache
+    let foundPk = "";
     const { data: dbCreds } = await supabaseAdmin
       .from("user_gateway_credentials")
       .select("client_id")
@@ -1016,8 +1017,22 @@ export async function handleInternationalPlanPurchase(params: {
       .maybeSingle();
 
     if (dbCreds?.client_id) {
-      userCredsCache.set(params.userId, { pk: dbCreds.client_id, expiresAt: Date.now() + 300000 });
-      checkoutParams.set("pk", dbCreds.client_id);
+      foundPk = dbCreds.client_id;
+    } else {
+      const { data: gw } = await supabaseAdmin
+        .from("payment_gateways")
+        .select("credentials")
+        .eq("user_id", params.userId)
+        .eq("name", "Stripe")
+        .maybeSingle();
+      if (gw?.credentials && typeof gw.credentials === "object") {
+        foundPk = (gw.credentials as any).publishableKey || "";
+      }
+    }
+
+    if (foundPk) {
+      userCredsCache.set(params.userId, { pk: foundPk, expiresAt: Date.now() + 300000 });
+      checkoutParams.set("pk", foundPk);
     }
   }
 

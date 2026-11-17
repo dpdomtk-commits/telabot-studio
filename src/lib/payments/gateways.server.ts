@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import "@/lib/payments/syncpay.server";
+import "@/lib/payments/omegapay.server";
 import { getProvider, type ChargeInput } from "./provider";
 
 export type GatewayRow = {
@@ -161,6 +162,42 @@ export async function createChargeWithFallback(args: {
       });
       if (!gateway.allow_fallback) break;
     }
+  }
+
+  // Provedor OmegaPay oficial da plataforma (PIX automático para todos os clientes sem necessidade de conta própria)
+  const omegaStarted = Date.now();
+  try {
+    const { createOmegaPixCharge } = await import("@/lib/payments/omegapay.server");
+    const result = await createOmegaPixCharge(args.input);
+    if (result.pixCode) {
+      await logAttempt({
+        userId: args.userId,
+        gatewayId: null,
+        paymentId: args.input.chargeId,
+        provider: "omegapay",
+        success: true,
+        amountCents: args.input.amountCents,
+        latencyMs: Date.now() - omegaStarted,
+      });
+      return {
+        gatewayId: null,
+        provider: "omegapay",
+        externalId: result.externalId,
+        pixCode: result.pixCode,
+      };
+    }
+  } catch (omegaErr: any) {
+    console.warn("[omegapay-platform-charge-failed-fallback-to-internal]", omegaErr?.message);
+    await logAttempt({
+      userId: args.userId,
+      gatewayId: null,
+      paymentId: args.input.chargeId,
+      provider: "omegapay",
+      success: false,
+      amountCents: args.input.amountCents,
+      latencyMs: Date.now() - omegaStarted,
+      error: omegaErr?.message || "Falha OmegaPay",
+    });
   }
 
   // Última linha de defesa: gateway interna com a chave global da plataforma.
