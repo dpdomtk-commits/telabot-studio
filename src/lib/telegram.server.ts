@@ -829,6 +829,9 @@ export async function handleInternationalPlanPurchase(params: {
 
   const conv = formatCurrencyPrice(plan.price, params.currency, cfg.multilingual?.rates);
 
+  const domain = process.env.DOMAIN || "https://telabot-studio.vercel.app";
+  const checkoutUrl = `${domain}/checkout?plan_name=${encodeURIComponent(plan.name)}&price=${conv.converted.toFixed(2)}&currency=${params.currency}&lead_id=${params.leadId}&bot_id=${params.botId}`;
+
   const lines = [
     `⭐ <b>${plan.name.toUpperCase()}</b>`,
     "",
@@ -837,14 +840,15 @@ export async function handleInternationalPlanPurchase(params: {
     "",
     "🔒 <b>Secure International Checkout (Stripe)</b>",
     "",
-    "Your purchase intent has been recorded in our system.",
-    "International card checkout powered by Stripe is currently being configured.",
-    "",
-    "For immediate activation or manual payment assistance, please contact our support team below:",
+    "Click the link below to pay with Credit Card, Apple Pay or Google Pay via Stripe:",
   ];
 
   const support = cfg.bots?.supportUsername ? cfg.bots.supportUsername.replace("@", "") : "";
   const inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  inline_keyboard.push([
+    { text: `💳 Pay ${conv.formatted} with Card (Stripe) ↗`, url: checkoutUrl },
+  ]);
 
   if (support) {
     inline_keyboard.push([{ text: "💬 Contact Support", url: `https://t.me/${support}` }]);

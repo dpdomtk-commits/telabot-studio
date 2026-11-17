@@ -35,6 +35,9 @@ import { Route as ApiPublicTelegramBotIdRouteImport } from './routes/api/public/
 import { Route as ApiPublicWebhooksSyncpayRouteImport } from './routes/api/public/webhooks/syncpay'
 import { Route as ApiCronProcessDownsellsRouteImport } from './routes/api/cron/process-downsells'
 import { Route as ApiPublicCronDownsellsRouteImport } from './routes/api/public/cron/downsells'
+import { Route as ApiCreateCheckoutSessionRouteImport } from './routes/api/create-checkout-session'
+import { Route as ApiWebhookRouteImport } from './routes/api/webhook'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AuthenticatedAppFlowsFlowIdOffersRouteImport } from './routes/_authenticated/app.flows.$flowId_.offers'
 import { Route as AuthenticatedAppFlowsFlowIdSimpleRouteImport } from './routes/_authenticated/app.flows.$flowId_.simple'
 
@@ -180,6 +183,24 @@ const ApiPublicCronDownsellsRoute =
     path: '/api/public/cron/downsells',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCreateCheckoutSessionRoute =
+  ApiCreateCheckoutSessionRouteImport.update({
+    id: '/api/create-checkout-session',
+    path: '/api/create-checkout-session',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWebhookRoute =
+  ApiWebhookRouteImport.update({
+    id: '/api/webhook',
+    path: '/api/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const CheckoutRoute =
+  CheckoutRouteImport.update({
+    id: '/checkout',
+    path: '/checkout',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAppFlowsFlowIdOffersRoute =
   AuthenticatedAppFlowsFlowIdOffersRouteImport.update({
     id: '/flows/$flowId_/offers',
@@ -218,6 +239,9 @@ export interface FileRoutesByFullPath {
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
+  '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/webhook': typeof ApiWebhookRoute
+  '/checkout': typeof CheckoutRoute
   '/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -246,6 +270,9 @@ export interface FileRoutesByTo {
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
+  '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/webhook': typeof ApiWebhookRoute
+  '/checkout': typeof CheckoutRoute
   '/app/flows': typeof AuthenticatedAppFlowsIndexRoute
   '/app/flows/$flowId/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/app/flows/$flowId/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -277,6 +304,9 @@ export interface FileRoutesById {
   '/api/public/webhooks/syncpay': typeof ApiPublicWebhooksSyncpayRoute
   '/api/cron/process-downsells': typeof ApiCronProcessDownsellsRoute
   '/api/public/cron/downsells': typeof ApiPublicCronDownsellsRoute
+  '/api/create-checkout-session': typeof ApiCreateCheckoutSessionRoute
+  '/api/webhook': typeof ApiWebhookRoute
+  '/checkout': typeof CheckoutRoute
   '/_authenticated/app/flows/': typeof AuthenticatedAppFlowsIndexRoute
   '/_authenticated/app/flows/$flowId_/offers': typeof AuthenticatedAppFlowsFlowIdOffersRoute
   '/_authenticated/app/flows/$flowId_/simple': typeof AuthenticatedAppFlowsFlowIdSimpleRoute
@@ -556,6 +586,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronDownsellsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/create-checkout-session': {
+      id: '/api/create-checkout-session'
+      path: '/api/create-checkout-session'
+      fullPath: '/api/create-checkout-session'
+      preLoaderRoute: typeof ApiCreateCheckoutSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhook': {
+      id: '/api/webhook'
+      path: '/api/webhook'
+      fullPath: '/api/webhook'
+      preLoaderRoute: typeof ApiWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/flows/$flowId_/offers': {
       id: '/_authenticated/app/flows/$flowId_/offers'
       path: '/flows/$flowId/offers'
@@ -641,6 +692,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicWebhooksSyncpayRoute: ApiPublicWebhooksSyncpayRoute,
   ApiCronProcessDownsellsRoute: ApiCronProcessDownsellsRoute,
   ApiPublicCronDownsellsRoute: ApiPublicCronDownsellsRoute,
+  ApiCreateCheckoutSessionRoute: ApiCreateCheckoutSessionRoute,
+  ApiWebhookRoute: ApiWebhookRoute,
+  CheckoutRoute: CheckoutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
