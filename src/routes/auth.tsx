@@ -220,7 +220,7 @@ function AuthPage() {
       <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-300">
         <Link to="/" className="mb-8 flex flex-col items-center gap-3">
           <img
-            src="/cashbot-emblem.png?v=4"
+            src="/cashbot-emblem.png?v=5"
             alt="Logo CASH BOT"
             className="size-20 rounded-full object-cover drop-shadow-[0_0_20px_rgba(6,182,212,0.35)]"
           />
@@ -235,7 +235,7 @@ function AuthPage() {
             <div className="space-y-4 text-center">
               <div className="flex flex-col items-center gap-2">
                 <img
-                  src="/cashbot-emblem.png?v=4"
+                  src="/cashbot-emblem.png?v=5"
                   alt="CASH BOT"
                   className="size-14 rounded-full object-cover drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]"
                 />

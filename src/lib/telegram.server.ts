@@ -812,8 +812,12 @@ export async function sendWelcomeMedia(
 ) {
   if (!welcomeMedia || welcomeMedia.length === 0) return;
 
-  if (mediaMode === "grouped" && welcomeMedia.length > 1) {
+  // Vitrine Carrossel automática quando houver mais de 2 mídias (3 a 10 fotos/vídeos), ou se agrupadas manualmente
+  const shouldGroup = welcomeMedia.length > 2 || (mediaMode === "grouped" && welcomeMedia.length > 1);
+
+  if (shouldGroup) {
     const mediaList = welcomeMedia
+      .slice(0, 10)
       .map((m) => ({
         type: (m.kind === "video" ? "video" : "photo") as "photo" | "video",
         url: resolveMediaTarget(m),
@@ -1002,7 +1006,29 @@ export async function handleTelegramStart(params: {
     }
   }
 
-  if (mediaList.length > 1) {
+  // Se houver mais de 2 mídias (de 3 a 10 fotos/vídeos): Vitrine Carrossel (sendMediaGroup)
+  // O lead arrasta para o lado no Telegram para navegar entre as fotos da vitrine
+  if (mediaList.length > 2) {
+    const showcaseList = mediaList
+      .slice(0, 10)
+      .map((m: any) => {
+        const target = resolveMediaTarget(m);
+        if (target) usedTargets.push({ item: m, target });
+        return {
+          type: (m.kind === "video" || m.type === "video" ? "video" : "photo") as "photo" | "video",
+          url: target,
+          caption: m.caption || "",
+        };
+      })
+      .filter((m) => Boolean(m.url));
+
+    if (showcaseList.length > 0) {
+      await sendMediaGroup(params.token, params.chatId, showcaseList).catch((err) => {
+        console.error("Erro ao enviar vitrine de boas-vindas:", err);
+      });
+    }
+  } else if (mediaList.length === 2) {
+    // Até duas mídias: mantém exatamente como hoje
     for (const m of mediaList) {
       const target = resolveMediaTarget(m);
       if (target) usedTargets.push({ item: m, target });

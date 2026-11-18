@@ -645,9 +645,12 @@ export function AdvancedFlowEditorPage() {
 
               {/* Upload de mídias direto do PC */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-zinc-300">
-                  Mídias Iniciais do Start (Fotos / Vídeos)
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-zinc-300">
+                    Mídias Iniciais do Start (Fotos / Vídeos)
+                  </Label>
+                  <span className="text-[11px] text-zinc-500">Até 10 mídias</span>
+                </div>
                 <FlowMediaUploader
                   media={config.welcome.media}
                   mode={config.welcome.mediaMode}
@@ -657,8 +660,18 @@ export function AdvancedFlowEditorPage() {
                   onChange={(items) =>
                     setConfig({ ...config, welcome: { ...config.welcome, media: items } })
                   }
-                  maxItems={3}
+                  maxItems={10}
                 />
+                {config.welcome.media?.length > 2 ? (
+                  <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/30 p-2 text-xs text-cyan-300 flex items-center gap-1.5">
+                    <span>✨</span>
+                    <span><strong>Modo Vitrine Ativo ({config.welcome.media.length} mídias):</strong> O bot enviará como carrossel agrupado onde o lead arrasta para o lado para ver as fotos.</span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500">
+                    💡 Caso adicione mais de 2 mídias (de 3 a 10 fotos/vídeos), o bot ativará automaticamente a vitrine deslizante. Se colocar até 2, mantém o envio normal.
+                  </p>
+                )}
               </div>
 
               {/* Bloco Inicial — Boas-vindas (Copy Única, não bilíngue) */}
@@ -936,6 +949,12 @@ export function AdvancedFlowEditorPage() {
                 {/* Controles Extras Estilo SharkBot: Mídia da Copy Principal, Mensagem Secundária, CTA, Redirects e Mini App */}
                 <div className="grid gap-4 pt-3 border-t border-white/5">
                   <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-zinc-300">
+                        Mídias da Copy de Boas-vindas (Fotos / Vídeos)
+                      </Label>
+                      <span className="text-[11px] text-zinc-500">Até 10 mídias</span>
+                    </div>
                     <FlowMediaUploader
                       media={config.welcome.media}
                       mode={config.welcome.mediaMode}
@@ -951,8 +970,18 @@ export function AdvancedFlowEditorPage() {
                           welcome: { ...config.welcome, media: items },
                         })
                       }
-                      maxItems={5}
+                      maxItems={10}
                     />
+                    {config.welcome.media?.length > 2 ? (
+                      <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/30 p-2 text-xs text-cyan-300 flex items-center gap-1.5">
+                        <span>✨</span>
+                        <span><strong>Modo Vitrine Ativo ({config.welcome.media.length} mídias):</strong> O bot enviará como carrossel agrupado onde o lead arrasta para o lado.</span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-zinc-500">
+                        💡 Mais de 2 mídias (3 a 10 fotos/vídeos) ativam automaticamente a vitrine deslizante. Até 2 mídias mantém o envio normal.
+                      </p>
+                    )}
                   </div>
                   {/* Mensagem Secundária */}
                   <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-3">
