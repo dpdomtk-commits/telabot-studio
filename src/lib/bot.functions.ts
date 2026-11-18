@@ -220,3 +220,39 @@ export const updatePaymentStatus = createServerFn({ method: "POST" })
     return { ok: true, message: "Situação atualizada" };
   });
 
+const registerAccountSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(72),
+});
+
+export const registerCashBotAccount = createServerFn({ method: "POST" })
+  .validator((data: unknown) => registerAccountSchema.parse(data))
+  .handler(async ({ data }): Promise<{ autoConfirmed: boolean; message?: string }> => {
+    try {
+      const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] || "";
+      if (!serviceKey || serviceKey.startsWith("sb_publishable_")) {
+        return { autoConfirmed: false };
+      }
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: {
+          name: data.name,
+          full_name: data.name,
+          app_name: "CASH BOT",
+          site_name: "CASH BOT",
+          brand: "CASH BOT",
+        },
+      });
+      if (error || !created?.user) {
+        return { autoConfirmed: false, message: error?.message };
+      }
+      return { autoConfirmed: true };
+    } catch {
+      return { autoConfirmed: false };
+    }
+  });
+

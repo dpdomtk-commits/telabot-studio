@@ -37,8 +37,8 @@ export const Route = createFileRoute("/")({
         content:
           "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora. The World Is Yours.",
       },
-      { property: "og:image", content: "/cashbot-emblem.jpg?v=3" },
-      { name: "twitter:image", content: "/cashbot-emblem.jpg?v=3" },
+      { property: "og:image", content: "/cashbot-emblem.png?v=4" },
+      { name: "twitter:image", content: "/cashbot-emblem.png?v=4" },
     ],
   }),
   component: CASHBOTLanding,
@@ -138,9 +138,9 @@ export function CASHBOTLanding() {
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-3 group">
               <img
-                src="/cashbot-emblem.jpg?v=3"
+                src="/cashbot-emblem.png?v=4"
                 alt="CASH BOT"
-                className="size-11 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(56,189,248,0.45)] transition group-hover:scale-105"
+                className="size-11 shrink-0 rounded-full object-cover drop-shadow-[0_0_12px_rgba(56,189,248,0.45)] transition group-hover:scale-105"
               />
               <div className="flex flex-col">
                 <span className="font-display text-xl font-black tracking-wider text-white">
@@ -287,13 +287,13 @@ export function CASHBOTLanding() {
             </div>
           </div>
 
-          {/* Coluna Direita: Logotipo / Emblema Principal em Destaque Normal */}
+          {/* Coluna Direita: Logotipo / Emblema Principal Redondo sem borda azul */}
           <div className="lg:col-span-5 relative flex justify-center items-center">
             <div className="absolute inset-0 bg-[#38BDF8]/25 rounded-full blur-3xl transform scale-90 pointer-events-none" />
             <img
-              src="/cashbot-emblem.jpg?v=3"
+              src="/cashbot-emblem.png?v=4"
               alt="CASH BOT — The World Is Yours"
-              className="relative w-full max-w-md object-contain drop-shadow-[0_25px_60px_rgba(0,0,0,0.85)] transform hover:scale-105 transition duration-700"
+              className="relative w-full max-w-md aspect-square rounded-full object-cover drop-shadow-[0_25px_60px_rgba(0,0,0,0.9)] transform hover:scale-105 transition duration-700"
             />
           </div>
         </div>

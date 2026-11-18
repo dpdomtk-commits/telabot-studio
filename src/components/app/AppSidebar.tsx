@@ -131,9 +131,9 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
       <SidebarHeader className="px-3 py-4 border-b border-white/5">
         <Link to="/app/dashboard" className="flex items-center gap-2.5 truncate font-serif text-base font-bold">
           <img
-            src="/cashbot-emblem.jpg?v=3"
+            src="/cashbot-emblem.png?v=4"
             alt="CASH BOT"
-            className="size-10 shrink-0 object-contain drop-shadow-[0_0_10px_rgba(6,182,212,0.35)]"
+            className="size-10 shrink-0 rounded-full object-cover drop-shadow-[0_0_10px_rgba(6,182,212,0.35)]"
           />
           <div className="flex flex-col truncate">
             <span className="truncate tracking-wider text-white font-extrabold text-sm flex items-center gap-1">
