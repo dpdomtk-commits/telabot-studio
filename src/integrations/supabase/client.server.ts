@@ -14,6 +14,17 @@ const userJwtByUserId = new Map<string, string>();
 
 export function registerServerUserToken(userId: string, token: string) {
   if (!token) return;
+  try {
+    const seg = token.split('.')[1];
+    if (seg) {
+      const payload = JSON.parse(Buffer.from(seg, 'base64url').toString('utf8')) as { exp?: number };
+      if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now() - 5_000) {
+        return;
+      }
+    }
+  } catch {
+    // prossegue se decodificação falhar
+  }
   latestServerUserJwt = token;
   if (userId) userJwtByUserId.set(userId, token);
 }

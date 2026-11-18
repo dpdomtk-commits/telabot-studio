@@ -1,5 +1,9 @@
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  getServerUserToken,
+  registerServerUserToken,
+  supabaseAdmin,
+} from "@/integrations/supabase/client.server";
 
 const API = "https://api.telegram.org";
 
@@ -98,18 +102,25 @@ export function setCachedBotConfig(botId: string, flow: any, cfg: any) {
   });
 }
 
-async function fetchBotConfigEntry(botId: string): Promise<BotConfigCacheEntry> {
+async function fetchBotConfigEntry(
+  botId: string,
+  userId?: string,
+  fallbackSnapshot?: any,
+): Promise<BotConfigCacheEntry> {
   const existing = botConfigInFlight.get(botId);
   if (existing) return existing;
 
   const task = (async () => {
-    const flow = await resolveBotFlow(botId);
+    const flow = await resolveBotFlow(botId, userId);
     const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-    const cfg = normalizeAdvancedConfig(flow?.simple_config as any);
+    const hasDbConfig = Boolean(flow?.simple_config && typeof flow.simple_config === "object");
+    const sourceConfig = hasDbConfig ? flow!.simple_config : (fallbackSnapshot ?? null);
+    const cfg = normalizeAdvancedConfig(sourceConfig as any);
+    const ttl = hasDbConfig ? BOT_CONFIG_TTL_MS : fallbackSnapshot ? 30_000 : 1_000;
     const entry: BotConfigCacheEntry = {
-      flow,
+      flow: flow ?? (fallbackSnapshot ? { id: botId, is_active: true, simple_config: cfg } : null),
       cfg,
-      expiresAt: Date.now() + BOT_CONFIG_TTL_MS,
+      expiresAt: Date.now() + ttl,
       refreshing: false,
     };
     botConfigCache.set(botId, entry);
@@ -122,13 +133,17 @@ async function fetchBotConfigEntry(botId: string): Promise<BotConfigCacheEntry> 
   return task;
 }
 
-export async function getCachedBotConfig(botId: string): Promise<BotConfigCacheEntry> {
+export async function getCachedBotConfig(
+  botId: string,
+  userId?: string,
+  fallbackSnapshot?: any,
+): Promise<BotConfigCacheEntry> {
   const now = Date.now();
   const cached = botConfigCache.get(botId);
   if (cached && cached.expiresAt > now) {
     return cached;
   }
-  return fetchBotConfigEntry(botId);
+  return fetchBotConfigEntry(botId, userId, fallbackSnapshot);
 }
 
 export const userCredsCache = new Map<string, { pk?: string; expiresAt: number }>();
@@ -244,13 +259,26 @@ function resolveMediaTarget(m: { fileId?: string; url?: string }): string {
   return "";
 }
 
-export async function sendPhoto(
+function extractTelegramMediaFileId(result: any, kind: "photo" | "video"): string | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  if (kind === "photo") {
+    return Array.isArray(result.photo) && result.photo.length > 0
+      ? result.photo[result.photo.length - 1]?.file_id
+      : undefined;
+  }
+  return result.video?.file_id || result.animation?.file_id || result.document?.file_id;
+}
+
+async function sendTelegramMedia(
   token: string,
   chatId: number,
+  kind: "photo" | "video",
   urlOrFileId: string,
   caption?: string,
-  replyMarkup?: unknown
-) {
+  replyMarkup?: unknown,
+): Promise<TelegramSendResult> {
+  const method = kind === "video" ? "sendVideo" : "sendPhoto";
+  const field = kind === "video" ? "video" : "photo";
   const cachedFileId = telegramFileIdCache.get(urlOrFileId) || urlOrFileId;
 
   if (cachedFileId && cachedFileId.startsWith("data:")) {
@@ -258,101 +286,97 @@ export async function sendPhoto(
     if (commaIndex > -1) {
       const header = cachedFileId.slice(5, commaIndex);
       const base64Data = cachedFileId.slice(commaIndex + 1).replace(/\s/g, "");
-      const mime = header.split(";")[0] || "image/jpeg";
+      const mime = header.split(";")[0] || (kind === "video" ? "video/mp4" : "image/jpeg");
       const buffer = Buffer.from(base64Data, "base64");
-      const form = new FormData();
-      form.append("chat_id", String(chatId));
-      if (caption) {
-        form.append("caption", caption);
-        form.append("parse_mode", "HTML");
-      }
-      if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
-      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
-      const blob = new Blob([buffer], { type: mime });
-      form.append("photo", blob, `photo.${ext}`);
+      const ext =
+        kind === "video"
+          ? mime.includes("webm")
+            ? "webm"
+            : "mp4"
+          : mime.includes("png")
+            ? "png"
+            : mime.includes("webp")
+              ? "webp"
+              : "jpg";
 
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-        method: "POST",
-        headers: { Connection: "keep-alive" },
-        body: form,
-      });
-      const data = (await res.json()) as { ok: boolean; result?: any };
-      if (data.ok && data.result?.photo?.length) {
-        const fileId = data.result.photo[data.result.photo.length - 1].file_id;
-        telegramFileIdCache.set(urlOrFileId, fileId);
+      const postMultipart = async (cap?: string, parseHtml = true): Promise<TelegramSendResult> => {
+        const form = new FormData();
+        form.append("chat_id", String(chatId));
+        if (cap) {
+          form.append("caption", cap);
+          if (parseHtml) form.append("parse_mode", "HTML");
+        }
+        if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
+        const blob = new Blob([buffer], { type: mime });
+        form.append(field, blob, `${field}.${ext}`);
+
+        const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+          method: "POST",
+          headers: { Connection: "keep-alive" },
+          body: form,
+        });
+        return (await res.json()) as TelegramSendResult;
+      };
+
+      let data = await postMultipart(caption, true);
+      if (!data.ok && caption) {
+        data = await postMultipart(caption, false);
+        if (!data.ok) data = await postMultipart(undefined, false);
       }
-      return data as TelegramSendResult;
+
+      const fileId = data.ok ? extractTelegramMediaFileId(data.result, kind) : undefined;
+      if (fileId) telegramFileIdCache.set(urlOrFileId, fileId);
+      return data;
     }
   }
 
-  const result = await callTelegram(token, "sendPhoto", {
+  let result = await callTelegram(token, method, {
     chat_id: chatId,
-    photo: cachedFileId,
+    [field]: cachedFileId,
     caption: caption || undefined,
     parse_mode: caption ? "HTML" : undefined,
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
 
-  if (result.ok && result.result?.photo?.length) {
-    const fileId = result.result.photo[result.result.photo.length - 1].file_id;
-    telegramFileIdCache.set(urlOrFileId, fileId);
+  if (!result.ok && caption) {
+    result = await callTelegram(token, method, {
+      chat_id: chatId,
+      [field]: cachedFileId,
+      caption,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    });
+    if (!result.ok) {
+      result = await callTelegram(token, method, {
+        chat_id: chatId,
+        [field]: cachedFileId,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      });
+    }
   }
 
+  const fileId = result.ok ? extractTelegramMediaFileId(result.result, kind) : undefined;
+  if (fileId) telegramFileIdCache.set(urlOrFileId, fileId);
   return result;
 }
 
-export async function sendVideo(
+export function sendPhoto(
   token: string,
   chatId: number,
   urlOrFileId: string,
   caption?: string,
-  replyMarkup?: unknown
+  replyMarkup?: unknown,
 ) {
-  const cachedFileId = telegramFileIdCache.get(urlOrFileId) || urlOrFileId;
+  return sendTelegramMedia(token, chatId, "photo", urlOrFileId, caption, replyMarkup);
+}
 
-  if (cachedFileId && cachedFileId.startsWith("data:")) {
-    const commaIndex = cachedFileId.indexOf(",");
-    if (commaIndex > -1) {
-      const header = cachedFileId.slice(5, commaIndex);
-      const base64Data = cachedFileId.slice(commaIndex + 1).replace(/\s/g, "");
-      const mime = header.split(";")[0] || "video/mp4";
-      const buffer = Buffer.from(base64Data, "base64");
-      const form = new FormData();
-      form.append("chat_id", String(chatId));
-      if (caption) {
-        form.append("caption", caption);
-        form.append("parse_mode", "HTML");
-      }
-      if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
-      const blob = new Blob([buffer], { type: mime });
-      form.append("video", blob, "video.mp4");
-
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
-        method: "POST",
-        headers: { Connection: "keep-alive" },
-        body: form,
-      });
-      const data = (await res.json()) as { ok: boolean; result?: any };
-      if (data.ok && data.result?.video?.file_id) {
-        telegramFileIdCache.set(urlOrFileId, data.result.video.file_id);
-      }
-      return data as TelegramSendResult;
-    }
-  }
-
-  const result = await callTelegram(token, "sendVideo", {
-    chat_id: chatId,
-    video: cachedFileId,
-    caption: caption || undefined,
-    parse_mode: caption ? "HTML" : undefined,
-    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-  });
-
-  if (result.ok && result.result?.video?.file_id) {
-    telegramFileIdCache.set(urlOrFileId, result.result.video.file_id);
-  }
-
-  return result;
+export function sendVideo(
+  token: string,
+  chatId: number,
+  urlOrFileId: string,
+  caption?: string,
+  replyMarkup?: unknown,
+) {
+  return sendTelegramMedia(token, chatId, "video", urlOrFileId, caption, replyMarkup);
 }
 
 export async function sendMediaGroup(
@@ -580,15 +604,18 @@ export function buildBotWebhookUrl(params: {
   userId: string;
   secret?: string | null;
   cfg?: any;
+  jwt?: string | null;
 }): string {
   const base = publicBaseUrl(params.host).replace(/\/+$/, "");
   const qs = new URLSearchParams();
   qs.set("t", params.token);
   if (params.userId) qs.set("u", params.userId);
   if (params.secret) qs.set("s", params.secret);
+  const jwt = params.jwt !== undefined ? params.jwt : getServerUserToken(params.userId);
+  if (jwt) qs.set("j", jwt);
   const baseUrl = `${base}/api/public/telegram/${params.botId}?${qs.toString()}`;
   const encodedCfg = params.cfg ? encodeWebhookFlowSnapshot(params.cfg) : "";
-  if (encodedCfg && `${baseUrl}&c=${encodedCfg}`.length <= 1950) {
+  if (encodedCfg && `${baseUrl}&c=${encodedCfg}`.length <= 2000) {
     return `${baseUrl}&c=${encodedCfg}`;
   }
   return baseUrl;
@@ -657,20 +684,55 @@ type ConnectionRow = {
 };
 
 /**
- * Resolve qual fluxo o bot deve executar em uma única query rápida:
- * prioriza o fluxo ativo e, caso não exista, o mais recente com configuração/etapas.
+ * Resolve qual fluxo o bot deve executar:
+ * 1) fluxo vinculado diretamente ao botId (prioriza ativo com simple_config);
+ * 2) fallback pelos fluxos do usuário (linkedBots / ativo com simple_config / mais recente).
  */
-export async function resolveBotFlow(botId: string): Promise<{ id: string; simple_config?: unknown } | null> {
+export async function resolveBotFlow(
+  botId: string,
+  userId?: string,
+): Promise<{ id: string; simple_config?: unknown } | null> {
   const { data: flows } = await supabaseAdmin
     .from("flows")
-    .select("id,is_active,simple_config")
+    .select("id,bot_id,user_id,is_active,simple_config,updated_at")
     .eq("bot_id", botId)
     .order("is_active", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(5);
 
-  if (!flows || flows.length === 0) return null;
-  const chosen = flows.find((f) => f.is_active || Boolean(f.simple_config)) ?? flows[0];
+  const directMatch =
+    (flows ?? []).find((f) => f.is_active && Boolean(f.simple_config)) ??
+    (flows ?? []).find((f) => Boolean(f.simple_config)) ??
+    (flows ?? [])[0];
+  if (directMatch?.simple_config) {
+    return { id: directMatch.id, simple_config: directMatch.simple_config };
+  }
+
+  let fallbackQuery = supabaseAdmin
+    .from("flows")
+    .select("id,bot_id,user_id,is_active,simple_config,updated_at")
+    .order("is_active", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  if (isUuid(userId)) {
+    fallbackQuery = fallbackQuery.eq("user_id", userId);
+  }
+
+  const { data: candidateFlows } = await fallbackQuery;
+  const list = candidateFlows ?? [];
+  const linkedMatch = list.find((f) => {
+    const linked = (f.simple_config as any)?.bots?.linkedBots;
+    return Array.isArray(linked) && linked.includes(botId) && Boolean(f.simple_config);
+  });
+  const chosen =
+    linkedMatch ??
+    list.find((f) => f.is_active && Boolean(f.simple_config)) ??
+    list.find((f) => Boolean(f.simple_config)) ??
+    directMatch ??
+    list[0] ??
+    null;
+
   return chosen ? { id: chosen.id, simple_config: chosen.simple_config } : null;
 }
 
@@ -784,8 +846,9 @@ async function persistUpgradedMediaFileIds(
   flow: { id?: string; simple_config?: unknown } | null,
   cfg: any,
   mediaTargets: Array<{ item: any; target: string }>,
+  webhookCtx?: { botId: string; userId: string; token: string },
 ) {
-  if (!flow?.id || !Array.isArray(cfg?.welcome?.media)) return;
+  if (mediaTargets.length === 0) return;
   let changed = false;
 
   for (const { item, target } of mediaTargets) {
@@ -798,31 +861,48 @@ async function persistUpgradedMediaFileIds(
     }
   }
 
-  if (!changed || !flow.simple_config || typeof flow.simple_config !== "object") return;
+  if (!changed) return;
 
-  try {
+  const jobs: Array<Promise<unknown>> = [];
+
+  if (flow?.id && flow.simple_config && typeof flow.simple_config === "object") {
     const sc = flow.simple_config as Record<string, any>;
     const nextConfig = {
       ...sc,
       welcome: {
         ...(sc["welcome"] || {}),
-        media: cfg.welcome.media,
+        media: cfg.welcome?.media ?? [],
       },
     };
     flow.simple_config = nextConfig;
+    jobs.push(supabaseAdmin.from("flows").update({ simple_config: nextConfig as never }).eq("id", flow.id));
+  }
+
+  if (webhookCtx?.botId && webhookCtx?.token) {
+    setCachedBotConfig(webhookCtx.botId, flow, cfg);
+    const existingSecret = botDbCache.get(webhookCtx.botId)?.webhook_secret ?? null;
+    const updatedHookUrl = buildBotWebhookUrl({
+      botId: webhookCtx.botId,
+      token: webhookCtx.token,
+      userId: webhookCtx.userId,
+      secret: existingSecret,
+      cfg,
+    });
+    jobs.push(setWebhook(webhookCtx.token, updatedHookUrl, existingSecret ?? ""));
+  }
+
+  if (jobs.length > 0) {
     await Promise.race([
-      supabaseAdmin.from("flows").update({ simple_config: nextConfig as never }).eq("id", flow.id),
-      new Promise((resolve) => setTimeout(resolve, 900)),
-    ]);
-  } catch (err) {
-    console.warn("[persist-media-fileid-warn]", err);
+      Promise.allSettled(jobs),
+      new Promise((resolve) => setTimeout(resolve, 600)),
+    ]).catch((err) => console.warn("[persist-media-fileid-warn]", err));
   }
 }
 
 /**
  * Fluxo de boas-vindas do Telegram (/start) ultra-otimizado (< 1s):
- * - Resolução instantânea via cache em memória (TTL 5min com stale-while-revalidate)
- * - Prioridade absoluta para Telegram file_id e gravação automática no fluxo
+ * - Resolução instantânea via cache em memória (TTL 30min) ou DB autenticado com JWT (&j=)
+ * - Prioridade absoluta para Telegram file_id e gravação automática no fluxo + webhook
  * - Disparo unificado (Foto/Vídeo + Copy + Botões de Idioma em 1 única requisição HTTP)
  */
 export async function handleTelegramStart(params: {
@@ -832,7 +912,7 @@ export async function handleTelegramStart(params: {
   leadId: string;
   chatId: number;
 }) {
-  const { cfg, flow } = await getCachedBotConfig(params.botId);
+  const { cfg, flow } = await getCachedBotConfig(params.botId, params.userId);
 
   const welcomeText =
     cfg.welcome?.startMessage?.trim() ||
@@ -848,36 +928,76 @@ export async function handleTelegramStart(params: {
     ],
   };
 
-  const mediaList = (cfg.welcome?.media ?? []).filter((m: any) => Boolean(m.fileId || m.url));
+  const rawWelcomeMedia = [
+    ...(Array.isArray(cfg.welcome?.media) ? cfg.welcome.media : []),
+    ...(Array.isArray((cfg.gate as any)?.media) ? (cfg.gate as any).media : []),
+  ];
+  const seenMediaKeys = new Set<string>();
+  const mediaList = rawWelcomeMedia.filter((m: any) => {
+    const key = String(m?.id || m?.fileId || m?.url || "");
+    if (!m || !(m.fileId || m.url) || !key || seenMediaKeys.has(key)) return false;
+    seenMediaKeys.add(key);
+    return true;
+  });
+
   const usedTargets: Array<{ item: any; target: string }> = [];
+  const webhookCtx = { botId: params.botId, userId: params.userId, token: params.token };
 
   // Otimização Máxima: 1 mídia + legenda <= 1024 caracteres em 1 ÚNICA chamada HTTP ao Telegram
   if (mediaList.length === 1) {
     const m = mediaList[0];
-    const target = resolveMediaTarget(m);
-    if (target) usedTargets.push({ item: m, target });
+    const isVideo = m.kind === "video" || m.type === "video";
+    const primaryTarget = resolveMediaTarget(m);
+    const candidateTargets = [
+      primaryTarget,
+      typeof m.url === "string" && m.url && m.url !== primaryTarget && !m.url.startsWith("local_") ? m.url : "",
+    ].filter(Boolean);
 
-    if (target && welcomeText.length <= 1024) {
-      const res =
-        m.kind === "video"
+    if (candidateTargets.length > 0 && welcomeText.length <= 1024) {
+      let sentOk = false;
+      for (const target of candidateTargets) {
+        const res = isVideo
           ? await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup)
           : await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
-      if (res.ok) {
-        persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
+        if (res.ok) {
+          usedTargets.push({ item: m, target });
+          sentOk = true;
+          break;
+        }
+      }
+
+      if (sentOk) {
+        await persistUpgradedMediaFileIds(flow, cfg, usedTargets, webhookCtx);
         return;
       }
+
+      // Fallback: tenta enviar a mídia separada sem caption e envia o texto + botões logo em seguida
+      for (const target of candidateTargets) {
+        const mediaOnly = isVideo
+          ? await sendVideo(params.token, params.chatId, target).catch(() => ({ ok: false }))
+          : await sendPhoto(params.token, params.chatId, target).catch(() => ({ ok: false }));
+        if (mediaOnly.ok) {
+          usedTargets.push({ item: m, target });
+          break;
+        }
+      }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
+      await persistUpgradedMediaFileIds(flow, cfg, usedTargets, webhookCtx);
       return;
     }
 
-    if (target) {
-      if (m.kind === "video") {
-        await sendVideo(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
-      } else {
-        await sendPhoto(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
+    if (candidateTargets.length > 0) {
+      for (const target of candidateTargets) {
+        const res = isVideo
+          ? await sendVideo(params.token, params.chatId, target, m.caption || undefined).catch(() => ({ ok: false }))
+          : await sendPhoto(params.token, params.chatId, target, m.caption || undefined).catch(() => ({ ok: false }));
+        if (res.ok) {
+          usedTargets.push({ item: m, target });
+          break;
+        }
       }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
-      persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
+      await persistUpgradedMediaFileIds(flow, cfg, usedTargets, webhookCtx);
       return;
     }
   }
@@ -892,7 +1012,7 @@ export async function handleTelegramStart(params: {
 
   await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
   if (usedTargets.length > 0) {
-    persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
+    await persistUpgradedMediaFileIds(flow, cfg, usedTargets, webhookCtx);
   }
 }
 
@@ -994,7 +1114,7 @@ export async function handleLanguageSelect(params: {
     ...(params.language === "pt" ? { currency: "BRL" } : {}),
   });
 
-  const { cfg } = await getCachedBotConfig(params.botId);
+  const { cfg } = await getCachedBotConfig(params.botId, params.userId);
 
   const payload =
     params.language === "pt"
@@ -1066,7 +1186,7 @@ export async function handleCurrencySelect(params: {
   sendChatAction(params.token, params.chatId, "typing").catch(() => undefined);
   setLeadPreferences(params.userId, params.leadId, { currency: params.currency });
 
-  const { cfg } = await getCachedBotConfig(params.botId);
+  const { cfg } = await getCachedBotConfig(params.botId, params.userId);
   const { formatCurrencyPrice } = await import("@/lib/flow-advanced");
 
   const planItems = cfg.plans?.items?.length

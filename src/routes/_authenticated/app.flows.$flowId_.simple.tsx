@@ -58,7 +58,6 @@ import {
   type SequenceStep,
 } from "@/lib/flow-advanced";
 import { syncFlowConfig } from "@/lib/flow.functions";
-import { enableBotWebhook } from "@/lib/bot.functions";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple")({
   head: () => ({
@@ -279,31 +278,27 @@ export function AdvancedFlowEditorPage() {
         await supabase.from("bots").update({ status: "active" }).eq("id", bId);
       }
 
-      // 3. Garante persistência server-side, ativa webhook e invalida cache em memória do Telegram
-      await Promise.allSettled([
-        syncFlowConfig({
-          data: {
+      // 3. Garante persistência server-side primeiro, atualiza webhook com o fluxo recém-salvo e aquece cache no Telegram
+      await syncFlowConfig({
+        data: {
+          flowId,
+          botIds: targetBotIds,
+          simpleConfig: normalizedConfig,
+        },
+      }).catch(() => undefined);
+
+      if (selectedBotId) {
+        await fetch("/api/push-subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "invalidate_bot_cache",
+            botId: selectedBotId,
             flowId,
-            botIds: targetBotIds,
             simpleConfig: normalizedConfig,
-          },
-        }).catch(() => undefined),
-        ...targetBotIds.map((bId) => enableBotWebhook({ data: { botId: bId } }).catch(() => undefined)),
-        ...(selectedBotId
-          ? [
-              fetch("/api/push-subscribe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  action: "invalidate_bot_cache",
-                  botId: selectedBotId,
-                  flowId,
-                  simpleConfig: normalizedConfig,
-                }),
-              }).catch(() => undefined),
-            ]
-          : []),
-      ]);
+          }),
+        }).catch(() => undefined);
+      }
 
       // 4. Compila nós e conexões reais em bloco protegido para nunca impedir o salvamento
       try {

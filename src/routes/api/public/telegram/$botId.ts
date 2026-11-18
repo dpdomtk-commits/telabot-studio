@@ -356,7 +356,7 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
         // reenvia em loop e o fluxo roda duplicado.
         try {
           // Etapa 1: Carrega módulos e faz parsing do payload em paralelo
-          const [{ supabaseAdmin }, telegramMod, update] = await Promise.all([
+          const [{ supabaseAdmin, registerServerUserToken }, telegramMod, update] = await Promise.all([
             import("@/integrations/supabase/client.server"),
             import("@/lib/telegram.server"),
             request.json() as Promise<TelegramUpdate>,
@@ -365,7 +365,6 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           const {
             botDbCache: sharedBotDbCache,
             botConfigCache,
-            setCachedBotConfig,
             decodeWebhookFlowSnapshot,
             getCachedBotConfig,
             getCachedPixCode,
@@ -389,25 +388,19 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             editMessageReplyMarkup,
           } = telegramMod;
 
-          // Etapa 2: Lookup instantâneo (0ms) via query params auto-contidos da URL do webhook ou fallback em cache/DB
+          // Etapa 2: Lookup instantâneo (0ms) via query params auto-contidos da URL do webhook ou fallback em DB autenticado com &j=
           const reqUrl = new URL(request.url, "https://telabot-studio.vercel.app");
           const qToken = reqUrl.searchParams.get("t")?.trim() || "";
           const qUserId = reqUrl.searchParams.get("u")?.trim() || "";
           const qSecret = reqUrl.searchParams.get("s");
+          const qJwt = reqUrl.searchParams.get("j")?.trim() || "";
           const qConfig = reqUrl.searchParams.get("c")?.trim() || "";
 
-          if (qConfig && !botConfigCache.has(params.botId)) {
-            const decodedCfg = decodeWebhookFlowSnapshot(qConfig);
-            if (decodedCfg) {
-              const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
-              const normalizedSnapshot = normalizeAdvancedConfig(decodedCfg);
-              setCachedBotConfig(
-                params.botId,
-                { id: params.botId, is_active: true, simple_config: normalizedSnapshot },
-                normalizedSnapshot,
-              );
-            }
+          if (qJwt) {
+            registerServerUserToken(qUserId, qJwt);
           }
+
+          const fallbackSnapshot = qConfig ? decodeWebhookFlowSnapshot(qConfig) : null;
 
           let bot: BotCacheItem | null = null;
           if (qToken) {
@@ -420,12 +413,14 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             });
             sharedBotDbCache.set(params.botId, bot);
             if (!botConfigCache.has(params.botId)) {
-              await getCachedBotConfig(params.botId).catch(() => null);
+              await getCachedBotConfig(params.botId, qUserId, fallbackSnapshot).catch(() => null);
             }
           } else {
             const [resolvedBot] = await Promise.all([
               resolveCachedBot(supabaseAdmin, params.botId, sharedBotDbCache),
-              getCachedBotConfig(params.botId).catch(() => null),
+              !botConfigCache.has(params.botId)
+                ? getCachedBotConfig(params.botId, qUserId, fallbackSnapshot).catch(() => null)
+                : Promise.resolve(null),
             ]);
             bot = resolvedBot;
           }
