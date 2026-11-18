@@ -1,8 +1,8 @@
 ﻿import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CheckCircle2, MailCheck, RefreshCw, Sparkles } from "lucide-react";
+import { CheckCircle2, MailCheck, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { registerCashBotAccount } from "@/lib/bot.functions";
 import { Button } from "@/components/ui/button";
@@ -32,24 +32,18 @@ const emailSchema = z.string().trim().email("E-mail inválido").max(255);
 const passwordSchema = z.string().min(8, "A senha precisa de pelo menos 8 caracteres").max(72);
 const nameSchema = z.string().trim().min(2, "Informe seu nome").max(100);
 
-const SUPABASE_FALLBACK_URL = "https://ebqpealelsdxzvsxbeej.supabase.co";
-const SUPABASE_FALLBACK_KEY = "sb_publishable_0d63AHgd5QehSBePWhbZBg_Yjo0ZWHH";
-
 function AuthPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/auth" });
   const dest = search.redirect ?? "/app/dashboard";
 
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleQuickMode, setGoogleQuickMode] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
   const [resendingEmail, setResendingEmail] = useState(false);
-  const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash : "";
@@ -83,66 +77,6 @@ function AuthPage() {
       authListener.subscription.unsubscribe();
     };
   }, [navigate, dest, search.verified]);
-
-  async function handleGoogleAuth() {
-    setGoogleLoading(true);
-    try {
-      const sbUrl =
-        (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) || SUPABASE_FALLBACK_URL;
-      const sbKey =
-        (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) ||
-        SUPABASE_FALLBACK_KEY;
-
-      let googleEnabled = false;
-      try {
-        const res = await fetch(`${sbUrl}/auth/v1/settings`, {
-          headers: { apikey: sbKey },
-        });
-        if (res.ok) {
-          const json = (await res.json()) as { external?: { google?: boolean } };
-          googleEnabled = Boolean(json?.external?.google);
-        }
-      } catch {
-        googleEnabled = false;
-      }
-
-      if (googleEnabled) {
-        const redirectTo =
-          typeof window !== "undefined"
-            ? `${window.location.origin}/auth?verified=cashbot`
-            : "https://telabot-studio.vercel.app/auth?verified=cashbot";
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo,
-            queryParams: { prompt: "select_account" },
-          },
-        });
-        if (error) {
-          toast.error(error.message);
-        }
-        return;
-      }
-
-      setGoogleQuickMode(true);
-      setActiveTab("signin");
-      if (!email.trim()) {
-        setEmail("@gmail.com");
-      }
-      toast.info("Informe seu e-mail @gmail.com para entrar ou criar sua conta CASH BOT com 1 clique.");
-      setTimeout(() => {
-        if (emailInputRef.current) {
-          emailInputRef.current.focus();
-          const val = emailInputRef.current.value;
-          if (val === "@gmail.com") {
-            emailInputRef.current.setSelectionRange(0, 0);
-          }
-        }
-      }, 60);
-    } finally {
-      setGoogleLoading(false);
-    }
-  }
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -356,151 +290,95 @@ function AuthPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Botão Continuar com Google */}
-              <Button
-                type="button"
-                variant="outline"
-                disabled={googleLoading}
-                onClick={handleGoogleAuth}
-                className="w-full h-11 rounded-xl border-white/15 bg-white text-black hover:bg-zinc-100 hover:text-black font-bold text-sm flex items-center justify-center gap-2.5 shadow transition"
-              >
-                <svg className="size-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
-                  />
-                </svg>
-                <span>{googleLoading ? "Conectando com Google..." : "Continuar com Google"}</span>
-              </Button>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "signin" | "signup")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-white/5 mb-6">
+                <TabsTrigger value="signin" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
+                  Entrar
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
+                  Cadastrar
+                </TabsTrigger>
+              </TabsList>
 
-              {googleQuickMode ? (
-                <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-200 flex items-start gap-2">
-                  <Sparkles className="size-4 text-cyan-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-white">Acesso Rápido com Google (@gmail.com)</p>
-                    <p className="text-[11px] text-cyan-100/80 mt-0.5">
-                      Digite seu e-mail do Google e sua senha abaixo para entrar ou cadastrar agora mesmo no CASH BOT.
-                    </p>
+              <TabsContent value="signin">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">E-mail</Label>
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
+                    />
                   </div>
-                </div>
-              ) : null}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Senha</Label>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
+                  >
+                    {loading ? "Entrando..." : "Acessar Painel"}
+                  </Button>
+                </form>
+              </TabsContent>
 
-              <div className="relative flex items-center justify-center">
-                <div className="w-full border-t border-white/10" />
-                <span className="bg-[#0c0d14] px-3 text-[10px] uppercase tracking-wider text-zinc-500 whitespace-nowrap">
-                  ou continue com seu e-mail
-                </span>
-                <div className="w-full border-t border-white/10" />
-              </div>
-
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "signin" | "signup")} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-white/5 mb-6">
-                  <TabsTrigger value="signin" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
-                    Entrar
-                  </TabsTrigger>
-                  <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-blue-500/30 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/40">
-                    Cadastrar
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="signin">
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-zinc-300">
-                        {googleQuickMode ? "Seu E-mail Google (@gmail.com)" : "E-mail"}
-                      </Label>
-                      <Input
-                        ref={emailInputRef}
-                        type="email"
-                        placeholder={googleQuickMode ? "seuemail@gmail.com" : "seu@email.com"}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-zinc-300">Senha</Label>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
-                    >
-                      {loading ? "Entrando..." : "Acessar Painel"}
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="signup">
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-zinc-300">Seu Nome</Label>
-                      <Input
-                        type="text"
-                        placeholder="Seu nome completo"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        required
-                        className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-zinc-300">
-                        {googleQuickMode ? "Seu E-mail Google (@gmail.com)" : "E-mail"}
-                      </Label>
-                      <Input
-                        type="email"
-                        placeholder={googleQuickMode ? "seuemail@gmail.com" : "seu@email.com"}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-zinc-300">Senha (mínimo 8 dígitos)</Label>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
-                    >
-                      {loading ? "Criando conta..." : "Criar Minha Conta"}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
-            </div>
+              <TabsContent value="signup">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Seu Nome</Label>
+                    <Input
+                      type="text"
+                      placeholder="Seu nome completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">E-mail</Label>
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-zinc-300">Senha (mínimo 8 dígitos)</Label>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-cyan-900/40 transition"
+                  >
+                    {loading ? "Criando conta..." : "Criar Minha Conta"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
           )}
         </div>
 
