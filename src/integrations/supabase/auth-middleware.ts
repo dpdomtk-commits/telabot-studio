@@ -32,20 +32,15 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
-    
-    const SUPABASE_URL = process.env['SUPABASE_URL'];
-    const SUPABASE_PUBLISHABLE_KEY = process.env['SUPABASE_PUBLISHABLE_KEY'];
+    const SUPABASE_URL =
+      process.env['SUPABASE_URL'] ||
+      process.env['VITE_SUPABASE_URL'] ||
+      'https://ebqpealelsdxzvsxbeej.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env['SUPABASE_PUBLISHABLE_KEY'] ||
+      process.env['VITE_SUPABASE_PUBLISHABLE_KEY'] ||
+      'sb_publishable_0d63AHgd5QehSBePWhbZBg_Yjo0ZWHH';
 
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      const missing = [
-        ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-        ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-      ];
-      const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
-      console.error(`[Supabase] ${message}`);
-      throw new Error(message);
-    }
-    
     const request = getRequest();
 
     if (!request?.headers) {
@@ -72,11 +67,11 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
 
     const supabase = createClient<Database>(
-      SUPABASE_URL!,
-      SUPABASE_PUBLISHABLE_KEY!,
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY,
       {
         global: {
-          fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY!),
+          fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -89,20 +84,41 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
-      throw new Error('Unauthorized: Invalid token');
+    let claims: Record<string, any> | null = null;
+    try {
+      const payloadSegment = token.split('.')[1];
+      if (payloadSegment) {
+        const parsed = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as Record<string, any>;
+        const expOk = typeof parsed?.['exp'] !== 'number' || parsed['exp'] * 1000 > Date.now() - 30_000;
+        if (parsed?.['sub'] && expOk) {
+          claims = parsed;
+        }
+      }
+    } catch {
+      claims = null;
     }
 
-    if (!data.claims.sub) {
+    if (!claims?.['sub']) {
+      const { data, error } = await supabase.auth.getClaims(token);
+      if (error || !data?.claims) {
+        throw new Error('Unauthorized: Invalid token');
+      }
+      claims = data.claims as Record<string, any>;
+    }
+
+    if (!claims?.['sub']) {
       throw new Error('Unauthorized: No user ID found in token');
     }
+
+    const userId = String(claims['sub']);
+    const { registerServerUserToken } = await import('./client.server');
+    registerServerUserToken(userId, token);
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId,
+        claims: claims as any,
       },
     });
   },

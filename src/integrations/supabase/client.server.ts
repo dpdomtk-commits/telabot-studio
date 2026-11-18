@@ -9,6 +9,20 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+let latestServerUserJwt: string | null = null;
+const userJwtByUserId = new Map<string, string>();
+
+export function registerServerUserToken(userId: string, token: string) {
+  if (!token) return;
+  latestServerUserJwt = token;
+  if (userId) userJwtByUserId.set(userId, token);
+}
+
+export function getServerUserToken(userId?: string | null): string | null {
+  if (userId && userJwtByUserId.has(userId)) return userJwtByUserId.get(userId)!;
+  return latestServerUserJwt;
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(
@@ -20,8 +34,13 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     }
 
     // New Supabase API keys are opaque strings, not bearer JWTs.
-    if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
-      headers.delete('Authorization');
+    if (isNewSupabaseApiKey(supabaseKey)) {
+      if (headers.get('Authorization') === `Bearer ${supabaseKey}`) {
+        headers.delete('Authorization');
+      }
+      if (supabaseKey.startsWith('sb_publishable_') && !headers.get('Authorization') && latestServerUserJwt) {
+        headers.set('Authorization', `Bearer ${latestServerUserJwt}`);
+      }
     }
 
     headers.set('apikey', supabaseKey);

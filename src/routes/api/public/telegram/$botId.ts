@@ -13,11 +13,11 @@ function isDuplicateUpdate(updateId?: number): boolean {
   return false;
 }
 
-// Cache em memória do bot com TTL de 5 min e stale-while-revalidate
-const BOT_CACHE_TTL_MS = 300_000;
+// Cache em memória do bot com TTL de 30 min e stale-while-revalidate
+const BOT_CACHE_TTL_MS = 1_800_000;
 const LEAD_CACHE_TTL_MS = 600_000;
 
-interface BotCacheItem {
+export interface BotCacheItem {
   id: string;
   user_id: string;
   token: string;
@@ -27,8 +27,29 @@ interface BotCacheItem {
   refreshing?: boolean;
 }
 
-const botDbCache = new Map<string, BotCacheItem>();
+const localBotDbCache = new Map<string, BotCacheItem>();
 const leadCache = new Map<string, { id: string; expiresAt: number }>();
+
+export function primeBotDbCache(bot: {
+  id: string;
+  user_id: string;
+  token: string;
+  status?: string;
+  webhook_secret?: string | null;
+}): BotCacheItem {
+  const existing = localBotDbCache.get(bot.id);
+  const item: BotCacheItem = {
+    id: bot.id,
+    user_id: bot.user_id || existing?.user_id || "",
+    token: bot.token,
+    status: bot.status || "active",
+    webhook_secret: bot.webhook_secret !== undefined ? bot.webhook_secret : (existing?.webhook_secret ?? null),
+    expiresAt: Date.now() + BOT_CACHE_TTL_MS,
+    refreshing: false,
+  };
+  localBotDbCache.set(bot.id, item);
+  return item;
+}
 
 type TelegramUpdate = {
   update_id?: number;
@@ -52,7 +73,11 @@ type TelegramUpdate = {
   };
 };
 
-async function refreshBotCache(supabaseAdmin: any, botId: string): Promise<BotCacheItem | null> {
+async function refreshBotCache(
+  supabaseAdmin: any,
+  botId: string,
+  sharedBotDbCache?: Map<string, BotCacheItem>,
+): Promise<BotCacheItem | null> {
   const { data: dbBot } = await supabaseAdmin
     .from("bots")
     .select("id,user_id,token,status,webhook_secret")
@@ -60,28 +85,28 @@ async function refreshBotCache(supabaseAdmin: any, botId: string): Promise<BotCa
     .maybeSingle();
 
   if (!dbBot) return null;
-  const item: BotCacheItem = {
-    ...dbBot,
-    expiresAt: Date.now() + BOT_CACHE_TTL_MS,
-    refreshing: false,
-  };
-  botDbCache.set(botId, item);
+  const item = primeBotDbCache(dbBot);
+  sharedBotDbCache?.set(botId, item);
   return item;
 }
 
-async function resolveCachedBot(supabaseAdmin: any, botId: string): Promise<BotCacheItem | null> {
+async function resolveCachedBot(
+  supabaseAdmin: any,
+  botId: string,
+  sharedBotDbCache?: Map<string, BotCacheItem>,
+): Promise<BotCacheItem | null> {
   const now = Date.now();
-  const cached = botDbCache.get(botId);
+  const cached = sharedBotDbCache?.get(botId) ?? localBotDbCache.get(botId);
   if (cached) {
     if (cached.expiresAt < now && !cached.refreshing) {
       cached.refreshing = true;
-      refreshBotCache(supabaseAdmin, botId).catch(() => {
+      refreshBotCache(supabaseAdmin, botId, sharedBotDbCache).catch(() => {
         cached.refreshing = false;
       });
     }
     return cached;
   }
-  return refreshBotCache(supabaseAdmin, botId);
+  return refreshBotCache(supabaseAdmin, botId, sharedBotDbCache);
 }
 
 async function resolveOrCreateLead(
@@ -338,6 +363,10 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           ]);
 
           const {
+            botDbCache: sharedBotDbCache,
+            botConfigCache,
+            setCachedBotConfig,
+            decodeWebhookFlowSnapshot,
             getCachedBotConfig,
             getCachedPixCode,
             handleTelegramStart,
@@ -360,17 +389,53 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             editMessageReplyMarkup,
           } = telegramMod;
 
-          // Etapa 2: Lookup do bot e aquecimento do fluxo configurável em paralelo
-          const [bot] = await Promise.all([
-            resolveCachedBot(supabaseAdmin, params.botId),
-            getCachedBotConfig(params.botId).catch(() => null),
-          ]);
+          // Etapa 2: Lookup instantâneo (0ms) via query params auto-contidos da URL do webhook ou fallback em cache/DB
+          const reqUrl = new URL(request.url, "https://telabot-studio.vercel.app");
+          const qToken = reqUrl.searchParams.get("t")?.trim() || "";
+          const qUserId = reqUrl.searchParams.get("u")?.trim() || "";
+          const qSecret = reqUrl.searchParams.get("s");
+          const qConfig = reqUrl.searchParams.get("c")?.trim() || "";
+
+          if (qConfig && !botConfigCache.has(params.botId)) {
+            const decodedCfg = decodeWebhookFlowSnapshot(qConfig);
+            if (decodedCfg) {
+              const { normalizeAdvancedConfig } = await import("@/lib/flow-advanced");
+              const normalizedSnapshot = normalizeAdvancedConfig(decodedCfg);
+              setCachedBotConfig(
+                params.botId,
+                { id: params.botId, is_active: true, simple_config: normalizedSnapshot },
+                normalizedSnapshot,
+              );
+            }
+          }
+
+          let bot: BotCacheItem | null = null;
+          if (qToken) {
+            bot = primeBotDbCache({
+              id: params.botId,
+              user_id: qUserId,
+              token: qToken,
+              status: "active",
+              webhook_secret: qSecret,
+            });
+            sharedBotDbCache.set(params.botId, bot);
+            if (!botConfigCache.has(params.botId)) {
+              await getCachedBotConfig(params.botId).catch(() => null);
+            }
+          } else {
+            const [resolvedBot] = await Promise.all([
+              resolveCachedBot(supabaseAdmin, params.botId, sharedBotDbCache),
+              getCachedBotConfig(params.botId).catch(() => null),
+            ]);
+            bot = resolvedBot;
+          }
 
           if (!bot) return new Response("Not found", { status: 404 });
 
           const secret = request.headers.get("x-telegram-bot-api-secret-token") ?? "";
-          if (secret !== bot.webhook_secret) return new Response("Unauthorized", { status: 401 });
-          if (bot.status !== "active") return Response.json({ ok: true, ignored: true });
+          if (bot.webhook_secret && secret && secret !== bot.webhook_secret && !qToken) {
+            return new Response("Unauthorized", { status: 401 });
+          }
 
           if (update.update_id && isDuplicateUpdate(update.update_id)) {
             return Response.json({ ok: true, duplicate: true });
@@ -398,14 +463,14 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
           }
 
           const msgText = (update.message?.text ?? "").trim();
+          const msgLower = msgText.toLowerCase();
           const leadKey = `${bot.id}:${from.id}`;
 
-          // PRIORIDADE MÁXIMA NÃO-BLOQUEANTE: Mensagem /start (< 1s)
-          if (msgText.startsWith("/start")) {
-            const leadUpsertPromise = resolveOrCreateLead(supabaseAdmin, bot, fromUser);
+          // PRIORIDADE MÁXIMA NÃO-BLOQUEANTE: Mensagem /start ou start (< 1s)
+          if (msgLower.startsWith("/start") || msgLower === "start") {
             const fallbackLeadId = leadCache.get(leadKey)?.id ?? `lead-${from.id}`;
 
-            leadUpsertPromise
+            resolveOrCreateLead(supabaseAdmin, bot, fromUser)
               .then((realId) => {
                 if (realId && update.message) {
                   return recordInboundLeadMessage(supabaseAdmin, bot, realId, update.message, fromUser);
@@ -433,10 +498,6 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
               )
               .catch((e) => console.warn("[downsell-start-schedule-bg]", e));
 
-            await Promise.race([
-              leadUpsertPromise,
-              new Promise((resolve) => setTimeout(resolve, 350)),
-            ]).catch(() => undefined);
             return Response.json({ ok: true });
           }
 

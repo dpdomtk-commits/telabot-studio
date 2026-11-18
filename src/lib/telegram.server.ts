@@ -1,3 +1,4 @@
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const API = "https://api.telegram.org";
@@ -7,8 +8,42 @@ export type TelegramSendResult = { ok: boolean; error?: string; result?: any };
 // Cache em memória de file_id do Telegram para evitar downloads/uploads repetidos
 export const telegramFileIdCache = new Map<string, string>();
 
-// Cache curto em memória de fluxo e configurações ativas do bot (TTL 2s para refletir edições imediatamente)
-const BOT_CONFIG_TTL_MS = 2_000;
+// Cache em memória do bot (TTL 30min com atualização imediata em qualquer edição)
+export const BOT_RECORD_TTL_MS = 1_800_000;
+export interface BotRecordCacheItem {
+  id: string;
+  user_id: string;
+  token: string;
+  status: string;
+  webhook_secret: string | null;
+  expiresAt: number;
+  refreshing?: boolean;
+}
+export const botDbCache = new Map<string, BotRecordCacheItem>();
+
+export function primeBotDbCache(bot: {
+  id: string;
+  user_id: string;
+  token: string;
+  status?: string;
+  webhook_secret?: string | null;
+}): BotRecordCacheItem {
+  const existing = botDbCache.get(bot.id);
+  const item: BotRecordCacheItem = {
+    id: bot.id,
+    user_id: bot.user_id || existing?.user_id || "",
+    token: bot.token,
+    status: bot.status || "active",
+    webhook_secret: bot.webhook_secret !== undefined ? bot.webhook_secret : (existing?.webhook_secret ?? null),
+    expiresAt: Date.now() + BOT_RECORD_TTL_MS,
+    refreshing: false,
+  };
+  botDbCache.set(bot.id, item);
+  return item;
+}
+
+// Cache em memória de fluxo e configurações ativas do bot (TTL 30min com invalidação imediata ao salvar)
+const BOT_CONFIG_TTL_MS = 1_800_000;
 interface BotConfigCacheEntry {
   flow: any;
   cfg: any;
@@ -399,16 +434,164 @@ export function deleteWebhook(token: string) {
 
 /** URL pública estável do projeto (o Telegram só aceita hosts públicos HTTPS). */
 export function publicBaseUrl(host?: string): string {
-  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+  const envDomain =
+    (typeof process !== "undefined" && (process.env?.DOMAIN || process.env?.PUBLIC_SITE_URL)) || "";
+  if (
+    host &&
+    !host.includes("localhost") &&
+    !host.includes("127.0.0.1") &&
+    !host.endsWith("-dp-9631.vercel.app")
+  ) {
     return host.startsWith("http") ? host : `https://${host}`;
+  }
+  if (envDomain) {
+    return envDomain.startsWith("http") ? envDomain.replace(/\/+$/, "") : `https://${envDomain}`;
   }
   if (typeof process !== "undefined" && process.env?.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   }
-  if (typeof process !== "undefined" && process.env?.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
   return "https://telabot-studio.vercel.app";
+}
+
+function compactSnapshotMedia(items: unknown) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((m: any) => {
+      const fileId = typeof m?.fileId === "string" && !m.fileId.startsWith("data:") ? m.fileId : "";
+      const url = typeof m?.url === "string" && !m.url.startsWith("data:") && m.url.length <= 300 ? m.url : "";
+      const target = fileId || url;
+      if (!target) return null;
+      return {
+        id: m?.id || "",
+        kind: m?.kind || m?.type || "image",
+        fileId: fileId || target,
+        ...(url ? { url } : {}),
+        ...(m?.caption ? { caption: String(m.caption).slice(0, 200) } : {}),
+      };
+    })
+    .filter(Boolean);
+}
+
+/** Serializa e comprime um snapshot compacto do fluxo para execução em 0ms sem depender de banco no webhook. */
+export function encodeWebhookFlowSnapshot(cfg: any): string {
+  if (!cfg || typeof cfg !== "object") return "";
+  try {
+    const core = {
+      welcome: {
+        startMessage: cfg.welcome?.startMessage || "",
+        messagePt: cfg.welcome?.messagePt || "",
+        messageEn: cfg.welcome?.messageEn || "",
+        mediaMode: cfg.welcome?.mediaMode || "separated",
+        hasCtaButton: Boolean(cfg.welcome?.hasCtaButton),
+        ctaButtonText: cfg.welcome?.ctaButtonText || "",
+        ctaButtonUrl: cfg.welcome?.ctaButtonUrl || "",
+        redirectButtons: Array.isArray(cfg.welcome?.redirectButtons)
+          ? cfg.welcome.redirectButtons.slice(0, 4)
+          : [],
+        media: compactSnapshotMedia(cfg.welcome?.media),
+      },
+      gate: {
+        welcomeMessagePt: cfg.gate?.welcomeMessagePt || "",
+        welcomeMessageEn: cfg.gate?.welcomeMessageEn || "",
+      },
+      plans: {
+        deliveryFallback: cfg.plans?.deliveryFallback || "",
+        items: Array.isArray(cfg.plans?.items) ? cfg.plans.items.slice(0, 12) : [],
+      },
+      payments: {
+        approvedMessagePt: cfg.payments?.approvedMessagePt || "",
+        approvedButtonText: cfg.payments?.approvedButtonText || "",
+        approvedButtonUrl: cfg.payments?.approvedButtonUrl || "",
+      },
+      bots: {
+        supportUsername: cfg.bots?.supportUsername || "",
+        username: cfg.bots?.username || "",
+      },
+    };
+
+    const full = {
+      ...core,
+      orderBump: cfg.orderBump
+        ? {
+            initialFlowEnabled: Boolean(cfg.orderBump.initialFlowEnabled),
+            productName: cfg.orderBump.productName || "",
+            price: cfg.orderBump.price || 0,
+            ctaMessage: cfg.orderBump.ctaMessage || "",
+            description: cfg.orderBump.description || "",
+            acceptButtonText: cfg.orderBump.acceptButtonText || "",
+            refuseButtonText: cfg.orderBump.refuseButtonText || "",
+          }
+        : undefined,
+      upsell: cfg.upsell
+        ? {
+            enabled: Boolean(cfg.upsell.enabled),
+            deliveryMessage: cfg.upsell.deliveryMessage || "",
+            sequences: Array.isArray(cfg.upsell.sequences)
+              ? cfg.upsell.sequences.slice(0, 4).map((s: any) => ({
+                  ...s,
+                  media: compactSnapshotMedia(s?.media),
+                }))
+              : [],
+          }
+        : undefined,
+      packs: cfg.packs
+        ? {
+            enabled: Boolean(cfg.packs.enabled),
+            items: Array.isArray(cfg.packs.items) ? cfg.packs.items.slice(0, 8) : [],
+          }
+        : undefined,
+      previews: cfg.previews
+        ? {
+            enabled: Boolean(cfg.previews.enabled),
+            buttonText: cfg.previews.buttonText || "",
+            deleteSeconds: cfg.previews.deleteSeconds || 15,
+            conversionCopy: cfg.previews.conversionCopy || "",
+            media: compactSnapshotMedia(cfg.previews.media),
+          }
+        : undefined,
+    };
+
+    const encodedFull = deflateRawSync(Buffer.from(JSON.stringify(full), "utf8")).toString("base64url");
+    if (encodedFull.length <= 1350) return encodedFull;
+
+    const encodedCore = deflateRawSync(Buffer.from(JSON.stringify(core), "utf8")).toString("base64url");
+    return encodedCore.length <= 1550 ? encodedCore : "";
+  } catch {
+    return "";
+  }
+}
+
+export function decodeWebhookFlowSnapshot(encoded: string): any | null {
+  if (!encoded) return null;
+  try {
+    const json = inflateRawSync(Buffer.from(encoded, "base64url")).toString("utf8");
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Constrói a URL auto-contida de webhook do Telegram garantindo resposta < 1s mesmo em cold start sem service_role. */
+export function buildBotWebhookUrl(params: {
+  host?: string;
+  botId: string;
+  token: string;
+  userId: string;
+  secret?: string | null;
+  cfg?: any;
+}): string {
+  const base = publicBaseUrl(params.host).replace(/\/+$/, "");
+  const qs = new URLSearchParams();
+  qs.set("t", params.token);
+  if (params.userId) qs.set("u", params.userId);
+  if (params.secret) qs.set("s", params.secret);
+  const baseUrl = `${base}/api/public/telegram/${params.botId}?${qs.toString()}`;
+  const encodedCfg = params.cfg ? encodeWebhookFlowSnapshot(params.cfg) : "";
+  if (encodedCfg && `${baseUrl}&c=${encodedCfg}`.length <= 1950) {
+    return `${baseUrl}&c=${encodedCfg}`;
+  }
+  return baseUrl;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -680,7 +863,7 @@ export async function handleTelegramStart(params: {
           ? await sendVideo(params.token, params.chatId, target, welcomeText, languageMarkup)
           : await sendPhoto(params.token, params.chatId, target, welcomeText, languageMarkup);
       if (res.ok) {
-        await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
+        persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
         return;
       }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
@@ -694,7 +877,7 @@ export async function handleTelegramStart(params: {
         await sendPhoto(params.token, params.chatId, target, m.caption || undefined).catch(() => undefined);
       }
       await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
-      await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
+      persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
       return;
     }
   }
@@ -709,7 +892,7 @@ export async function handleTelegramStart(params: {
 
   await sendMessage(params.token, params.chatId, welcomeText, languageMarkup);
   if (usedTargets.length > 0) {
-    await persistUpgradedMediaFileIds(flow, cfg, usedTargets);
+    persistUpgradedMediaFileIds(flow, cfg, usedTargets).catch(() => undefined);
   }
 }
 
@@ -831,15 +1014,19 @@ export async function handleLanguageSelect(params: {
           },
         };
 
+  const hasWelcomeMedia = (cfg.welcome?.media ?? []).some((m: any) => Boolean(m?.fileId || m?.url));
+
   if (params.messageId && payload.text.length <= 1024) {
-    const capRes = await editMessageCaption(
-      params.token,
-      params.chatId,
-      params.messageId,
-      payload.text,
-      payload.replyMarkup,
-    );
-    if (capRes.ok) return;
+    if (hasWelcomeMedia) {
+      const capRes = await editMessageCaption(
+        params.token,
+        params.chatId,
+        params.messageId,
+        payload.text,
+        payload.replyMarkup,
+      );
+      if (capRes.ok) return;
+    }
 
     const txtRes = await editMessageText(
       params.token,

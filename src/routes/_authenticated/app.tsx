@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app/AppSidebar";
 import { NotificationBell } from "@/components/app/NotificationBell";
 import { PwaInstallButton } from "@/components/pwa/PwaInstallButton";
 import { supabase } from "@/integrations/supabase/client";
+import { syncAllUserBotsWebhooks } from "@/lib/bot.functions";
 import {
   playCashRegisterSound,
   subscribeDeviceToWebPush,
@@ -67,8 +68,14 @@ function AppLayout() {
     },
   });
 
-  // Listener em tempo real (Realtime WebSocket + polling resiliente no iOS/PWA + Web Push VAPID)
+  // Sincroniza webhooks auto-contidos dos bots na inicialização e ativa listeners em tempo real
+  const syncedWebhooksOnceRef = useRef(false);
   useEffect(() => {
+    if (!syncedWebhooksOnceRef.current) {
+      syncedWebhooksOnceRef.current = true;
+      syncAllUserBotsWebhooks().catch(() => undefined);
+    }
+
     const handleFirstInteraction = () => {
       unlockAudio();
       window.removeEventListener("pointerdown", handleFirstInteraction);
