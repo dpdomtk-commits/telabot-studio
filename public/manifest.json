@@ -1,7 +1,7 @@
 {
   "name": "CASHBOT",
   "short_name": "CASHBOT",
-  "description": "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. The World Is Yours.",
+  "description": "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais com a menor taxa do mercado. O acesso sai na hora.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

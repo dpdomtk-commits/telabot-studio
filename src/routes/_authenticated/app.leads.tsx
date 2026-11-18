@@ -32,7 +32,9 @@ import {
   ListOrdered,
   CreditCard,
   Flame,
+  Upload,
 } from "lucide-react";
+import { uploadMedia, kindFromFile } from "@/lib/media";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { downloadCsv } from "@/lib/csv";
@@ -552,6 +554,26 @@ function LeadGuidedChatSheet({
   const [showMediaBox, setShowMediaBox] = useState(false);
   const [mediaKind, setMediaKind] = useState<"image" | "video">("image");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [uploadingChatMedia, setUploadingChatMedia] = useState(false);
+  const chatMediaInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleChatPcMediaUpload(file: File | undefined) {
+    if (!file) return;
+    const rawKind = kindFromFile(file);
+    const resolvedKind: "image" | "video" = rawKind === "video" ? "video" : "image";
+    setUploadingChatMedia(true);
+    try {
+      const asset = await uploadMedia(file, resolvedKind);
+      setMediaUrl(asset.telegram_file_id);
+      setMediaKind(resolvedKind);
+      toast.success("Mídia carregada do computador!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar mídia");
+    } finally {
+      setUploadingChatMedia(false);
+      if (chatMediaInputRef.current) chatMediaInputRef.current.value = "";
+    }
+  }
 
   useEffect(() => {
     setGuidedMode("text");
@@ -1115,33 +1137,71 @@ function LeadGuidedChatSheet({
           </div>
 
           {showMediaBox && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/40 p-2">
-              <div className="flex gap-1">
+            <div className="space-y-2 rounded-lg border border-white/10 bg-black/40 p-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={mediaKind === "image" ? "default" : "outline"}
+                    className="h-7 text-[11px]"
+                    onClick={() => setMediaKind("image")}
+                  >
+                    <ImageIcon className="size-3 mr-1" /> Imagem
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={mediaKind === "video" ? "default" : "outline"}
+                    className="h-7 text-[11px]"
+                    onClick={() => setMediaKind("video")}
+                  >
+                    <Video className="size-3 mr-1" /> Vídeo
+                  </Button>
+                </div>
+                <input
+                  ref={chatMediaInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => void handleChatPcMediaUpload(e.target.files?.[0])}
+                />
                 <Button
                   type="button"
                   size="sm"
-                  variant={mediaKind === "image" ? "default" : "outline"}
-                  className="h-7 text-[11px]"
-                  onClick={() => setMediaKind("image")}
+                  variant="outline"
+                  disabled={uploadingChatMedia}
+                  onClick={() => chatMediaInputRef.current?.click()}
+                  className="h-7 text-[11px] border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
                 >
-                  <ImageIcon className="size-3 mr-1" /> Imagem
+                  {uploadingChatMedia ? (
+                    <Loader2 className="size-3 animate-spin mr-1" />
+                  ) : (
+                    <Upload className="size-3 mr-1" />
+                  )}
+                  {uploadingChatMedia ? "Carregando..." : "Subir do PC"}
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={mediaKind === "video" ? "default" : "outline"}
-                  className="h-7 text-[11px]"
-                  onClick={() => setMediaKind("video")}
-                >
-                  <Video className="size-3 mr-1" /> Vídeo
-                </Button>
+                <Input
+                  value={mediaUrl.startsWith("data:") ? "" : mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  placeholder="Ou URL / file_id..."
+                  className="h-7 flex-1 min-w-[140px] text-xs bg-zinc-900 border-white/10"
+                />
               </div>
-              <Input
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder="URL pública (https://...) ou file_id do Telegram"
-                className="h-7 flex-1 text-xs bg-zinc-900 border-white/10"
-              />
+              {mediaUrl && (
+                <div className="flex items-center justify-between rounded bg-black/50 px-2.5 py-1.5 text-[11px]">
+                  <span className="text-emerald-400 truncate">
+                    ✓ Mídia anexada ({mediaKind === "video" ? "Vídeo" : "Imagem"})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMediaUrl("")}
+                    className="text-red-400 hover:underline ml-2"
+                  >
+                    Remover
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

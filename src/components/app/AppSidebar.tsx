@@ -130,9 +130,11 @@ export function AppSidebar({ isAdmin }: { isAdmin: boolean }) {
     <Sidebar collapsible="icon" className="border-r border-white/5 bg-[#050508]">
       <SidebarHeader className="px-3 py-4 border-b border-white/5">
         <Link to="/app/dashboard" className="flex items-center gap-2.5 truncate font-serif text-base font-bold">
-          <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-cyan-500/40 bg-black shadow-[0_0_18px_rgba(6,182,212,0.4)]">
-            <img src="/cashbot-emblem.jpg" alt="CASH BOT" className="size-full object-cover" />
-          </span>
+          <img
+            src="/cashbot-emblem.jpg?v=3"
+            alt="CASH BOT"
+            className="size-10 shrink-0 object-contain drop-shadow-[0_0_10px_rgba(6,182,212,0.35)]"
+          />
           <div className="flex flex-col truncate">
             <span className="truncate tracking-wider text-white font-extrabold text-sm flex items-center gap-1">
               CASH<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">BOT</span>

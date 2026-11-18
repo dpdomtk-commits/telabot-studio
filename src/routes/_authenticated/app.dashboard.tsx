@@ -73,7 +73,7 @@ export function Dashboard() {
           .limit(60),
         supabase
           .from("bots")
-          .select("id,name,username,status,created_at")
+          .select("id,name,telegram_username,status,created_at")
           .order("created_at", { ascending: false }),
       ]);
 

@@ -19,13 +19,15 @@ export const Route = createFileRoute("/_authenticated/app")({
   component: AppLayout,
 });
 
+const ADMIN_EMAILS = ["dpz09@hotmail.com", "dpdomtk@gmail.com"];
+
 export function useIsAdmin() {
   return useQuery({
     queryKey: ["is-admin"],
     queryFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       const email = (userData.user?.email || "").trim().toLowerCase();
-      return email === "dpz09@hotmail.com";
+      return ADMIN_EMAILS.includes(email);
     },
   });
 }

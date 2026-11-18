@@ -32,8 +32,9 @@ function CheckoutPage() {
   return (
     <div className="min-h-screen bg-[#050508] text-white flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-xl mb-4 text-center">
-        <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-          <span>⚡ CASH BOT</span>
+        <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2.5">
+          <img src="/cashbot-emblem.jpg?v=3" alt="CASH BOT" className="size-9 object-contain" />
+          <span>CASH BOT</span>
           <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800">
             STRIPE
           </span>

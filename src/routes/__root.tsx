@@ -99,16 +99,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio.",
+          "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "CASH BOT — O Mundo é Seu" },
-      { name: "twitter:title", content: "CASH BOT — O Mundo é Seu" },
-      { property: "og:description", content: "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio." },
-      { name: "twitter:description", content: "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d9f407f2-7dec-401d-b053-a8da3f6986ec" },
+      { property: "og:title", content: "CASH BOT — PIX & Pagamentos Internacionais no Telegram com a Menor Taxa do Mercado" },
+      { name: "twitter:title", content: "CASH BOT — PIX & Pagamentos Internacionais no Telegram com a Menor Taxa do Mercado" },
+      { property: "og:description", content: "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora." },
+      { name: "twitter:description", content: "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora." },
+      { property: "og:image", content: "/cashbot-emblem.jpg?v=3" },
+      { name: "twitter:image", content: "/cashbot-emblem.jpg?v=3" },
       { name: "theme-color", content: "#0B3B99" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
@@ -116,7 +116,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "manifest", href: "/manifest.json" },
-      { rel: "apple-touch-icon", href: "/cashbot-icon-192.png" },
+      { rel: "apple-touch-icon", href: "/cashbot-icon-192.png?v=3" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -124,7 +124,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Space+Grotesk:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap",
       },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "icon", type: "image/png", href: "/favicon.png?v=3" },
     ],
     scripts: [
       {

@@ -212,7 +212,7 @@ function AdminPage() {
     <div className="space-y-6">
       <PageHeader
         title="Painel Admin & Processamento de Saques"
-        description="Gestão exclusiva (dpz09@hotmail.com): aprove e transfira manualmente todos os pedidos de saque via PIX."
+        description="Gestão exclusiva (dpz09@hotmail.com e dpdomtk@gmail.com): aprove e transfira manualmente todos os pedidos de saque via PIX."
       />
 
       {/* Resumo Financeiro da Plataforma */}

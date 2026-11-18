@@ -58,6 +58,7 @@ import {
   type SequenceStep,
 } from "@/lib/flow-advanced";
 import { syncFlowConfig } from "@/lib/flow.functions";
+import { enableBotWebhook } from "@/lib/bot.functions";
 
 export const Route = createFileRoute("/_authenticated/app/flows/$flowId_/simple")({
   head: () => ({
@@ -158,7 +159,7 @@ export function AdvancedFlowEditorPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bots")
-        .select("id,name,username,status")
+        .select("id,name,telegram_username,status")
         .order("name");
       if (error) throw error;
       return data ?? [];
@@ -212,8 +213,18 @@ export function AdvancedFlowEditorPage() {
   }
 
   useEffect(() => {
-    if (flowData?.simple_config && initializedFlowIdRef.current !== flowId) {
-      setConfig(normalizeAdvancedConfig(flowData.simple_config));
+    if (flowData && initializedFlowIdRef.current !== flowId) {
+      const normalized = normalizeAdvancedConfig(flowData.simple_config);
+      if (
+        flowData.bot_id &&
+        (!normalized.bots.linkedBots || !normalized.bots.linkedBots.includes(flowData.bot_id))
+      ) {
+        normalized.bots = {
+          ...normalized.bots,
+          linkedBots: Array.from(new Set([flowData.bot_id, ...(normalized.bots.linkedBots || [])])),
+        };
+      }
+      setConfig(normalized);
       setFlowNameDraft(flowData.name || "");
       initializedFlowIdRef.current = flowId;
     }
@@ -268,7 +279,7 @@ export function AdvancedFlowEditorPage() {
         await supabase.from("bots").update({ status: "active" }).eq("id", bId);
       }
 
-      // 3. Garante persistência server-side e invalidação imediata do cache em memória do Telegram
+      // 3. Garante persistência server-side, ativa webhook e invalida cache em memória do Telegram
       await Promise.allSettled([
         syncFlowConfig({
           data: {
@@ -277,6 +288,7 @@ export function AdvancedFlowEditorPage() {
             simpleConfig: normalizedConfig,
           },
         }).catch(() => undefined),
+        ...targetBotIds.map((bId) => enableBotWebhook({ data: { botId: bId } }).catch(() => undefined)),
         ...(selectedBotId
           ? [
               fetch("/api/push-subscribe", {
@@ -555,7 +567,9 @@ export function AdvancedFlowEditorPage() {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-foreground">{bot.name}</p>
-                            <p className="text-xs text-muted-foreground">@{bot.username || "bot"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              @{bot.telegram_username?.replace("@", "") || "bot"}
+                            </p>
                           </div>
                         </div>
                         <Switch
@@ -924,8 +938,27 @@ export function AdvancedFlowEditorPage() {
                   </div>
                 )}
 
-                {/* Controles Extras Estilo SharkBot: Mensagem Secundária, CTA, Redirects e Mini App */}
+                {/* Controles Extras Estilo SharkBot: Mídia da Copy Principal, Mensagem Secundária, CTA, Redirects e Mini App */}
                 <div className="grid gap-4 pt-3 border-t border-white/5">
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-2">
+                    <FlowMediaUploader
+                      media={config.welcome.media}
+                      mode={config.welcome.mediaMode}
+                      onModeChange={(m) =>
+                        setConfig({
+                          ...config,
+                          welcome: { ...config.welcome, mediaMode: m },
+                        })
+                      }
+                      onChange={(items) =>
+                        setConfig({
+                          ...config,
+                          welcome: { ...config.welcome, media: items },
+                        })
+                      }
+                      maxItems={5}
+                    />
+                  </div>
                   {/* Mensagem Secundária */}
                   <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -1923,27 +1956,68 @@ export function AdvancedFlowEditorPage() {
                 </div>
               ) : null}
 
-              {config.upsell.sequences.map((seq, seqIdx) => (
+              {config.upsell.sequences.map((seq) => (
                 <div key={seq.id} className="space-y-5 rounded-xl border border-border bg-surface/50 p-5">
-                  <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                    <span className="font-semibold text-sm text-foreground">
-                      {seq.title}
-                    </span>
-                    <Badge variant="outline" className="text-xs">Imediato após compra</Badge>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-semibold text-sm text-foreground">
+                        {seq.title}
+                      </span>
+                      <Switch
+                        checked={seq.enabled}
+                        onCheckedChange={(checked) => {
+                          const updated = config.upsell.sequences.map((s) =>
+                            s.id === seq.id ? { ...s, enabled: checked } : s
+                          );
+                          setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">Imediato após compra</Badge>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-zinc-400 hover:text-red-400"
+                        onClick={() => {
+                          const updated = config.upsell.sequences.filter((s) => s.id !== seq.id);
+                          setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                          toast.success("Sequência de Upsell removida");
+                        }}
+                        aria-label="Excluir Upsell"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Upload de mídias direto do PC com preview */}
-                  <FlowMediaUploader
-                    media={seq.media}
-                    mode={seq.mediaMode}
-                    onChange={(items) => {
-                      const updated = config.upsell.sequences.map((s) =>
-                        s.id === seq.id ? { ...s, media: items } : s
-                      );
-                      setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
-                    }}
-                    maxItems={3}
-                  />
+                  <div className="space-y-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                        Mídia do Upsell (Subir Foto, Vídeo ou Áudio do PC — Opcional)
+                      </Label>
+                      <span className="text-[10px] text-slate-500">Até 3 arquivos</span>
+                    </div>
+                    <FlowMediaUploader
+                      media={seq.media}
+                      mode={seq.mediaMode}
+                      onModeChange={(mode) => {
+                        const updated = config.upsell.sequences.map((s) =>
+                          s.id === seq.id ? { ...s, mediaMode: mode } : s
+                        );
+                        setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                      }}
+                      onChange={(items) => {
+                        const updated = config.upsell.sequences.map((s) =>
+                          s.id === seq.id ? { ...s, media: items } : s
+                        );
+                        setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                      }}
+                      maxItems={3}
+                    />
+                  </div>
 
                   {/* Seleção de Bots para este Upsell */}
                   <div className="space-y-2">
@@ -2011,37 +2085,163 @@ export function AdvancedFlowEditorPage() {
                     />
                   </div>
 
-                  {/* Oferta / Preço com Desconto */}
-                  <div className="grid gap-4 sm:grid-cols-2 bg-black/30 p-4 rounded-xl border border-border/60">
-                    <div>
-                      <Label className="text-xs">Nome da Oferta / Botão</Label>
-                      <Input
-                        value={seq.plans[0]?.name || ""}
-                        onChange={(e) => {
-                          const currentPlans = [...seq.plans];
-                          if (currentPlans[0]) currentPlans[0].name = e.target.value;
+                  {/* Botão "Não quero" Opcional no Upsell */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-white">Exibir botão &quot;Não quero&quot; (Opcional)</p>
+                        <p className="text-[11px] text-zinc-400">
+                          Permite que o cliente recuse o Upsell sem atrapalhar ou interromper o acesso que já comprou.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={Boolean(seq.showRefuseButton)}
+                        onCheckedChange={(checked) => {
                           const updated = config.upsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans: currentPlans } : s
+                            s.id === seq.id
+                              ? {
+                                  ...s,
+                                  showRefuseButton: checked,
+                                  refuseButtonText: s.refuseButtonText || "Não quero, obrigado",
+                                }
+                              : s
                           );
                           setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
                         }}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs">Preço com Desconto (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={seq.plans[0]?.discountPrice || 0}
-                        onChange={(e) => {
-                          const currentPlans = [...seq.plans];
-                          if (currentPlans[0]) currentPlans[0].discountPrice = Number(e.target.value);
+                    {seq.showRefuseButton ? (
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-zinc-400">Texto do botão de recusa</Label>
+                        <Input
+                          value={seq.refuseButtonText ?? "Não quero, obrigado"}
+                          onChange={(e) => {
+                            const updated = config.upsell.sequences.map((s) =>
+                              s.id === seq.id ? { ...s, refuseButtonText: e.target.value } : s
+                            );
+                            setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                          }}
+                          placeholder="Não quero, obrigado"
+                          className="h-8 text-xs bg-black/50 border-white/10"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Ofertas / Planos do Upsell (Importar do Fluxo ou Criar Novos) */}
+                  <div className="bg-black/30 p-4 rounded-xl border border-border/60 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <Label className="text-xs font-semibold">Planos & Botões de Upsell (do Fluxo ou Novos)</Label>
+                        <p className="text-[11px] text-zinc-400">
+                          Selecione um plano existente deste fluxo ou crie ofertas novas para o Upsell.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px]"
+                        onClick={() => {
+                          const nextPlan = {
+                            id: `up-p-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                            name: "NOVO UPSELL VIP",
+                            duration: "Vitalício",
+                            originalPrice: 39.9,
+                            discountPrice: 19.9,
+                          };
                           const updated = config.upsell.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans: currentPlans } : s
+                            s.id === seq.id ? { ...s, plans: [...(s.plans || []), nextPlan] } : s
                           );
                           setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
                         }}
-                      />
+                      >
+                        <Plus className="size-3 mr-1" /> Criar Novo Plano
+                      </Button>
+                    </div>
+
+                    {config.plans.items.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {config.plans.items.map((flowPlan) => (
+                          <button
+                            key={flowPlan.id}
+                            type="button"
+                            onClick={() => {
+                              const imported = {
+                                id: `up-fp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                                name: flowPlan.name,
+                                duration: flowPlan.duration || "Acesso",
+                                originalPrice: Number(flowPlan.price) || 0,
+                                discountPrice: Number(flowPlan.price) || 0,
+                              };
+                              const updated = config.upsell.sequences.map((s) =>
+                                s.id === seq.id ? { ...s, plans: [...(s.plans || []), imported] } : s
+                              );
+                              setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                            }}
+                            className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 hover:bg-cyan-500/20 transition"
+                          >
+                            + {flowPlan.name} (R$ {Number(flowPlan.price || 0).toFixed(2).replace(".", ",")})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {(seq.plans ?? []).map((upPlan, upIdx) => (
+                        <div key={upPlan.id || upIdx} className="grid gap-2 sm:grid-cols-[1fr_140px_34px] items-end">
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Nome da Oferta / Botão #{upIdx + 1}</Label>
+                            <Input
+                              className="h-8 text-xs"
+                              value={upPlan.name}
+                              onChange={(e) => {
+                                const currentPlans = seq.plans.map((p, i) =>
+                                  i === upIdx ? { ...p, name: e.target.value } : p
+                                );
+                                const updated = config.upsell.sequences.map((s) =>
+                                  s.id === seq.id ? { ...s, plans: currentPlans } : s
+                                );
+                                setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Preço (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-8 text-xs"
+                              value={upPlan.discountPrice}
+                              onChange={(e) => {
+                                const currentPlans = seq.plans.map((p, i) =>
+                                  i === upIdx ? { ...p, discountPrice: Number(e.target.value) } : p
+                                );
+                                const updated = config.upsell.sequences.map((s) =>
+                                  s.id === seq.id ? { ...s, plans: currentPlans } : s
+                                );
+                                setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                              }}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            disabled={seq.plans.length <= 1}
+                            onClick={() => {
+                              const currentPlans = seq.plans.filter((_, i) => i !== upIdx);
+                              const updated = config.upsell.sequences.map((s) =>
+                                s.id === seq.id ? { ...s, plans: currentPlans } : s
+                              );
+                              setConfig({ ...config, upsell: { ...config.upsell, sequences: updated } });
+                            }}
+                            className="size-8 text-red-400 hover:text-red-300"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -2783,13 +2983,13 @@ export function AdvancedFlowEditorPage() {
             const packsState = (cfgAny["packs"] as
               | {
                   enabled?: boolean;
-                  items?: Array<{ id: string; name: string; price: number; content: string }>;
+                  items?: Array<{ id: string; name: string; price: number; content: string; media?: FlowMediaItem[] }>;
                 }
               | undefined) ?? { enabled: false, items: [] };
             const packItems = packsState.items ?? [];
             const updatePacks = (next: {
               enabled?: boolean;
-              items?: Array<{ id: string; name: string; price: number; content: string }>;
+              items?: Array<{ id: string; name: string; price: number; content: string; media?: FlowMediaItem[] }>;
             }) => {
               setConfig({
                 ...config,
@@ -2926,6 +3126,18 @@ export function AdvancedFlowEditorPage() {
                             }
                           />
                         </div>
+
+                        <FlowMediaUploader
+                          media={pack.media ?? []}
+                          onChange={(items) =>
+                            updatePacks({
+                              items: packItems.map((item) =>
+                                item.id === pack.id ? { ...item, media: items } : item
+                              ),
+                            })
+                          }
+                          maxItems={3}
+                        />
                       </div>
                     ))}
                   </div>
@@ -3309,15 +3521,17 @@ export function AdvancedFlowEditorPage() {
                       })
                     }
                   >
-                    <option value={1}>A cada 1 hora</option>
-                    <option value={2}>A cada 2 horas</option>
-                    <option value={3}>A cada 3 horas (Recomendado)</option>
-                    <option value={6}>A cada 6 horas</option>
-                    <option value={12}>A cada 12 horas</option>
-                    <option value={24}>A cada 24 horas (Diário)</option>
+                    <option value={3}>De 3 em 3 horas (Recomendado)</option>
+                    <option value={6}>De 6 em 6 horas</option>
+                    <option value={9}>De 9 em 9 horas</option>
+                    <option value={12}>De 12 em 12 horas</option>
+                    <option value={15}>De 15 em 15 horas</option>
+                    <option value={18}>De 18 em 18 horas</option>
+                    <option value={21}>De 21 em 21 horas</option>
+                    <option value={24}>De 24 em 24 horas (Diário)</option>
                   </select>
                   <p className="text-[11px] text-zinc-500">
-                    O sistema disparará automaticamente no intervalo selecionado para os leads elegíveis.
+                    O sistema disparará automaticamente no intervalo selecionado (3h em 3h até 24h em 24h) para os leads elegíveis.
                   </p>
                 </div>
 
@@ -3338,7 +3552,7 @@ export function AdvancedFlowEditorPage() {
                     <option value="all">Bot Principal do Fluxo</option>
                     {userBots.map((b) => (
                       <option key={b.id} value={b.id}>
-                        {b.name} (@{b.username || "bot"})
+                        {b.name} (@{b.telegram_username?.replace("@", "") || "bot"})
                       </option>
                     ))}
                   </select>
@@ -3469,47 +3683,139 @@ export function AdvancedFlowEditorPage() {
                     />
                   </div>
 
-                  {/* Oferta / Plano de Remarketing */}
-                  <div className="grid gap-3 sm:grid-cols-2 bg-zinc-900/60 p-3.5 rounded-xl border border-white/5">
-                    <div>
-                      <Label className="text-[11px] text-zinc-400">Nome do Plano de Remarketing</Label>
-                      <Input
-                        className="h-8 text-xs bg-black/50 border-white/10 text-white"
-                        value={seq.plans?.[0]?.name || ""}
-                        onChange={(e) => {
-                          const plans = [...(seq.plans ?? [{ id: "p1", name: "", duration: "Vitalício", originalPrice: 0, discountPrice: 0 }])];
-                          if (plans[0]) plans[0].name = e.target.value;
+                  {/* Ofertas / Planos de Remarketing (do Fluxo ou Novos) */}
+                  <div className="bg-zinc-900/60 p-3.5 rounded-xl border border-white/5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <Label className="text-xs text-zinc-200 font-semibold">
+                          Planos da Mensagem (do Fluxo ou Novos)
+                        </Label>
+                        <p className="text-[11px] text-zinc-400">
+                          Importe qualquer plano deste fluxo ou crie planos novos com desconto.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] border-white/15"
+                        onClick={() => {
+                          const newPlan = {
+                            id: `rem-p-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                            name: "PLANO RETOMADA VIP",
+                            duration: "Vitalício",
+                            originalPrice: 29.9,
+                            discountPrice: 14.9,
+                          };
                           const updated = config.remarketing.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans } : s
+                            s.id === seq.id ? { ...s, plans: [...(s.plans || []), newPlan] } : s
                           );
                           setConfig({
                             ...config,
                             remarketing: { ...config.remarketing, sequences: updated },
                           });
                         }}
-                        placeholder="EX: PLANO RETOMADA VIP"
-                      />
+                      >
+                        <Plus className="size-3 mr-1" /> Criar Novo Plano
+                      </Button>
                     </div>
-                    <div>
-                      <Label className="text-[11px] text-zinc-400">Preço com Desconto (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-8 text-xs bg-black/50 border-white/10 text-white font-bold text-red-400"
-                        value={seq.plans?.[0]?.discountPrice || 0}
-                        onChange={(e) => {
-                          const plans = [...(seq.plans ?? [{ id: "p1", name: "", duration: "Vitalício", originalPrice: 0, discountPrice: 0 }])];
-                          if (plans[0]) plans[0].discountPrice = Number(e.target.value);
-                          const updated = config.remarketing.sequences.map((s) =>
-                            s.id === seq.id ? { ...s, plans } : s
-                          );
-                          setConfig({
-                            ...config,
-                            remarketing: { ...config.remarketing, sequences: updated },
-                          });
-                        }}
-                        placeholder="9.90"
-                      />
+
+                    {config.plans.items.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {config.plans.items.map((fp) => (
+                          <button
+                            key={fp.id}
+                            type="button"
+                            onClick={() => {
+                              const imported = {
+                                id: `rem-fp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                                name: fp.name,
+                                duration: fp.duration || "Vitalício",
+                                originalPrice: Number(fp.price) || 0,
+                                discountPrice: Number(fp.price) || 0,
+                              };
+                              const updated = config.remarketing.sequences.map((s) =>
+                                s.id === seq.id ? { ...s, plans: [...(s.plans || []), imported] } : s
+                              );
+                              setConfig({
+                                ...config,
+                                remarketing: { ...config.remarketing, sequences: updated },
+                              });
+                            }}
+                            className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 hover:bg-cyan-500/20 transition"
+                          >
+                            + {fp.name} (R$ {Number(fp.price || 0).toFixed(2).replace(".", ",")})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {(seq.plans ?? []).map((rmPlan, rmIdx) => (
+                        <div key={rmPlan.id || rmIdx} className="grid gap-2 sm:grid-cols-[1fr_130px_34px] items-end">
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Nome do Plano #{rmIdx + 1}</Label>
+                            <Input
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white"
+                              value={rmPlan.name}
+                              onChange={(e) => {
+                                const plans = (seq.plans ?? []).map((p, i) =>
+                                  i === rmIdx ? { ...p, name: e.target.value } : p
+                                );
+                                const updated = config.remarketing.sequences.map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  remarketing: { ...config.remarketing, sequences: updated },
+                                });
+                              }}
+                              placeholder="EX: PLANO RETOMADA VIP"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-zinc-400">Preço (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-8 text-xs bg-black/50 border-white/10 text-white font-bold text-emerald-400"
+                              value={rmPlan.discountPrice}
+                              onChange={(e) => {
+                                const plans = (seq.plans ?? []).map((p, i) =>
+                                  i === rmIdx ? { ...p, discountPrice: Number(e.target.value) } : p
+                                );
+                                const updated = config.remarketing.sequences.map((s) =>
+                                  s.id === seq.id ? { ...s, plans } : s
+                                );
+                                setConfig({
+                                  ...config,
+                                  remarketing: { ...config.remarketing, sequences: updated },
+                                });
+                              }}
+                              placeholder="14.90"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            disabled={(seq.plans ?? []).length <= 1}
+                            onClick={() => {
+                              const plans = (seq.plans ?? []).filter((_, i) => i !== rmIdx);
+                              const updated = config.remarketing.sequences.map((s) =>
+                                s.id === seq.id ? { ...s, plans } : s
+                              );
+                              setConfig({
+                                ...config,
+                                remarketing: { ...config.remarketing, sequences: updated },
+                              });
+                            }}
+                            className="size-8 text-red-400 hover:text-red-300"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -3655,6 +3961,17 @@ export function AdvancedFlowEditorPage() {
                         />
                       </div>
                     </div>
+
+                    <FlowMediaUploader
+                      media={config.payments.media}
+                      onChange={(items) =>
+                        setConfig({
+                          ...config,
+                          payments: { ...config.payments, media: items },
+                        })
+                      }
+                      maxItems={2}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -3664,17 +3981,48 @@ export function AdvancedFlowEditorPage() {
                     <div className="space-y-2">
                       <Label className="text-xs">Mensagem de Entrega / Acesso Liberado</Label>
                       <Textarea
-                        rows={5}
-                        value={config.plans.deliveryFallback || ""}
+                        rows={4}
+                        value={config.payments.approvedMessagePt ?? config.plans.deliveryFallback ?? ""}
                         onChange={(e) =>
                           setConfig({
                             ...config,
+                            payments: { ...config.payments, approvedMessagePt: e.target.value },
                             plans: { ...config.plans, deliveryFallback: e.target.value },
                           })
                         }
                         placeholder="🎉 Pagamento aprovado com sucesso! Acesse agora pelo link exclusivo:"
                         className="bg-black/50 border-white/10 text-xs"
                       />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Texto do Botão VIP Pós-Aprovação (Opcional)</Label>
+                        <Input
+                          value={config.payments.approvedButtonText ?? ""}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              payments: { ...config.payments, approvedButtonText: e.target.value },
+                            })
+                          }
+                          placeholder="🔓 Entrar no Grupo VIP"
+                          className="bg-black/50 border-white/10 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Link VIP Pós-Aprovação (Opcional)</Label>
+                        <Input
+                          value={config.payments.approvedButtonUrl ?? ""}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              payments: { ...config.payments, approvedButtonUrl: e.target.value },
+                            })
+                          }
+                          placeholder="https://t.me/+seu-grupo-vip"
+                          className="bg-black/50 border-white/10 text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

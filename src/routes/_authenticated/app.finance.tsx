@@ -184,16 +184,24 @@ function FinancePage() {
             <Wallet className="size-5" />
           </span>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-white text-sm">Gateway Interna CASH BOT (PIX Automático)</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold text-white text-sm">Gateway Nativa CASH BOT — PIX & Pagamentos Internacionais</h3>
               <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
                 Ativa e Conectada
               </Badge>
             </div>
             <p className="text-xs text-zinc-400">
-              Todas as cobranças dos seus bots são geradas e confirmadas automaticamente pela gateway nativa.
+              A menor taxa do mercado: 10% na venda aprovada e 10% para antecipar o saque em 10 dias.
             </p>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-xs font-semibold px-3 py-1">
+            Taxa na Venda: 10%
+          </Badge>
+          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs font-semibold px-3 py-1">
+            Antecipação (10 dias): 10%
+          </Badge>
         </div>
       </div>
 
@@ -742,9 +750,15 @@ function WithdrawalForm({
   return (
     <div className="panel p-5">
       <p className="text-sm font-medium">Solicitar saque</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Disponível: {formatBRL(available)} · Taxa de saque: {formatBRL(feeCents)} · Mínimo: {formatBRL(minCents)}
-      </p>
+      <div className="mt-2 rounded-xl border border-cyan-500/25 bg-cyan-500/5 px-3.5 py-2.5 text-xs text-zinc-200 flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <strong className="text-cyan-300">Taxas da Plataforma:</strong> 10% na venda aprovada (PIX e Internacional) ·{" "}
+          <strong className="text-cyan-300">10% para antecipar o saque em 10 dias</strong>.
+        </span>
+        <span className="text-[11px] text-zinc-400">
+          Disponível: {formatBRL(available)} · Taxa de saque: {formatBRL(feeCents)} · Mínimo: {formatBRL(minCents)}
+        </span>
+      </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-4">
         <div className="space-y-2">
           <Label htmlFor="wd-amount">Valor (R$)</Label>

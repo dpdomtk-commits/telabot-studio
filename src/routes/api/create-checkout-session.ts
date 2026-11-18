@@ -34,14 +34,14 @@ async function buildHostedStripeSession(input: CheckoutInput) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: bot } = await supabaseAdmin
         .from("bots")
-        .select("id, user_id, username")
+        .select("id, user_id, telegram_username")
         .eq("id", input.bot_id)
         .maybeSingle();
 
       if (bot?.user_id) {
         userId = bot.user_id;
-        if (!botUsername && bot.username) {
-          botUsername = bot.username.replace("@", "");
+        if (!botUsername && bot.telegram_username) {
+          botUsername = bot.telegram_username.replace("@", "");
         }
 
         if ((!paymentId || paymentId.startsWith("stripe-")) && input.lead_id) {

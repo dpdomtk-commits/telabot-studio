@@ -41,11 +41,23 @@ export const Route = createFileRoute("/api/public/media/upload")({
         if (!token) return Response.json({ error: "Não autenticado" }, { status: 401 });
 
         const url = process.env["SUPABASE_URL"] || "https://ebqpealelsdxzvsxbeej.supabase.co";
+        const serviceRoleKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
         const serviceKey =
-          process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
+          serviceRoleKey ||
           process.env["SUPABASE_PUBLISHABLE_KEY"] ||
           "sb_publishable_0d63AHgd5QehSBePWhbZBg_Yjo0ZWHH";
-        const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+        const admin = createClient(url, serviceKey, {
+          ...(serviceRoleKey
+            ? {}
+            : {
+                global: {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              }),
+          auth: { persistSession: false },
+        });
 
         const { data: userData } = await admin.auth.getUser(token);
         const user = userData.user;

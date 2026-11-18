@@ -6,13 +6,13 @@ import { validatePixKey } from "@/lib/payments/pix";
 
 export type FinanceResult = { ok: boolean; message: string };
 
-const ADMIN_EMAIL = "dpz09@hotmail.com";
+const ADMIN_EMAILS = ["dpz09@hotmail.com", "dpdomtk@gmail.com"];
 
 async function isAuthorizedAdmin(context: { supabase: any; userId: string }): Promise<boolean> {
   try {
     const { data } = await context.supabase.auth.getUser();
     const email = (data?.user?.email || "").trim().toLowerCase();
-    if (email !== ADMIN_EMAIL) return false;
+    if (!ADMIN_EMAILS.includes(email)) return false;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin
@@ -281,8 +281,8 @@ export const getFinanceFees = createServerFn({ method: "GET" })
       .select("charge_fixed_fee_cents,charge_percent_fee,withdrawal_fee_cents,min_withdrawal_cents")
       .maybeSingle();
     return {
-      charge_fixed_fee_cents: data?.charge_fixed_fee_cents ?? 50,
-      charge_percent_fee: Number(data?.charge_percent_fee ?? 0),
+      charge_fixed_fee_cents: data?.charge_fixed_fee_cents ?? 0,
+      charge_percent_fee: Number(data?.charge_percent_fee ?? 10),
       withdrawal_fee_cents: data?.withdrawal_fee_cents ?? 500,
       min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
     };
@@ -336,9 +336,18 @@ export type AdminOverviewPayload = {
     created_at: string;
   }>;
   logs: Array<{ id: string; entity: string; action: string; created_at: string }>;
+  settings?: {
+    charge_fixed_fee_cents: number;
+    charge_percent_fee: number;
+    withdrawal_fee_cents: number;
+    min_withdrawal_cents: number;
+    pix_receiver_key: string | null;
+    pix_receiver_name: string;
+    pix_receiver_city: string;
+  } | null;
 };
 
-/** Visão administrativa completa (exclusiva para dpz09@hotmail.com), incluindo todos os pedidos de saque. */
+/** Visão administrativa completa (exclusiva para dpz09@hotmail.com e dpdomtk@gmail.com), incluindo todos os pedidos de saque. */
 export const getAdminOverviewData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AdminOverviewPayload> => {
@@ -352,6 +361,7 @@ export const getAdminOverviewData = createServerFn({ method: "GET" })
         leads: [],
         payments: [],
         logs: [],
+        settings: null,
       };
     }
 
@@ -365,7 +375,7 @@ export const getAdminOverviewData = createServerFn({ method: "GET" })
       return adminRes.data ?? userRes.data ?? [];
     }
 
-    const [withdrawals, wallets, profiles, bots, leads, payments, logs] = await Promise.all([
+    const [withdrawals, wallets, profiles, bots, leads, payments, logs, settingsAdminRes] = await Promise.all([
       fetchAdminOrUser((c) =>
         c
           .from("withdrawals")
@@ -397,7 +407,14 @@ export const getAdminOverviewData = createServerFn({ method: "GET" })
       fetchAdminOrUser((c) =>
         c.from("activity_logs").select("id,entity,action,created_at").order("created_at", { ascending: false }).limit(200) as any,
       ),
+      supabaseAdmin.from("finance_settings").select("*").maybeSingle(),
     ]);
+
+    let settingsRow = settingsAdminRes.data ?? null;
+    if (!settingsRow) {
+      const userSettingsRes = await context.supabase.from("finance_settings").select("*").maybeSingle();
+      settingsRow = userSettingsRes.data ?? null;
+    }
 
     return {
       authorized: true,
@@ -408,6 +425,7 @@ export const getAdminOverviewData = createServerFn({ method: "GET" })
       leads: leads as AdminOverviewPayload["leads"],
       payments: payments as AdminOverviewPayload["payments"],
       logs: logs as AdminOverviewPayload["logs"],
+      settings: settingsRow as AdminOverviewPayload["settings"],
     };
   });
 

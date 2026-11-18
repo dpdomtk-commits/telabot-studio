@@ -7,6 +7,7 @@ import { useIsAdmin } from "@/routes/_authenticated/app";
 import { validatePixKey } from "@/lib/payments/pix";
 import {
   adjustWallet,
+  getAdminOverviewData,
   resolveWithdrawal,
   saveFinanceSettings,
   setUserBlocked,
@@ -52,6 +53,28 @@ function AdminFinancePage() {
     queryKey: ["admin-finance"],
     enabled: !!isAdmin,
     queryFn: async () => {
+      try {
+        const overview = await getAdminOverviewData();
+        if (
+          overview.authorized &&
+          (overview.wallets.length > 0 ||
+            overview.profiles.length > 0 ||
+            overview.payments.length > 0 ||
+            overview.withdrawals.length > 0 ||
+            overview.settings)
+        ) {
+          return {
+            wallets: overview.wallets,
+            profiles: overview.profiles,
+            charges: overview.payments,
+            withdrawals: overview.withdrawals,
+            settings: overview.settings ?? null,
+          };
+        }
+      } catch (err) {
+        console.warn("[admin-finance] fallback client query:", err);
+      }
+
       const [wallets, profiles, charges, withdrawals, settings] = await Promise.all([
         supabase.from("wallets").select("*").limit(200),
         supabase.from("profiles").select("id,full_name,email,is_blocked").limit(200),
@@ -402,8 +425,8 @@ type Settings = {
 
 function SettingsForm({ settings, onDone }: { settings: Settings; onDone: () => void }) {
   const [form, setForm] = useState({
-    fixed: String((settings?.charge_fixed_fee_cents ?? 50) / 100),
-    percent: String(settings?.charge_percent_fee ?? 0),
+    fixed: String((settings?.charge_fixed_fee_cents ?? 0) / 100),
+    percent: String(settings?.charge_percent_fee ?? 10),
     withdrawal: String((settings?.withdrawal_fee_cents ?? 500) / 100),
     min: String((settings?.min_withdrawal_cents ?? 1000) / 100),
     key: settings?.pix_receiver_key ?? "",

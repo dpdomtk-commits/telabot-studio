@@ -30,6 +30,8 @@ export type SequenceStep = {
   }[];
   deliveryDestination?: string;
   deliveryMessage?: string;
+  showRefuseButton?: boolean;
+  refuseButtonText?: string;
 };
 
 export type AdvancedFlowConfig = {
@@ -95,6 +97,8 @@ export type AdvancedFlowConfig = {
     enabled: boolean;
     deliveryDestination: string;
     deliveryMessage: string;
+    showRefuseButton?: boolean;
+    refuseButtonText?: string;
     sequences: SequenceStep[];
   };
   downsell: {
@@ -138,6 +142,9 @@ export type AdvancedFlowConfig = {
     pixCodeInSameMessage: boolean;
     messageBeforePixCode: boolean;
     messageBeforePixCodeText: string;
+    approvedMessagePt?: string;
+    approvedButtonText?: string;
+    approvedButtonUrl?: string;
   };
   multilingual: {
     enabled: boolean;

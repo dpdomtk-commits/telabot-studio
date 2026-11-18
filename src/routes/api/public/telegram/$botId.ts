@@ -276,6 +276,8 @@ function formatCallbackActionLabel(data: string): string {
   if (data.startsWith("check_payment:")) return "✅ Clicou em: Já Paguei";
   if (data.startsWith("downsell_pay:")) return "🔥 Clicou na oferta de Downsell";
   if (data.startsWith("rmk_pix:")) return "🎁 Clicou na oferta promocional";
+  if (data === "view_preview") return "👀 Clicou em: Ver Prévia";
+  if (data === "decline_upsell") return "🙅 Clicou em: Não quero (Upsell)";
   if (data.startsWith("offer:")) return "✨ Clicou em oferta adicional";
   return `🔘 Clicou no botão: ${data.slice(0, 60)}`;
 }
@@ -351,6 +353,9 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
             runFlowForLead,
             sendOfferCharge,
             sendMessage,
+            sendPhoto,
+            sendVideo,
+            deleteMessage,
             sendChatAction,
             editMessageReplyMarkup,
           } = telegramMod;
@@ -698,6 +703,71 @@ export const Route = createFileRoute("/api/public/telegram/$botId")({
                 "❌ Não foi possível gerar o PIX promocional agora. Tente novamente em instantes ou clique em <b>Ver Planos</b>.",
               );
             }
+            return Response.json({ ok: true });
+          }
+
+          // 7.1 Prévia temporária com auto-exclusão
+          if (data === "view_preview") {
+            try {
+              const { cfg } = await getCachedBotConfig(bot.id);
+              const previews = (cfg as unknown as Record<string, any>)["previews"] as
+                | {
+                    enabled?: boolean;
+                    deleteSeconds?: number;
+                    conversionCopy?: string;
+                    media?: Array<{ kind?: string; url?: string; fileId?: string }>;
+                  }
+                | undefined;
+              const delSec = Math.min(60, Math.max(5, Number(previews?.deleteSeconds) || 15));
+              const firstMedia = previews?.media?.[0];
+              const mediaTarget = firstMedia?.fileId || firstMedia?.url || "";
+              let previewMsgId: number | undefined;
+
+              if (mediaTarget) {
+                const mediaRes =
+                  firstMedia?.kind === "video"
+                    ? await sendVideo(bot.token, chatId, mediaTarget, `👀 Prévia exclusiva (expira em ${delSec}s)`)
+                    : await sendPhoto(bot.token, chatId, mediaTarget, `👀 Prévia exclusiva (expira em ${delSec}s)`);
+                previewMsgId = mediaRes.result?.message_id;
+              } else {
+                const txtRes = await sendMessage(
+                  bot.token,
+                  chatId,
+                  `👀 Prévia exclusiva disponível por ${delSec}s!`,
+                );
+                previewMsgId = txtRes.result?.message_id;
+              }
+
+              if (previewMsgId) {
+                setTimeout(() => {
+                  deleteMessage(bot.token, chatId, previewMsgId!).catch(() => undefined);
+                }, delSec * 1000);
+              }
+
+              const conversionCopy =
+                previews?.conversionCopy?.trim() ||
+                "⏳ Aproveite antes que a oferta saia do ar! Clique abaixo para escolher seu plano VIP:";
+              await sendMessage(bot.token, chatId, conversionCopy, {
+                inline_keyboard: [[{ text: "📋 Ver Planos", callback_data: "nav:plans" }]],
+              });
+            } catch (prevErr) {
+              console.warn("[view_preview-warn]", prevErr);
+            }
+            return Response.json({ ok: true });
+          }
+
+          // 7.2 Recusa opcional de Upsell / Order Bump ("Não quero")
+          if (data === "decline_upsell") {
+            if (cbMessageId) {
+              editMessageReplyMarkup(bot.token, chatId, cbMessageId, { inline_keyboard: [] }).catch(
+                () => undefined,
+              );
+            }
+            await sendMessage(
+              bot.token,
+              chatId,
+              "✅ Tudo certo! Seu acesso principal continua normalmente liberado.",
+            );
             return Response.json({ ok: true });
           }
 

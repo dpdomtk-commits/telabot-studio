@@ -97,9 +97,11 @@ function AuthPage() {
 
       <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-300">
         <Link to="/" className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-cyan-500/40 bg-black shadow-[0_0_25px_rgba(6,182,212,0.4)]">
-            <img src="/cashbot-emblem.jpg" alt="Logo CASH BOT" className="size-full object-cover" />
-          </div>
+          <img
+            src="/cashbot-emblem.jpg?v=3"
+            alt="Logo CASH BOT"
+            className="size-20 object-contain drop-shadow-[0_0_20px_rgba(6,182,212,0.35)]"
+          />
           <span className="font-serif text-2xl font-black tracking-tight text-white flex items-center gap-1">
             CASH<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">BOT</span>
           </span>

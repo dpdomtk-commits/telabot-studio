@@ -14,8 +14,8 @@ export type FinanceSettings = {
 export async function getFinanceSettings(): Promise<FinanceSettings> {
   const { data } = await supabaseAdmin.from("finance_settings").select("*").maybeSingle();
   return {
-    charge_fixed_fee_cents: data?.charge_fixed_fee_cents ?? 50,
-    charge_percent_fee: Number(data?.charge_percent_fee ?? 0),
+    charge_fixed_fee_cents: data?.charge_fixed_fee_cents ?? 0,
+    charge_percent_fee: Number(data?.charge_percent_fee ?? 10),
     withdrawal_fee_cents: data?.withdrawal_fee_cents ?? 500,
     min_withdrawal_cents: data?.min_withdrawal_cents ?? 1000,
     provider: data?.provider ?? "internal",

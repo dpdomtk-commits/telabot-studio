@@ -40,6 +40,15 @@ const broadcastSchema = z.object({
   mediaKind: z.enum(["image", "video"]).optional(),
   offerName: z.string().trim().optional(),
   discountPrice: z.number().nonnegative().optional(),
+  plans: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().trim().min(1),
+        price: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 
 export type RemarketingBroadcastResult = {
@@ -58,55 +67,76 @@ export const sendRemarketingBroadcast = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { sendMessage, sendPhoto, sendVideo, logActivity } = await import("@/lib/telegram.server");
 
-    let flowQuery = supabaseAdmin
-      .from("flows")
-      .select("id,bot_id,name")
-      .eq("user_id", context.userId);
-    if (data.flowIds.length > 0) {
-      flowQuery = flowQuery.in("id", data.flowIds);
-    }
-    const { data: flows } = await flowQuery;
-    const botIds = Array.from(new Set((flows ?? []).map((f) => f.bot_id).filter(Boolean)));
+    const fetchRows = async <T>(
+      queryFn: (client: any) => Promise<{ data: T[] | null }>,
+    ): Promise<T[]> => {
+      const authRes = await queryFn(context.supabase);
+      if (authRes?.data && authRes.data.length > 0) return authRes.data;
+      const adminRes = await queryFn(supabaseAdmin);
+      return adminRes?.data ?? authRes?.data ?? [];
+    };
 
-    const botQuery = supabaseAdmin
-      .from("bots")
-      .select("id,token,name")
-      .eq("user_id", context.userId)
-      .eq("status", "active");
-    const { data: bots } = botIds.length > 0 ? await botQuery.in("id", botIds) : await botQuery;
+    const flows = await fetchRows<{ id: string; bot_id: string | null; name: string }>((c) => {
+      let q = c.from("flows").select("id,bot_id,name").eq("user_id", context.userId);
+      if (data.flowIds.length > 0) q = q.in("id", data.flowIds);
+      return q;
+    });
+    const botIds = Array.from(new Set(flows.map((f) => f.bot_id).filter(Boolean))) as string[];
 
-    if (!bots || bots.length === 0) {
+    const bots = await fetchRows<{ id: string; token: string; name: string }>((c) => {
+      const q = c.from("bots").select("id,token,name").eq("user_id", context.userId);
+      return botIds.length > 0 ? q.in("id", botIds) : q;
+    });
+
+    if (bots.length === 0) {
       return {
         ok: false,
         sent: 0,
         failed: 0,
         totalTargets: 0,
-        message: "Nenhum bot ativo encontrado para os fluxos selecionados.",
+        message: "Nenhum bot encontrado para os fluxos selecionados.",
       };
     }
 
     const activeBotIds = bots.map((b) => b.id);
     const botTokenMap = new Map<string, string>(bots.map((b) => [b.id, b.token]));
 
-    const [{ data: leads }, { data: payments }] = await Promise.all([
-      supabaseAdmin
-        .from("leads")
-        .select("id,bot_id,telegram_id,name,telegram_username,status")
-        .eq("user_id", context.userId)
-        .in("bot_id", activeBotIds)
-        .order("created_at", { ascending: false })
-        .limit(400),
-      supabaseAdmin
-        .from("payments")
-        .select("lead_id,status,pix_code,product_name,amount_cents,created_at")
-        .eq("user_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(400),
+    const [leads, payments] = await Promise.all([
+      fetchRows<{
+        id: string;
+        bot_id: string | null;
+        telegram_id: number | null;
+        name: string | null;
+        telegram_username: string | null;
+        status: string;
+      }>((c) =>
+        c
+          .from("leads")
+          .select("id,bot_id,telegram_id,name,telegram_username,status")
+          .eq("user_id", context.userId)
+          .in("bot_id", activeBotIds)
+          .order("created_at", { ascending: false })
+          .limit(400),
+      ),
+      fetchRows<{
+        lead_id: string | null;
+        status: string;
+        pix_code: string | null;
+        product_name: string | null;
+        amount_cents: number;
+      }>((c) =>
+        c
+          .from("payments")
+          .select("lead_id,status,pix_code,product_name,amount_cents,created_at")
+          .eq("user_id", context.userId)
+          .order("created_at", { ascending: false })
+          .limit(400),
+      ),
     ]);
 
     const approvedLeadIds = new Set<string>();
     const pendingByLead = new Map<string, { pix_code: string | null; product_name: string | null }>();
-    for (const p of payments ?? []) {
+    for (const p of payments) {
       if (!p.lead_id) continue;
       if (p.status === "approved") approvedLeadIds.add(p.lead_id);
       if (p.status === "pending" && !pendingByLead.has(p.lead_id)) {
@@ -114,7 +144,7 @@ export const sendRemarketingBroadcast = createServerFn({ method: "POST" })
       }
     }
 
-    const targetLeads = (leads ?? []).filter((lead) => {
+    const targetLeads = leads.filter((lead) => {
       if (!lead.telegram_id) return false;
       if (data.target === "pix_pending") {
         return pendingByLead.has(lead.id) && !approvedLeadIds.has(lead.id);
@@ -136,7 +166,21 @@ export const sendRemarketingBroadcast = createServerFn({ method: "POST" })
     }
 
     let replyMarkup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined;
-    if (data.discountPrice && data.discountPrice > 0) {
+    if (data.plans && data.plans.length > 0) {
+      replyMarkup = {
+        inline_keyboard: data.plans.map((p) => {
+          const cents = Math.max(100, Math.round(p.price * 100));
+          const shortTitle = (p.name || "Oferta VIP").slice(0, 22);
+          const priceLabel = (cents / 100).toFixed(2).replace(".", ",");
+          return [
+            {
+              text: `🔥 ${p.name.slice(0, 24)} — R$ ${priceLabel}`,
+              callback_data: `rmk_pix:${cents}:${shortTitle}`,
+            },
+          ];
+        }),
+      };
+    } else if (data.discountPrice && data.discountPrice > 0) {
       const cents = Math.round(data.discountPrice * 100);
       const shortTitle = (data.offerName || "Oferta VIP").slice(0, 22);
       const priceLabel = (cents / 100).toFixed(2).replace(".", ",");

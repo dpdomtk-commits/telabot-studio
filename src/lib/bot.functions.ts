@@ -16,13 +16,26 @@ export const enableBotWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => idSchema.parse(data))
   .handler(async ({ data, context }): Promise<ActionResult> => {
-    const { setWebhook, publicBaseUrl, notify, logActivity } = await import("@/lib/telegram.server");
+    const [{ supabaseAdmin }, { setWebhook, publicBaseUrl, notify, logActivity, invalidateBotCache }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/telegram.server"),
+      ]);
 
-    const { data: bot } = await context.supabase
+    const authBot = await context.supabase
       .from("bots")
-      .select("id,name,token,webhook_secret")
+      .select("id,user_id,name,token,webhook_secret")
       .eq("id", data.botId)
       .maybeSingle();
+    const bot =
+      authBot.data ??
+      (
+        await supabaseAdmin
+          .from("bots")
+          .select("id,user_id,name,token,webhook_secret")
+          .eq("id", data.botId)
+          .maybeSingle()
+      ).data;
     if (!bot) return { ok: false, message: "Bot não encontrado" };
 
     const host = getRequest().headers.get("host") ?? "";
@@ -30,10 +43,12 @@ export const enableBotWebhook = createServerFn({ method: "POST" })
     const result = await setWebhook(bot.token, url, bot.webhook_secret);
     if (!result.ok) return { ok: false, message: result.error ?? "Falha ao registrar webhook" };
 
-    await context.supabase
-      .from("bots")
-      .update({ webhook_set_at: new Date().toISOString(), status: "active" })
-      .eq("id", bot.id);
+    const patch = { webhook_set_at: new Date().toISOString(), status: "active" as const };
+    await Promise.allSettled([
+      context.supabase.from("bots").update(patch).eq("id", bot.id),
+      supabaseAdmin.from("bots").update(patch).eq("id", bot.id),
+    ]);
+    invalidateBotCache(bot.id);
     await notify(context.userId, "success", "Bot ativado", `${bot.name} está recebendo mensagens do Telegram.`, "bot", bot.id);
     await logActivity(context.userId, "bot", "ativado", bot.id);
     return { ok: true, message: "Webhook registrado" };
@@ -44,23 +59,108 @@ export const disableBotWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => idSchema.parse(data))
   .handler(async ({ data, context }): Promise<ActionResult> => {
-    const { deleteWebhook, notify, logActivity } = await import("@/lib/telegram.server");
+    const [{ supabaseAdmin }, { deleteWebhook, notify, logActivity, invalidateBotCache }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/telegram.server"),
+      ]);
 
-    const { data: bot } = await context.supabase
+    const authBot = await context.supabase
       .from("bots")
       .select("id,name,token")
       .eq("id", data.botId)
       .maybeSingle();
+    const bot =
+      authBot.data ??
+      (
+        await supabaseAdmin
+          .from("bots")
+          .select("id,name,token")
+          .eq("id", data.botId)
+          .maybeSingle()
+      ).data;
     if (!bot) return { ok: false, message: "Bot não encontrado" };
 
     await deleteWebhook(bot.token);
-    await context.supabase
-      .from("bots")
-      .update({ webhook_set_at: null, status: "inactive" })
-      .eq("id", bot.id);
+    const patch = { webhook_set_at: null, status: "inactive" as const };
+    await Promise.allSettled([
+      context.supabase.from("bots").update(patch).eq("id", bot.id),
+      supabaseAdmin.from("bots").update(patch).eq("id", bot.id),
+    ]);
+    invalidateBotCache(bot.id);
     await notify(context.userId, "info", "Bot desativado", `${bot.name} parou de responder no Telegram.`, "bot", bot.id);
     await logActivity(context.userId, "bot", "desativado", bot.id);
     return { ok: true, message: "Bot desativado" };
+  });
+
+/** Valida o token no Telegram, atualiza @username, re-registra webhook e limpa o cache. */
+export const syncBotWebhookAndInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => idSchema.parse(data))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; message: string; username?: string | null }> => {
+    const [{ supabaseAdmin }, { setWebhook, publicBaseUrl, invalidateBotCache, logActivity }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/telegram.server"),
+      ]);
+
+    const authBot = await context.supabase
+      .from("bots")
+      .select("id,name,token,webhook_secret")
+      .eq("id", data.botId)
+      .maybeSingle();
+    const bot =
+      authBot.data ??
+      (
+        await supabaseAdmin
+          .from("bots")
+          .select("id,name,token,webhook_secret")
+          .eq("id", data.botId)
+          .maybeSingle()
+      ).data;
+    if (!bot || !bot.token) return { ok: false, message: "Bot não encontrado" };
+
+    let tgUser: { id: number; username?: string; first_name?: string } | undefined;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${bot.token}/getMe`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        description?: string;
+        result?: { id: number; username?: string; first_name?: string };
+      };
+      if (!json.ok || !json.result) {
+        return { ok: false, message: `Token recusado pelo Telegram: ${json.description ?? "inválido"}` };
+      }
+      tgUser = json.result;
+    } catch {
+      return { ok: false, message: "Não foi possível contatar os servidores do Telegram." };
+    }
+
+    const host = getRequest().headers.get("host") ?? "";
+    const url = `${publicBaseUrl(host)}/api/public/telegram/${bot.id}`;
+    const hookRes = await setWebhook(bot.token, url, bot.webhook_secret);
+    if (!hookRes.ok) {
+      return { ok: false, message: hookRes.error ?? "Falha ao registrar webhook no Telegram" };
+    }
+
+    const patch = {
+      telegram_username: tgUser.username ?? null,
+      telegram_bot_id: tgUser.id,
+      status: "active" as const,
+      webhook_set_at: new Date().toISOString(),
+    };
+    await Promise.allSettled([
+      context.supabase.from("bots").update(patch).eq("id", bot.id),
+      supabaseAdmin.from("bots").update(patch).eq("id", bot.id),
+    ]);
+    invalidateBotCache(bot.id);
+    await logActivity(context.userId, "bot", "sincronizado e conectado", bot.id).catch(() => undefined);
+
+    return {
+      ok: true,
+      message: `Bot @${tgUser.username ?? bot.name} sincronizado e online!`,
+      username: tgUser.username ?? null,
+    };
   });
 
 /** Atualiza a situação de um pagamento PIX (dono ou admin) e dispara a entrega. */

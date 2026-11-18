@@ -1,6 +1,6 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
@@ -17,10 +17,13 @@ import {
   Sparkles,
   Users,
   ShoppingCart,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { validateTelegramToken } from "@/lib/telegram.functions";
-import { enableBotWebhook, disableBotWebhook } from "@/lib/bot.functions";
+import { enableBotWebhook, disableBotWebhook, syncBotWebhookAndInfo } from "@/lib/bot.functions";
+import { defaultAdvancedConfig } from "@/lib/flow-advanced";
 import { PageHeader, EmptyState } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,11 +108,14 @@ async function logActivity(entity: string, action: string, entityId?: string) {
 function BotsPage() {
   const { data: bots, isLoading } = useBots();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BotRow | null>(null);
   const [removing, setRemoving] = useState<BotRow | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [syncingBotId, setSyncingBotId] = useState<string | null>(null);
+  const [openingFlowBotId, setOpeningFlowBotId] = useState<string | null>(null);
 
   const { data: botExtras } = useQuery({
     queryKey: ["bot-cards-extras"],
@@ -160,10 +166,72 @@ function BotsPage() {
       toast.success("Bot excluído");
       setRemoving(null);
       qc.invalidateQueries({ queryKey: ["bots"] });
+      qc.invalidateQueries({ queryKey: ["bot-cards-extras"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: () => toast.error("Não foi possível excluir"),
   });
+
+  async function handleSyncBot(bot: BotRow) {
+    setSyncingBotId(bot.id);
+    try {
+      const res = await syncBotWebhookAndInfo({ data: { botId: bot.id } });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["bots"] });
+      qc.invalidateQueries({ queryKey: ["bot-cards-extras"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao sincronizar bot");
+    } finally {
+      setSyncingBotId(null);
+    }
+  }
+
+  async function handleOpenOrCreateFlow(bot: BotRow, existingFlowId?: string) {
+    if (existingFlowId) {
+      navigate({ to: "/app/flows/$flowId/simple", params: { flowId: existingFlowId } });
+      return;
+    }
+    setOpeningFlowBotId(bot.id);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        toast.error("Sessão expirada");
+        return;
+      }
+      const cfg = defaultAdvancedConfig();
+      cfg.bots = { ...cfg.bots, linkedBots: [bot.id] };
+
+      const { data: created, error } = await supabase
+        .from("flows")
+        .insert({
+          user_id: userData.user.id,
+          bot_id: bot.id,
+          name: `Funil ${bot.name}`.slice(0, 30),
+          description: "Funil criado automaticamente pelo Gerenciador de Robôs",
+          mode: "simple",
+          status: "active",
+          is_active: true,
+          simple_config: cfg as never,
+        })
+        .select("id")
+        .single();
+
+      if (error || !created) {
+        toast.error(error?.message ?? "Não foi possível criar o fluxo do robô");
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["bot-cards-extras"] });
+      qc.invalidateQueries({ queryKey: ["flows-overview"] });
+      navigate({ to: "/app/flows/$flowId/simple", params: { flowId: created.id } });
+    } finally {
+      setOpeningFlowBotId(null);
+    }
+  }
 
   const totalBots = bots?.length ?? 0;
   const activeBots = (bots ?? []).filter((b) => b.status === "active").length;
@@ -383,14 +451,32 @@ function BotsPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {linkedFlow ? (
-                        <Button size="sm" asChild className="h-7 px-2.5 text-xs bg-[#1049B8] hover:bg-[#0B3B99]">
-                          <Link to="/app/flows/$flowId/simple" params={{ flowId: linkedFlow.id }}>
-                            Configurar Fluxo
-                          </Link>
-                        </Button>
-                      ) : null}
                       <Button
+                        type="button"
+                        size="sm"
+                        disabled={openingFlowBotId === bot.id}
+                        onClick={() => void handleOpenOrCreateFlow(bot, linkedFlow?.id)}
+                        className="h-7 px-2.5 text-xs bg-[#1049B8] hover:bg-[#0B3B99] text-white"
+                      >
+                        {openingFlowBotId === bot.id ? (
+                          <Loader2 className="size-3.5 animate-spin mr-1" />
+                        ) : null}
+                        {linkedFlow ? "Configurar Fluxo" : "Criar Fluxo"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={syncingBotId === bot.id}
+                        className="size-7 text-zinc-400 hover:text-cyan-400"
+                        onClick={() => void handleSyncBot(bot)}
+                        title="Sincronizar Webhook e @username"
+                        aria-label="Sincronizar webhook do bot"
+                      >
+                        <RefreshCw className={`size-3.5 ${syncingBotId === bot.id ? "animate-spin text-cyan-400" : ""}`} />
+                      </Button>
+                      <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="size-7 text-zinc-400 hover:text-white"
@@ -458,6 +544,14 @@ function BotDialog({
 
   const key = `${bot?.id ?? "new"}-${open}`;
 
+  useEffect(() => {
+    if (open) {
+      setName(bot?.name ?? "");
+      setToken(bot?.token ?? "");
+      setDetectedUsername(bot?.telegram_username ?? null);
+    }
+  }, [open, bot]);
+
   async function handleCheckToken(tokenValue: string) {
     const clean = tokenValue.trim();
     if (!/^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(clean)) return;
@@ -508,21 +602,65 @@ function BotDialog({
       telegram_bot_id: validation.botId,
     };
 
-    const { error } = bot
-      ? await supabase.from("bots").update(payload).eq("id", bot.id)
-      : await supabase.from("bots").insert({ ...payload, user_id: userData.user.id });
+    const { data: savedRow, error } = bot
+      ? await supabase.from("bots").update(payload).eq("id", bot.id).select("id").maybeSingle()
+      : await supabase
+          .from("bots")
+          .insert({ ...payload, user_id: userData.user.id })
+          .select("id")
+          .maybeSingle();
 
-    setSaving(false);
-    if (error) {
+    if (error || !savedRow?.id) {
+      setSaving(false);
       toast.error("Não foi possível salvar o bot");
       return;
     }
 
-    await logActivity("bot", bot ? "atualizado" : "criado", bot?.id);
-    toast.success(bot ? "Bot atualizado" : `Bot conectado como @${validation.username ?? "bot"}`);
+    const savedBotId = savedRow.id;
+    let webhookConnected = false;
+    try {
+      const hookRes = await enableBotWebhook({ data: { botId: savedBotId } });
+      webhookConnected = hookRes.ok;
+    } catch {}
+
+    if (!bot) {
+      try {
+        const { count } = await supabase
+          .from("flows")
+          .select("id", { count: "exact", head: true })
+          .eq("bot_id", savedBotId);
+        if ((count ?? 0) === 0) {
+          const initialCfg = defaultAdvancedConfig();
+          initialCfg.bots = { ...initialCfg.bots, linkedBots: [savedBotId] };
+          await supabase.from("flows").insert({
+            user_id: userData.user.id,
+            bot_id: savedBotId,
+            name: `Funil ${parsed.data.name}`.slice(0, 30),
+            description: "Funil inicial criado automaticamente",
+            mode: "simple",
+            status: "active",
+            is_active: true,
+            simple_config: initialCfg as never,
+          });
+        }
+      } catch {}
+    }
+
+    setSaving(false);
+    await logActivity("bot", bot ? "atualizado" : "criado", savedBotId);
+    toast.success(
+      bot
+        ? webhookConnected
+          ? "Bot atualizado e sincronizado com o Telegram"
+          : "Bot atualizado"
+        : webhookConnected
+        ? `Bot conectado e ONLINE como @${validation.username ?? "bot"}`
+        : `Bot salvo como @${validation.username ?? "bot"} (clique em Sincronizar se estiver offline)`,
+    );
     onOpenChange(false);
     qc.invalidateQueries({ queryKey: ["bots"] });
     qc.invalidateQueries({ queryKey: ["bot-cards-extras"] });
+    qc.invalidateQueries({ queryKey: ["flows-overview"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   }
 

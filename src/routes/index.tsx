@@ -24,16 +24,21 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio. The World Is Yours.",
+          "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora. The World Is Yours.",
       },
-      { property: "og:title", content: "CASH BOT — Robôs de Venda no Telegram" },
+      { property: "og:title", content: "CASH BOT — PIX & Pagamentos Internacionais no Telegram com a Menor Taxa do Mercado" },
       {
         property: "og:description",
         content:
-          "O robô cobra no Telegram, o PIX confirma e o acesso sai na hora. Você só cuida do anúncio. The World Is Yours.",
+          "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora. The World Is Yours.",
       },
-      { property: "og:image", content: "/the-world-is-yours-ref.jpg" },
-      { name: "twitter:image", content: "/the-world-is-yours-ref.jpg" },
+      {
+        name: "twitter:description",
+        content:
+          "Robôs de vendas automáticas no Telegram com PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado. O acesso sai na hora. The World Is Yours.",
+      },
+      { property: "og:image", content: "/cashbot-emblem.jpg?v=3" },
+      { name: "twitter:image", content: "/cashbot-emblem.jpg?v=3" },
     ],
   }),
   component: CASHBOTLanding,
@@ -72,8 +77,8 @@ const features = [
   },
   {
     icon: ShieldCheck,
-    title: "Sem Mensalidade Fixa",
-    desc: "Apenas R$ 0,50 fixo por venda aprovada. Sem mensalidades abusivas, sem taxas surpresa e sem pegadinhas.",
+    title: "Menor Taxa em PIX & Internacional",
+    desc: "Sem mensalidades fixas! PIX instantâneo e pagamentos internacionais com apenas 10% na venda e 10% para antecipar o saque em 10 dias.",
   },
   {
     icon: Layers,
@@ -108,7 +113,7 @@ const steps = [
 const faqs = [
   {
     q: "Quanto custa usar o CASH BOT?",
-    a: "Não cobramos mensalidade fixa nem taxa percentual sobre o faturamento. O custo é apenas R$ 0,50 fixo por cada venda aprovada com sucesso. Você não paga nada para criar sua conta ou configurar seus robôs.",
+    a: "Você não paga mensalidade fixa nem taxa de adesão. Operamos com PIX e pagamentos internacionais com a menor taxa do mercado: apenas 10% por venda aprovada e 10% para antecipar o saque em 10 dias. Se não vender, não paga nada.",
   },
   {
     q: "Como funciona a jornada bilíngue?",
@@ -132,21 +137,11 @@ export function CASHBOTLanding() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-3 group">
-              {/* Ícone geométrico da silhueta do dirigível "The World Is Yours" */}
-              <div className="size-10 rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(11,52,180,0.5)] group-hover:border-[#38BDF8]/60 transition">
-                <svg
-                  className="size-6 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <ellipse cx="12" cy="11" rx="9" ry="5" />
-                  <path d="M3 11c0 2.76 4.03 5 9 5s9-2.24 9-5" />
-                  <path d="M20 9l2 2-2 2" />
-                  <rect x="9" y="16" width="6" height="2" rx="1" fill="currentColor" />
-                </svg>
-              </div>
+              <img
+                src="/cashbot-emblem.jpg?v=3"
+                alt="CASH BOT"
+                className="size-11 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(56,189,248,0.45)] transition group-hover:scale-105"
+              />
               <div className="flex flex-col">
                 <span className="font-display text-xl font-black tracking-wider text-white">
                   CASH<span className="text-[#38BDF8]">BOT</span>
@@ -287,41 +282,19 @@ export function CASHBOTLanding() {
               </div>
 
               <p className="text-xs text-blue-100 font-medium">
-                Apenas <strong className="text-white underline decoration-[#38BDF8] decoration-2">R$ 0,50 fixo por venda aprovada</strong>. Sem surpresas ou mensalidades abusivas.
+                <strong className="text-white underline decoration-[#38BDF8] decoration-2">PIX e pagamentos internacionais com a menor taxa do mercado</strong>: apenas 10% na venda e 10% para antecipar o saque em 10 dias.
               </p>
             </div>
           </div>
 
-          {/* Coluna Direita: O Dirigível / Zeppelin em Destaque Absoluto */}
+          {/* Coluna Direita: Logotipo / Emblema Principal em Destaque Normal */}
           <div className="lg:col-span-5 relative flex justify-center items-center">
-            {/* Halo de luz e brilho elétrico atrás da imagem */}
-            <div className="absolute inset-0 bg-[#38BDF8]/25 rounded-3xl blur-3xl transform scale-95 pointer-events-none" />
-
-            <div className="relative w-full max-w-lg aspect-square rounded-3xl overflow-hidden border-2 border-white/30 shadow-[0_25px_70px_rgba(0,0,0,0.95)] group bg-[#0A34B2]">
-              {/* Imagem de Referência Fiel do Dirigível Scarface */}
-              <img
-                src="/the-world-is-yours-ref.jpg"
-                alt="CASH BOT — The World Is Yours Zeppelin Dirigível"
-                className="w-full h-full object-cover object-center transform group-hover:scale-105 transition duration-700"
-              />
-
-              {/* Vinhetas cinematográficas suaves nas bordas */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
-
-              {/* Placa Retrô em Pixel Art na base da imagem */}
-              <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-black/90 backdrop-blur-md border border-white/20 shadow-2xl flex items-center justify-between">
-                <div>
-                  <p className="font-pixel text-[11px] font-bold tracking-[0.25em] text-[#38BDF8] uppercase drop-shadow">
-                    THE WORLD IS YOURS...
-                  </p>
-                  <p className="text-xs font-semibold text-slate-200 mt-0.5">
-                    Domine o mercado de vendas automáticas no Telegram.
-                  </p>
-                </div>
-                <div className="size-3.5 rounded-full bg-[#38BDF8] shadow-[0_0_12px_#38BDF8] animate-pulse" />
-              </div>
-            </div>
+            <div className="absolute inset-0 bg-[#38BDF8]/25 rounded-full blur-3xl transform scale-90 pointer-events-none" />
+            <img
+              src="/cashbot-emblem.jpg?v=3"
+              alt="CASH BOT — The World Is Yours"
+              className="relative w-full max-w-md object-contain drop-shadow-[0_25px_60px_rgba(0,0,0,0.85)] transform hover:scale-105 transition duration-700"
+            />
           </div>
         </div>
       </section>
@@ -423,32 +396,31 @@ export function CASHBOTLanding() {
               Feito para Alta Conversão e Margem Real
             </h2>
             <p className="text-zinc-300 text-base leading-relaxed">
-              Outras plataformas cobram mensalidades de R$ 200 a R$ 500 por mês ou abocanham 10% do seu faturamento.
-              No <strong>CASH BOT</strong>, você paga apenas <strong>R$ 0,50 fixo</strong> por venda aprovada. Se não vendeu, não pagou.
+              Receba via PIX instantâneo e pagamentos internacionais (USD, EUR e GBP) com a menor taxa do mercado e sem mensalidade fixa. No <strong>CASH BOT</strong>, a taxa é de apenas <strong>10% na venda aprovada</strong> e <strong>10% para antecipar o saque em 10 dias</strong>.
             </p>
             <div className="space-y-2 pt-2">
               <div className="flex items-center gap-3 text-sm text-white">
                 <CheckCircle2 className="size-5 text-[#38BDF8] shrink-0" />
-                <span>Zero mensalidade fixa ou taxa percentual oculta.</span>
+                <span>Zero mensalidade fixa — PIX e pagamentos internacionais com a menor taxa do mercado.</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-white">
                 <CheckCircle2 className="size-5 text-[#38BDF8] shrink-0" />
-                <span>Limpeza de mensagens com deleteMessage para não poluir o chat.</span>
+                <span>Apenas 10% na venda aprovada e 10% para antecipar o saque em 10 dias.</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-white">
                 <CheckCircle2 className="size-5 text-[#38BDF8] shrink-0" />
-                <span>Bifurcação de idioma inteligente (Português/PIX ou Inglês/Moedas).</span>
+                <span>Bifurcação de idioma inteligente (Português/PIX ou Inglês/Moedas Globais).</span>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-8 rounded-2xl bg-black border border-white/15 text-center space-y-4">
-            <span className="font-pixel text-xs text-zinc-400 uppercase">CUSTO POR VENDA</span>
+            <span className="font-pixel text-xs text-zinc-400 uppercase">MENOR TAXA DO MERCADO</span>
             <div className="text-5xl sm:text-6xl font-black text-white">
-              R$ 0<span className="text-[#38BDF8]">,50</span>
+              10<span className="text-[#38BDF8]">%</span>
             </div>
             <p className="text-xs text-zinc-400">
-              Taxa fixa por transação aprovada. Sem surpresas no fim do mês.
+              10% na venda aprovada (PIX e Internacional) · 10% para antecipar o saque em 10 dias.
             </p>
             <Button
               asChild

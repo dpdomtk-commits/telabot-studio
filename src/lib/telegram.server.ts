@@ -747,6 +747,48 @@ export function buildBrlPlansPayload(cfg: any) {
     inline_keyboard.push([{ text: label, callback_data: `pix_plan:${plan.id}` }]);
   }
 
+  // Packs avulsos (Seção 8)
+  const packs = cfg?.packs as { enabled?: boolean; items?: Array<{ id: string; name: string; price: number }> } | undefined;
+  if (packs?.enabled && Array.isArray(packs.items)) {
+    for (const pack of packs.items) {
+      if (!pack.name?.trim()) continue;
+      const cents = Math.max(100, Math.round((Number(pack.price) || 0) * 100));
+      const priceStr = (cents / 100).toFixed(2).replace(".", ",");
+      const shortTitle = pack.name.trim().slice(0, 22);
+      inline_keyboard.push([
+        { text: `📦 ${pack.name.trim().slice(0, 26)} — R$ ${priceStr}`, callback_data: `rmk_pix:${cents}:${shortTitle}` },
+      ]);
+    }
+  }
+
+  // Prévia que some (Seção 9)
+  const previews = cfg?.previews as { enabled?: boolean; buttonText?: string } | undefined;
+  if (previews?.enabled) {
+    inline_keyboard.push([
+      { text: previews.buttonText?.trim() || "👀 Ver Prévia Grátis", callback_data: "view_preview" },
+    ]);
+  }
+
+  // Botão CTA / Links de Redirecionamento / Suporte (Seções 1 e 3)
+  if (cfg.welcome?.hasCtaButton && cfg.welcome?.ctaButtonUrl && /^https?:\/\//i.test(cfg.welcome.ctaButtonUrl)) {
+    inline_keyboard.push([
+      { text: cfg.welcome.ctaButtonText?.trim() || "🔗 Acessar Link", url: cfg.welcome.ctaButtonUrl.trim() },
+    ]);
+  }
+  if (Array.isArray(cfg.welcome?.redirectButtons)) {
+    for (const btn of cfg.welcome.redirectButtons) {
+      if (btn?.active !== false && btn?.url && /^https?:\/\//i.test(btn.url)) {
+        inline_keyboard.push([{ text: btn.label?.trim() || "🔗 Acessar", url: btn.url.trim() }]);
+      }
+    }
+  }
+  if (cfg.bots?.supportUsername?.trim()) {
+    const sup = cfg.bots.supportUsername.replace("@", "").trim();
+    if (sup) {
+      inline_keyboard.push([{ text: "💬 Falar com Suporte", url: `https://t.me/${sup}` }]);
+    }
+  }
+
   return { text, replyMarkup: { inline_keyboard } };
 }
 
@@ -1558,6 +1600,28 @@ export async function handlePixPlanPurchase(params: {
     }),
     sideEffectsPromise,
   ]);
+
+  // Envio de Order Bump configurado (Seção 7) logo após gerar PIX
+  if (cfg.orderBump?.initialFlowEnabled && Number(cfg.orderBump?.price) > 0) {
+    const bumpCents = Math.max(100, Math.round(Number(cfg.orderBump.price) * 100));
+    const bumpTitle = (cfg.orderBump.productName || "Oferta Especial").trim().slice(0, 22);
+    const bumpPriceStr = (bumpCents / 100).toFixed(2).replace(".", ",");
+    const bumpText =
+      cfg.orderBump.ctaMessage?.trim() ||
+      cfg.orderBump.description?.trim() ||
+      `🎁 <b>${cfg.orderBump.productName || "Oferta Adicional Exclusiva"}</b>\nAdicione ao seu pedido por apenas <b>R$ ${bumpPriceStr}</b>!`;
+
+    const acceptLabel =
+      cfg.orderBump.acceptButtonText?.trim() || `✅ Sim, adicionar (+ R$ ${bumpPriceStr})`;
+    const refuseLabel = cfg.orderBump.refuseButtonText?.trim() || "Não, continuar só com o plano";
+
+    await sendMessage(params.token, params.chatId, bumpText, {
+      inline_keyboard: [
+        [{ text: acceptLabel, callback_data: `rmk_pix:${bumpCents}:${bumpTitle}` }],
+        [{ text: refuseLabel, callback_data: "decline_upsell" }],
+      ],
+    }).catch(() => undefined);
+  }
 }
 
 /**
@@ -2014,6 +2078,84 @@ async function sendCharge(
 }
 
 
+/** Envia as sequências de Upsell configuradas no editor (mídia + oferta + botão "Não quero" opcional). */
+async function dispatchConfiguredUpsells(token: string, chatId: number, sc: Record<string, any>) {
+  const upsellCfg = sc?.["upsell"];
+  if (!upsellCfg?.enabled || !Array.isArray(upsellCfg.sequences)) return;
+
+  for (const seq of upsellCfg.sequences) {
+    if (!seq?.enabled) continue;
+    const upPlans = Array.isArray(seq.plans) ? seq.plans : [];
+    const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+    for (const up of upPlans) {
+      if (!up?.name?.trim()) continue;
+      const cents = Math.max(
+        100,
+        Math.round((Number(up.discountPrice) || Number(up.originalPrice) || 19.9) * 100),
+      );
+      const priceStr = (cents / 100).toFixed(2).replace(".", ",");
+      rows.push([
+        {
+          text: `🔥 ${up.name.trim().slice(0, 24)} — R$ ${priceStr}`,
+          callback_data: `rmk_pix:${cents}:${up.name.trim().slice(0, 22)}`,
+        },
+      ]);
+    }
+    if (seq.showRefuseButton) {
+      rows.push([
+        {
+          text: seq.refuseButtonText?.trim() || "Não quero, obrigado",
+          callback_data: "decline_upsell",
+        },
+      ]);
+    }
+    const upsellMarkup = rows.length > 0 ? { inline_keyboard: rows } : undefined;
+    const upsellText = seq.message?.trim() || "🔥 Oferta VIP exclusiva pós-compra liberada para você:";
+    const seqMedia = (Array.isArray(seq.media) ? seq.media : []).filter((m: any) => Boolean(m?.fileId || m?.url));
+
+    if (seqMedia.length === 1) {
+      const m = seqMedia[0];
+      const target = resolveMediaTarget(m);
+      if (target) {
+        const isVideo = m?.kind === "video" || m?.type === "video";
+        const canCaption = upsellText.length <= 1024;
+        const sent = isVideo
+          ? await sendVideo(
+              token,
+              chatId,
+              target,
+              canCaption ? upsellText : undefined,
+              canCaption ? upsellMarkup : undefined,
+            ).catch(() => ({ ok: false }))
+          : await sendPhoto(
+              token,
+              chatId,
+              target,
+              canCaption ? upsellText : undefined,
+              canCaption ? upsellMarkup : undefined,
+            ).catch(() => ({ ok: false }));
+
+        if (!sent?.ok || !canCaption) {
+          await sendMessage(token, chatId, upsellText, upsellMarkup).catch(() => undefined);
+        }
+        continue;
+      }
+    } else if (seqMedia.length > 1) {
+      await sendWelcomeMedia(
+        token,
+        chatId,
+        seqMedia.map((m: any) => ({
+          ...m,
+          kind: (m?.kind || m?.type || "image") as "image" | "video" | "audio",
+        })),
+        seq.mediaMode === "grouped" ? "grouped" : "separated",
+      ).catch(() => undefined);
+    }
+
+    await sendMessage(token, chatId, upsellText, upsellMarkup).catch(() => undefined);
+  }
+}
+
 /** Entrega automática do produto após pagamento aprovado. */
 export async function deliverForPayment(paymentId: string) {
   const { data: payment } = await supabaseAdmin
@@ -2045,31 +2187,59 @@ export async function deliverForPayment(paymentId: string) {
 
   const deliverySteps = (steps ?? []) as unknown as StepRow[];
 
+  const sc = (flow?.simple_config ?? {}) as Record<string, any>;
+
   if (deliverySteps.length === 0) {
+    const customApprovedText = (sc?.["payments"]?.approvedMessagePt || "").trim();
     const fallbackMessage =
-      (flow?.simple_config as any)?.plans?.deliveryFallback ||
-      (flow?.simple_config as any)?.upsell?.deliveryMessage ||
+      customApprovedText ||
+      sc?.["plans"]?.deliveryFallback ||
+      sc?.["upsell"]?.deliveryMessage ||
       "Seu acesso VIP foi liberado com sucesso!";
+
+    const btnUrl = (sc?.["payments"]?.approvedButtonUrl || "").trim();
+    const btnText = (sc?.["payments"]?.approvedButtonText || "🔓 Acessar VIP Agora").trim();
+    const replyMarkup =
+      btnUrl && /^https?:\/\//i.test(btnUrl)
+        ? { inline_keyboard: [[{ text: btnText, url: btnUrl }]] }
+        : undefined;
 
     if (bot?.token && lead?.telegram_id) {
       await sendMessage(
         bot.token,
         Number(lead.telegram_id),
         `✅ ${payment.success_message ?? "Pagamento confirmado!"}\n\n${fallbackMessage}`,
+        replyMarkup,
       );
       await logActivity(payment.user_id, "entrega", "produto entregue (fallback)", payment.id);
+
+      // Dispara Upsell configurado no editor (Seção 5), com mídia e botão "Não quero" opcional
+      await dispatchConfiguredUpsells(bot.token, Number(lead.telegram_id), sc);
     }
     return;
   }
 
   for (const step of deliverySteps) {
-    const content = str((step.config ?? {}) as Record<string, unknown>, "content");
+    const stepCfg = (step.config ?? {}) as Record<string, unknown>;
+    const content =
+      (sc?.["payments"]?.approvedMessagePt || "").trim() ||
+      str(stepCfg, "content") ||
+      str(stepCfg, "message") ||
+      sc?.["plans"]?.deliveryFallback ||
+      "Seu acesso VIP foi liberado com sucesso!";
+    const btnUrl = (sc?.["payments"]?.approvedButtonUrl || "").trim();
+    const btnText = (sc?.["payments"]?.approvedButtonText || str(stepCfg, "button_text") || "🔓 Acessar VIP Agora").trim();
+    const replyMarkup =
+      btnUrl && /^https?:\/\//i.test(btnUrl)
+        ? { inline_keyboard: [[{ text: btnText, url: btnUrl }]] }
+        : undefined;
     let result: TelegramSendResult = { ok: false, error: "Lead sem Telegram ID" };
     if (bot?.token && lead?.telegram_id) {
       result = await sendMessage(
         bot.token,
         Number(lead.telegram_id),
         `✅ ${payment.success_message ?? "Pagamento confirmado!"}\n\n${content}`,
+        replyMarkup,
       );
     }
 
@@ -2105,6 +2275,7 @@ export async function deliverForPayment(paymentId: string) {
       flowId: flow.id,
       kind: "upsell",
     });
+    await dispatchConfiguredUpsells(bot.token, Number(lead.telegram_id), sc);
   }
 
   if (payment.lead_id) {
